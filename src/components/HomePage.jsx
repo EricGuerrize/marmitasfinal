@@ -1,7 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const HomePage = ({ onNavigate }) => {
   const [cnpj, setCnpj] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detecta se é mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Função para aplicar máscara de CNPJ
   const applyCnpjMask = (value) => {
@@ -83,19 +96,13 @@ const HomePage = ({ onNavigate }) => {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '10px 20px',
-        backgroundColor: 'white',
-        '@media (maxWidth: 768px)': {
-          padding: '10px 15px'
-        }
+        padding: isMobile ? '10px 15px' : '10px 20px',
+        backgroundColor: 'white'
       }}>
         <img 
           style={{ 
-            height: '60px',
-            cursor: 'pointer',
-            '@media (maxWidth: 768px)': {
-              height: '50px'
-            }
+            height: isMobile ? '50px' : '60px',
+            cursor: 'pointer'
           }}
           src="/assets/logo.jpg" 
           alt="Logo Fit In Box"
@@ -107,13 +114,12 @@ const HomePage = ({ onNavigate }) => {
           style={{
             backgroundColor: '#f38e3c',
             border: 'none',
-            padding: '10px 20px',
+            padding: isMobile ? '8px 12px' : '10px 20px',
             color: 'white',
             fontWeight: 'bold',
             borderRadius: '5px',
             cursor: 'pointer',
-            fontSize: window.innerWidth <= 768 ? '14px' : '16px',
-            padding: window.innerWidth <= 768 ? '8px 12px' : '10px 20px'
+            fontSize: isMobile ? '14px' : '16px'
           }}
         >
           MEUS PEDIDOS
@@ -123,10 +129,10 @@ const HomePage = ({ onNavigate }) => {
       {/* Hero Section */}
       <section style={{
         textAlign: 'center',
-        padding: window.innerWidth <= 768 ? '20px 15px' : '40px 20px'
+        padding: isMobile ? '30px 15px' : '40px 20px'
       }}>
         <h1 style={{
-          fontSize: window.innerWidth <= 768 ? '1.8em' : '2.5em',
+          fontSize: isMobile ? '2em' : '2.5em',
           fontWeight: 'normal',
           margin: 0,
           lineHeight: '1.2'
@@ -136,13 +142,13 @@ const HomePage = ({ onNavigate }) => {
         </h1>
         <p style={{
           marginTop: '20px',
-          fontSize: window.innerWidth <= 768 ? '1em' : '1.2em'
+          fontSize: isMobile ? '1.1em' : '1.2em'
         }}>
           ÁREA DO FORNECEDOR
         </p>
         <p style={{
-          fontSize: window.innerWidth <= 768 ? '1em' : '1.2em',
-          padding: window.innerWidth <= 768 ? '0 10px' : '0'
+          fontSize: isMobile ? '1.1em' : '1.2em',
+          margin: isMobile ? '10px 10px 0 10px' : '0'
         }}>
           Informe seu CNPJ para ter acesso à sua área exclusiva
         </p>
@@ -150,13 +156,12 @@ const HomePage = ({ onNavigate }) => {
         <div style={{
           margin: '30px auto',
           display: 'flex',
-          flexDirection: window.innerWidth <= 768 ? 'column' : 'row',
-          width: window.innerWidth <= 768 ? '90%' : '80%',
+          flexDirection: isMobile ? 'column' : 'row',
+          width: isMobile ? '95%' : '80%',
           maxWidth: '700px',
           backgroundColor: 'white',
           borderRadius: '10px',
-          overflow: 'hidden',
-          gap: window.innerWidth <= 768 ? '0' : '0'
+          overflow: 'hidden'
         }}>
           <input 
             type="text"
@@ -168,11 +173,11 @@ const HomePage = ({ onNavigate }) => {
             style={{
               flex: 1,
               border: 'none',
-              padding: window.innerWidth <= 768 ? '15px' : '15px',
+              padding: '15px',
               fontSize: '1em',
               outline: 'none',
               color: '#000',
-              borderBottom: window.innerWidth <= 768 ? '1px solid #eee' : 'none'
+              borderBottom: isMobile ? '1px solid #eee' : 'none'
             }}
           />
           <button 
@@ -180,12 +185,11 @@ const HomePage = ({ onNavigate }) => {
             style={{
               backgroundColor: '#f38e3c',
               border: 'none',
-              padding: window.innerWidth <= 768 ? '15px' : '15px 30px',
+              padding: isMobile ? '15px' : '15px 30px',
               color: 'white',
               fontSize: '1em',
               fontWeight: 'bold',
-              cursor: 'pointer',
-              minHeight: window.innerWidth <= 768 ? '50px' : 'auto'
+              cursor: 'pointer'
             }}
           >
             ACESSAR
@@ -195,27 +199,26 @@ const HomePage = ({ onNavigate }) => {
 
       {/* Info Section */}
       <section style={{
-        padding: window.innerWidth <= 768 ? '20px 15px' : '40px 20px',
+        padding: isMobile ? '30px 15px' : '40px 20px',
         textAlign: 'center'
       }}>
         <h2 style={{
-          fontSize: window.innerWidth <= 768 ? '1.5em' : '1.8em',
+          fontSize: isMobile ? '1.6em' : '1.8em',
           marginBottom: '30px'
         }}>
           Informações
         </h2>
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: window.innerWidth <= 768 
-            ? '1fr' 
-            : 'repeat(auto-fit, minmax(250px, 1fr))',
+          display: 'flex',
           justifyContent: 'center',
+          flexWrap: 'wrap',
           gap: '20px',
-          maxWidth: window.innerWidth <= 768 ? '300px' : 'none',
-          margin: window.innerWidth <= 768 ? '0 auto' : '0'
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'center' : 'stretch'
         }}>
           <div style={{
-            width: window.innerWidth <= 768 ? '100%' : '250px',
+            width: isMobile ? '100%' : '250px',
+            maxWidth: isMobile ? '300px' : '250px',
             backgroundColor: '#2f6e4a',
             borderRadius: '15px',
             padding: '15px',
@@ -227,9 +230,7 @@ const HomePage = ({ onNavigate }) => {
               alt="Individual"
               style={{
                 width: '100%',
-                borderRadius: '10px',
-                maxHeight: window.innerWidth <= 768 ? '120px' : 'none',
-                objectFit: 'cover'
+                borderRadius: '10px'
               }}
             />
             <h3 style={{
@@ -246,7 +247,8 @@ const HomePage = ({ onNavigate }) => {
           </div>
 
           <div style={{
-            width: window.innerWidth <= 768 ? '100%' : '250px',
+            width: isMobile ? '100%' : '250px',
+            maxWidth: isMobile ? '300px' : '250px',
             backgroundColor: '#2f6e4a',
             borderRadius: '15px',
             padding: '15px',
@@ -258,9 +260,7 @@ const HomePage = ({ onNavigate }) => {
               alt="Empresarial"
               style={{
                 width: '100%',
-                borderRadius: '10px',
-                maxHeight: window.innerWidth <= 768 ? '120px' : 'none',
-                objectFit: 'cover'
+                borderRadius: '10px'
               }}
             />
             <h3 style={{
@@ -277,7 +277,8 @@ const HomePage = ({ onNavigate }) => {
           </div>
 
           <div style={{
-            width: window.innerWidth <= 768 ? '100%' : '250px',
+            width: isMobile ? '100%' : '250px',
+            maxWidth: isMobile ? '300px' : '250px',
             backgroundColor: '#2f6e4a',
             borderRadius: '15px',
             padding: '15px',
@@ -289,9 +290,7 @@ const HomePage = ({ onNavigate }) => {
               alt="Fornecedores"
               style={{
                 width: '100%',
-                borderRadius: '10px',
-                maxHeight: window.innerWidth <= 768 ? '120px' : 'none',
-                objectFit: 'cover'
+                borderRadius: '10px'
               }}
             />
             <h3 style={{
