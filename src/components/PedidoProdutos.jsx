@@ -65,13 +65,27 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
     { id: 'gourmet', nome: 'Gourmet' }
   ];
 
-  useEffect(() => {
+// No PedidoProdutos.jsx, substitua o useEffect:
+useEffect(() => {
     // Recupera informações do sessionStorage
     const cnpj = sessionStorage.getItem('cnpj') || '';
     const empresa = sessionStorage.getItem('empresaInfo') || '';
     setCnpjInfo(`${empresa} - CNPJ: ${cnpj}`);
+  
+    // Carrega produtos do Supabase
+    const carregarProdutos = async () => {
+      try {
+        const produtos = await produtoService.listarProdutos();
+        setProdutosDisponiveis(produtos);
+      } catch (error) {
+        console.error('Erro ao carregar produtos:', error);
+        // Fallback para produtos padrão se der erro
+        setProdutosDisponiveis(produtosPadrao);
+      }
+    };
+  
+    carregarProdutos();
   }, []);
-
   // Filtra produtos por categoria (usando produtos disponíveis)
   const produtosFiltrados = selectedCategory === 'todos' 
     ? produtosDisponiveis 
