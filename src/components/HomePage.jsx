@@ -84,12 +84,18 @@ const HomePage = ({ onNavigate }) => {
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: '10px 20px',
-        backgroundColor: 'white'
+        backgroundColor: 'white',
+        '@media (maxWidth: 768px)': {
+          padding: '10px 15px'
+        }
       }}>
         <img 
           style={{ 
             height: '60px',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            '@media (maxWidth: 768px)': {
+              height: '50px'
+            }
           }}
           src="/assets/logo.jpg" 
           alt="Logo Fit In Box"
@@ -105,7 +111,9 @@ const HomePage = ({ onNavigate }) => {
             color: 'white',
             fontWeight: 'bold',
             borderRadius: '5px',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            fontSize: window.innerWidth <= 768 ? '14px' : '16px',
+            padding: window.innerWidth <= 768 ? '8px 12px' : '10px 20px'
           }}
         >
           MEUS PEDIDOS
@@ -115,24 +123,26 @@ const HomePage = ({ onNavigate }) => {
       {/* Hero Section */}
       <section style={{
         textAlign: 'center',
-        padding: '40px 20px'
+        padding: window.innerWidth <= 768 ? '20px 15px' : '40px 20px'
       }}>
         <h1 style={{
-          fontSize: '2.5em',
+          fontSize: window.innerWidth <= 768 ? '1.8em' : '2.5em',
           fontWeight: 'normal',
-          margin: 0
+          margin: 0,
+          lineHeight: '1.2'
         }}>
           Sua <strong>Alimentação</strong> <br /> 
           <strong>Nosso</strong> Compromisso
         </h1>
         <p style={{
           marginTop: '20px',
-          fontSize: '1.2em'
+          fontSize: window.innerWidth <= 768 ? '1em' : '1.2em'
         }}>
           ÁREA DO FORNECEDOR
         </p>
         <p style={{
-          fontSize: '1.2em'
+          fontSize: window.innerWidth <= 768 ? '1em' : '1.2em',
+          padding: window.innerWidth <= 768 ? '0 10px' : '0'
         }}>
           Informe seu CNPJ para ter acesso à sua área exclusiva
         </p>
@@ -140,11 +150,13 @@ const HomePage = ({ onNavigate }) => {
         <div style={{
           margin: '30px auto',
           display: 'flex',
-          width: '80%',
+          flexDirection: window.innerWidth <= 768 ? 'column' : 'row',
+          width: window.innerWidth <= 768 ? '90%' : '80%',
           maxWidth: '700px',
           backgroundColor: 'white',
           borderRadius: '10px',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          gap: window.innerWidth <= 768 ? '0' : '0'
         }}>
           <input 
             type="text"
@@ -156,10 +168,11 @@ const HomePage = ({ onNavigate }) => {
             style={{
               flex: 1,
               border: 'none',
-              padding: '15px',
+              padding: window.innerWidth <= 768 ? '15px' : '15px',
               fontSize: '1em',
               outline: 'none',
-              color: '#000'
+              color: '#000',
+              borderBottom: window.innerWidth <= 768 ? '1px solid #eee' : 'none'
             }}
           />
           <button 
@@ -167,11 +180,12 @@ const HomePage = ({ onNavigate }) => {
             style={{
               backgroundColor: '#f38e3c',
               border: 'none',
-              padding: '15px 30px',
+              padding: window.innerWidth <= 768 ? '15px' : '15px 30px',
               color: 'white',
               fontSize: '1em',
               fontWeight: 'bold',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              minHeight: window.innerWidth <= 768 ? '50px' : 'auto'
             }}
           >
             ACESSAR
@@ -181,23 +195,27 @@ const HomePage = ({ onNavigate }) => {
 
       {/* Info Section */}
       <section style={{
-        padding: '40px 20px',
+        padding: window.innerWidth <= 768 ? '20px 15px' : '40px 20px',
         textAlign: 'center'
       }}>
         <h2 style={{
-          fontSize: '1.8em',
+          fontSize: window.innerWidth <= 768 ? '1.5em' : '1.8em',
           marginBottom: '30px'
         }}>
           Informações
         </h2>
         <div style={{
-          display: 'flex',
+          display: 'grid',
+          gridTemplateColumns: window.innerWidth <= 768 
+            ? '1fr' 
+            : 'repeat(auto-fit, minmax(250px, 1fr))',
           justifyContent: 'center',
-          flexWrap: 'wrap',
-          gap: '20px'
+          gap: '20px',
+          maxWidth: window.innerWidth <= 768 ? '300px' : 'none',
+          margin: window.innerWidth <= 768 ? '0 auto' : '0'
         }}>
           <div style={{
-            width: '250px',
+            width: window.innerWidth <= 768 ? '100%' : '250px',
             backgroundColor: '#2f6e4a',
             borderRadius: '15px',
             padding: '15px',
@@ -209,7 +227,9 @@ const HomePage = ({ onNavigate }) => {
               alt="Individual"
               style={{
                 width: '100%',
-                borderRadius: '10px'
+                borderRadius: '10px',
+                maxHeight: window.innerWidth <= 768 ? '120px' : 'none',
+                objectFit: 'cover'
               }}
             />
             <h3 style={{
@@ -226,7 +246,7 @@ const HomePage = ({ onNavigate }) => {
           </div>
 
           <div style={{
-            width: '250px',
+            width: window.innerWidth <= 768 ? '100%' : '250px',
             backgroundColor: '#2f6e4a',
             borderRadius: '15px',
             padding: '15px',
@@ -238,7 +258,9 @@ const HomePage = ({ onNavigate }) => {
               alt="Empresarial"
               style={{
                 width: '100%',
-                borderRadius: '10px'
+                borderRadius: '10px',
+                maxHeight: window.innerWidth <= 768 ? '120px' : 'none',
+                objectFit: 'cover'
               }}
             />
             <h3 style={{
@@ -255,7 +277,7 @@ const HomePage = ({ onNavigate }) => {
           </div>
 
           <div style={{
-            width: '250px',
+            width: window.innerWidth <= 768 ? '100%' : '250px',
             backgroundColor: '#2f6e4a',
             borderRadius: '15px',
             padding: '15px',
@@ -267,7 +289,9 @@ const HomePage = ({ onNavigate }) => {
               alt="Fornecedores"
               style={{
                 width: '100%',
-                borderRadius: '10px'
+                borderRadius: '10px',
+                maxHeight: window.innerWidth <= 768 ? '120px' : 'none',
+                objectFit: 'cover'
               }}
             />
             <h3 style={{
