@@ -306,6 +306,44 @@ const HomePage = ({ onNavigate }) => {
             </p>
           </div>
         </div>
+
+        {/* Botão Admin discreto */}
+        <div style={{
+          marginTop: '40px',
+          display: 'flex',
+          justifyContent: 'center'
+        }}>
+          <button
+            onClick={() => {
+              const senha = prompt('Digite a senha do administrador:');
+              if (senha === 'admin123') {
+                onNavigate('admin');
+              } else if (senha !== null) {
+                alert('Senha incorreta!');
+              }
+            }}
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              color: 'rgba(255, 255, 255, 0.7)',
+              padding: '8px 16px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+              e.target.style.color = 'white';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+              e.target.style.color = 'rgba(255, 255, 255, 0.7)';
+            }}
+          >
+            ⚙️ Área Administrativa
+          </button>
+        </div>
       </section>
     </div>
   );

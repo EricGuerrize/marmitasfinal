@@ -28,6 +28,44 @@ const AdminPage = ({ onNavigate }) => {
 
   useEffect(() => {
     // Carrega produtos do localStorage (simulando backend)
+    loadProducts();
+    
+    // Carrega pedidos simulados
+    const pedidosSimulados = [
+      {
+        id: 1,
+        numero: 1001,
+        cliente: 'H Azevedo de Abreu',
+        cnpj: '05.336.475/0001-77',
+        total: 567.00,
+        status: 'confirmado',
+        data: new Date().toISOString(),
+        itens: [
+          { nome: 'Marmita Fitness Frango', quantidade: 15, preco: 18.90 },
+          { nome: 'Marmita Vegana', quantidade: 15, preco: 16.90 }
+        ]
+      },
+      {
+        id: 2,
+        numero: 1002,
+        cliente: 'Empresa ABC Ltda',
+        cnpj: '11.111.111/0001-11',
+        total: 954.00,
+        status: 'preparando',
+        data: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+        itens: [
+          { nome: 'Marmita Tradicional', quantidade: 30, preco: 15.90 },
+          { nome: 'Marmita Fitness Frango', quantidade: 30, preco: 18.90 }
+        ]
+      }
+    ];
+    setPedidos(pedidosSimulados);
+
+    // Calcula estatísticas
+    calcularEstatisticas(pedidosSimulados);
+  }, []);
+
+  const loadProducts = () => {
     const produtosSalvos = localStorage.getItem('adminProdutos');
     if (produtosSalvos) {
       setProdutos(JSON.parse(produtosSalvos));
@@ -68,41 +106,16 @@ const AdminPage = ({ onNavigate }) => {
       setProdutos(produtosIniciais);
       localStorage.setItem('adminProdutos', JSON.stringify(produtosIniciais));
     }
+  };
 
-    // Carrega pedidos simulados
-    const pedidosSimulados = [
-      {
-        id: 1,
-        numero: 1001,
-        cliente: 'H Azevedo de Abreu',
-        cnpj: '05.336.475/0001-77',
-        total: 567.00,
-        status: 'confirmado',
-        data: new Date().toISOString(),
-        itens: [
-          { nome: 'Marmita Fitness Frango', quantidade: 15, preco: 18.90 },
-          { nome: 'Marmita Vegana', quantidade: 15, preco: 16.90 }
-        ]
-      },
-      {
-        id: 2,
-        numero: 1002,
-        cliente: 'Empresa ABC Ltda',
-        cnpj: '11.111.111/0001-11',
-        total: 954.00,
-        status: 'preparando',
-        data: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-        itens: [
-          { nome: 'Marmita Tradicional', quantidade: 30, preco: 15.90 },
-          { nome: 'Marmita Fitness Frango', quantidade: 30, preco: 18.90 }
-        ]
-      }
-    ];
-    setPedidos(pedidosSimulados);
-
-    // Calcula estatísticas
-    calcularEstatisticas(pedidosSimulados);
-  }, []);
+  const saveProducts = (newProducts) => {
+    setProdutos(newProducts);
+    localStorage.setItem('adminProdutos', JSON.stringify(newProducts));
+    // Força re-render
+    setTimeout(() => {
+      loadProducts();
+    }, 100);
+  };
 
   const calcularEstatisticas = (pedidosList) => {
     const total = pedidosList.reduce((sum, pedido) => sum + pedido.total, 0);
@@ -122,6 +135,8 @@ const AdminPage = ({ onNavigate }) => {
   const handleProductSubmit = (e) => {
     e.preventDefault();
     
+    let produtosAtualizados;
+    
     if (editingProduct) {
       // Editar produto existente
       const novoProduto = {
@@ -131,13 +146,12 @@ const AdminPage = ({ onNavigate }) => {
         estoque: parseInt(productForm.estoque)
       };
       
-      const produtosAtualizados = produtos.map(p => 
+      produtosAtualizados = produtos.map(p => 
         p.id === editingProduct.id ? novoProduto : p
       );
       
-      setProdutos(produtosAtualizados);
-      localStorage.setItem('adminProdutos', JSON.stringify(produtosAtualizados));
       setEditingProduct(null);
+      alert('Produto atualizado com sucesso!');
     } else {
       // Adicionar novo produto
       const novoProduto = {
@@ -147,10 +161,11 @@ const AdminPage = ({ onNavigate }) => {
         estoque: parseInt(productForm.estoque)
       };
       
-      const produtosAtualizados = [...produtos, novoProduto];
-      setProdutos(produtosAtualizados);
-      localStorage.setItem('adminProdutos', JSON.stringify(produtosAtualizados));
+      produtosAtualizados = [...produtos, novoProduto];
+      alert('Produto adicionado com sucesso!');
     }
+    
+    saveProducts(produtosAtualizados);
     
     // Reset form
     setProductForm({
@@ -182,8 +197,8 @@ const AdminPage = ({ onNavigate }) => {
   const deleteProduct = (id) => {
     if (window.confirm('Tem certeza que deseja excluir este produto?')) {
       const produtosAtualizados = produtos.filter(p => p.id !== id);
-      setProdutos(produtosAtualizados);
-      localStorage.setItem('adminProdutos', JSON.stringify(produtosAtualizados));
+      saveProducts(produtosAtualizados);
+      alert('Produto excluído com sucesso!');
     }
   };
 
@@ -191,8 +206,10 @@ const AdminPage = ({ onNavigate }) => {
     const produtosAtualizados = produtos.map(p => 
       p.id === id ? { ...p, disponivel: !p.disponivel } : p
     );
-    setProdutos(produtosAtualizados);
-    localStorage.setItem('adminProdutos', JSON.stringify(produtosAtualizados));
+    saveProducts(produtosAtualizados);
+    
+    const produto = produtos.find(p => p.id === id);
+    alert(`Produto ${produto.disponivel ? 'desativado' : 'ativado'} com sucesso!`);
   };
 
   const logout = () => {

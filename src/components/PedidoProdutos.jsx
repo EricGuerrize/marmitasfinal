@@ -71,10 +71,10 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
     setCnpjInfo(`${empresa} - CNPJ: ${cnpj}`);
   }, []);
 
-  // Filtra produtos por categoria
+  // Filtra produtos por categoria (usando produtos dinâmicos)
   const produtosFiltrados = selectedCategory === 'todos' 
-    ? produtos 
-    : produtos.filter(produto => produto.categoria === selectedCategory);
+    ? produtosDinamicos 
+    : produtosDinamicos.filter(produto => produto.categoria === selectedCategory);
 
   const irParaCarrinho = () => {
     onNavigate('carrinho');
