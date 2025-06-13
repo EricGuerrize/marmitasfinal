@@ -3,8 +3,9 @@ import React, { useState, useEffect } from 'react';
 const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQuantidadeTotal }) => {
   const [cnpjInfo, setCnpjInfo] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
+  const [produtosDisponiveis, setProdutosDisponiveis] = useState([]);
 
-  // Produtos de exemplo
+  // Produtos de exemplo (fallback)
   const produtos = [
     {
       id: 1,
@@ -71,10 +72,10 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
     setCnpjInfo(`${empresa} - CNPJ: ${cnpj}`);
   }, []);
 
-  // Filtra produtos por categoria (usando produtos dinâmicos)
+  // Filtra produtos por categoria (usando produtos disponíveis)
   const produtosFiltrados = selectedCategory === 'todos' 
-    ? produtosDinamicos 
-    : produtosDinamicos.filter(produto => produto.categoria === selectedCategory);
+    ? produtosDisponiveis 
+    : produtosDisponiveis.filter(produto => produto.categoria === selectedCategory);
 
   const irParaCarrinho = () => {
     onNavigate('carrinho');
