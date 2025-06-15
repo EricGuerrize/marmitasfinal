@@ -1,115 +1,215 @@
 import React, { useState, useEffect } from 'react';
-import { produtoService } from '../services/produtoService';
 
-const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQuantidadeTotal }) => {
+const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, limparCarrinho, calcularQuantidadeTotal }) => {
   const [cnpjInfo, setCnpjInfo] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('todos');
-  const [produtosDisponiveis, setProdutosDisponiveis] = useState([]);
-
-  // Produtos de exemplo (fallback)
-  const produtos = [
-    {
-      id: 1,
-      nome: 'Marmita Fitness Frango',
-      descricao: 'Peito de frango grelhado, arroz integral, brócolis e cenoura',
-      preco: 18.90,
-      categoria: 'fitness',
-      imagem: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=200&fit=crop',
-      disponivel: true
-    },
-    {
-      id: 2,
-      nome: 'Marmita Vegana',
-      descricao: 'Quinoa, grão-de-bico, abobrinha refogada e salada verde',
-      preco: 16.90,
-      categoria: 'vegana',
-      imagem: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=200&fit=crop',
-      disponivel: true
-    },
-    {
-      id: 3,
-      nome: 'Marmita Tradicional',
-      descricao: 'Bife acebolado, arroz, feijão, farofa e salada',
-      preco: 15.90,
-      categoria: 'tradicional',
-      imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=300&h=200&fit=crop',
-      disponivel: true
-    },
-    {
-      id: 4,
-      nome: 'Marmita Low Carb',
-      descricao: 'Salmão grelhado, couve-flor gratinada e aspargos',
-      preco: 22.90,
-      categoria: 'fitness',
-      imagem: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=300&h=200&fit=crop',
-      disponivel: true
-    },
-    {
-      id: 5,
-      nome: 'Marmita do Chef',
-      descricao: 'Risotto de camarão com legumes e ervas finas',
-      preco: 28.90,
-      categoria: 'gourmet',
-      imagem: 'https://images.unsplash.com/photo-1563379091339-03246963d96c?w=300&h=200&fit=crop',
-      disponivel: true
-    },
-    {
-      id: 6,
-      nome: 'Marmita Vegetariana',
-      descricao: 'Lasanha de berinjela, salada de rúcula e tomate seco',
-      preco: 17.90,
-      categoria: 'vegana',
-      imagem: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=300&h=200&fit=crop',
-      disponivel: true
-    }
-  ];
-
-  const categorias = [
-    { id: 'todos', nome: 'Todos os Produtos' },
-    { id: 'fitness', nome: 'Fitness' },
-    { id: 'vegana', nome: 'Vegana/Vegetariana' },
-    { id: 'tradicional', nome: 'Tradicional' },
-    { id: 'gourmet', nome: 'Gourmet' }
-  ];
+  const [observacoes, setObservacoes] = useState('');
+  
+  // Estados para endereço formatado
+  const [endereco, setEndereco] = useState({
+    rua: '',
+    numero: '',
+    bairro: '',
+    cep: '',
+    cidade: '',
+    estado: 'SP',
+    referencia: ''
+  });
 
   useEffect(() => {
     // Recupera informações do sessionStorage
     const cnpj = sessionStorage.getItem('cnpj') || '';
     const empresa = sessionStorage.getItem('empresaInfo') || '';
     setCnpjInfo(`${empresa} - CNPJ: ${cnpj}`);
-
-    // Carrega produtos do Supabase ou usa produtos padrão
-    const carregarProdutos = async () => {
-      try {
-        const produtosSupabase = await produtoService.listarProdutos();
-        if (produtosSupabase && produtosSupabase.length > 0) {
-          setProdutosDisponiveis(produtosSupabase);
-        } else {
-          // Se não conseguir carregar do Supabase, usa produtos padrão
-          setProdutosDisponiveis(produtos);
-        }
-      } catch (error) {
-        console.error('Erro ao carregar produtos do Supabase:', error);
-        // Fallback para produtos padrão se der erro
-        setProdutosDisponiveis(produtos);
-      }
-    };
-
-    carregarProdutos();
   }, []);
 
-  // Filtra produtos por categoria (usando produtos disponíveis ou padrão)
-  const produtosFiltrados = selectedCategory === 'todos' 
-    ? produtosDisponiveis 
-    : produtosDisponiveis.filter(produto => produto.categoria === selectedCategory);
-
-  const irParaCarrinho = () => {
-    onNavigate('carrinho');
+  const calcularSubtotal = () => {
+    return carrinho.reduce((total, item) => total + (item.preco * item.quantidade), 0);
   };
 
-  const voltarProsseguir = () => {
-    onNavigate('prosseguir');
+  const calcularTaxaEntrega = () => {
+    const subtotal = calcularSubtotal();
+    return subtotal > 50 ? 0 : 5.00; // Frete grátis acima de R$ 50
   };
+
+  const calcularTotal = () => {
+    return calcularSubtotal() + calcularTaxaEntrega();
+  };
+
+  const validarEndereco = () => {
+    if (!endereco.rua.trim()) {
+      alert('Por favor, informe a rua!');
+      return false;
+    }
+    if (!endereco.numero.trim()) {
+      alert('Por favor, informe o número!');
+      return false;
+    }
+    if (!endereco.bairro.trim()) {
+      alert('Por favor, informe o bairro!');
+      return false;
+    }
+    if (!endereco.cep.trim()) {
+      alert('Por favor, informe o CEP!');
+      return false;
+    }
+    if (!endereco.cidade.trim()) {
+      alert('Por favor, informe a cidade!');
+      return false;
+    }
+    return true;
+  };
+
+  const formatarEnderecoCompleto = () => {
+    return `${endereco.rua}, ${endereco.numero} - ${endereco.bairro}, ${endereco.cidade}/${endereco.estado} - CEP: ${endereco.cep}${endereco.referencia ? ` - Ref: ${endereco.referencia}` : ''}`;
+  };
+
+  const finalizarPedido = () => {
+    if (carrinho.length === 0) {
+      alert('Carrinho está vazio!');
+      return;
+    }
+
+    const quantidadeTotal = calcularQuantidadeTotal();
+    if (quantidadeTotal < 30) {
+      alert(`Pedido mínimo de 30 marmitas. Você tem ${quantidadeTotal} marmita(s). Adicione mais ${30 - quantidadeTotal} marmita(s).`);
+      return;
+    }
+
+    if (!validarEndereco()) {
+      return;
+    }
+
+    // Salva dados do pedido
+    const pedido = {
+      itens: carrinho,
+      subtotal: calcularSubtotal(),
+      taxaEntrega: calcularTaxaEntrega(),
+      total: calcularTotal(),
+      observacoes,
+      enderecoEntrega: formatarEnderecoCompleto(),
+      data: new Date().toISOString(),
+      numero: Math.floor(Math.random() * 10000) + 1000
+    };
+
+    sessionStorage.setItem('pedidoAtual', JSON.stringify(pedido));
+    onNavigate('checkout');
+  };
+
+  const continuarComprando = () => {
+    onNavigate('pedido-produtos');
+  };
+
+  const confirmarLimparCarrinho = () => {
+    if (window.confirm('Tem certeza que deseja limpar o carrinho?')) {
+      limparCarrinho();
+    }
+  };
+
+  const handleEnderecoChange = (campo, valor) => {
+    if (campo === 'cep') {
+      // Máscara para CEP
+      valor = valor.replace(/\D/g, '').replace(/(\d{5})(\d)/, '$1-$2');
+      if (valor.length > 9) valor = valor.substring(0, 9);
+    }
+    
+    setEndereco(prev => ({
+      ...prev,
+      [campo]: valor
+    }));
+  };
+
+  if (carrinho.length === 0) {
+    return (
+      <div style={{
+        margin: 0,
+        fontFamily: 'Arial, sans-serif',
+        backgroundColor: '#f5f5f5',
+        minHeight: '100vh'
+      }}>
+        {/* Header */}
+        <div style={{
+          background: 'white',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '10px 40px',
+          borderBottom: '1px solid #ccc'
+        }}>
+          <img 
+            style={{ height: '60px' }}
+            src="/assets/logo.jpg" 
+            alt="Logo Fit In Box"
+          />
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '20px'
+          }}>
+            <span style={{
+              fontWeight: 'bold',
+              color: '#009245',
+              fontSize: '14px'
+            }}>
+              {cnpjInfo}
+            </span>
+            <button 
+              onClick={continuarComprando}
+              style={{
+                padding: '10px 20px',
+                borderRadius: '5px',
+                color: 'white',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                border: 'none',
+                backgroundColor: '#009245'
+              }}
+            >
+              VOLTAR AOS PRODUTOS
+            </button>
+          </div>
+        </div>
+
+        {/* Carrinho Vazio */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: 'calc(100vh - 80px)',
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '60px',
+            borderRadius: '10px',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+            textAlign: 'center',
+            maxWidth: '500px'
+          }}>
+            <div style={{ fontSize: '80px', marginBottom: '20px' }}>🛒</div>
+            <h2 style={{ color: '#666', marginBottom: '20px' }}>Seu carrinho está vazio</h2>
+            <p style={{ color: '#999', marginBottom: '30px' }}>
+              Adicione alguns produtos deliciosos para continuar!
+            </p>
+            <button
+              onClick={continuarComprando}
+              style={{
+                backgroundColor: '#009245',
+                color: 'white',
+                border: 'none',
+                padding: '15px 30px',
+                borderRadius: '5px',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              Ver Produtos
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -125,10 +225,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: '10px 40px',
-        borderBottom: '1px solid #ccc',
-        position: 'sticky',
-        top: 0,
-        zIndex: 100
+        borderBottom: '1px solid #ccc'
       }}>
         <img 
           style={{ height: '60px' }}
@@ -148,22 +245,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
             {cnpjInfo}
           </span>
           <button 
-            onClick={irParaCarrinho}
-            style={{
-              padding: '10px 20px',
-              borderRadius: '5px',
-              color: 'white',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              border: 'none',
-              backgroundColor: '#f38e3c',
-              position: 'relative'
-            }}
-          >
-            🛒 CARRINHO ({calcularQuantidadeTotal()})
-          </button>
-          <button 
-            onClick={voltarProsseguir}
+            onClick={continuarComprando}
             style={{
               padding: '10px 20px',
               borderRadius: '5px',
@@ -174,216 +256,504 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
               backgroundColor: '#009245'
             }}
           >
-            VOLTAR
+            CONTINUAR COMPRANDO
           </button>
         </div>
       </div>
 
       {/* Container Principal */}
       <div style={{
-        maxWidth: '1200px',
+        maxWidth: '1000px',
         margin: '0 auto',
-        padding: '20px'
+        padding: '20px',
+        display: 'grid',
+        gridTemplateColumns: '2fr 1fr',
+        gap: '30px'
       }}>
-        {/* Título */}
-        <div style={{
-          textAlign: 'center',
-          marginBottom: '30px'
-        }}>
-          <h1 style={{
-            color: '#009245',
-            fontSize: '32px',
-            marginBottom: '10px'
+        {/* Coluna Esquerda - Itens do Carrinho */}
+        <div>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px'
           }}>
-            🍽️ Nossos Produtos
-          </h1>
-          <p style={{
-            color: '#666',
-            fontSize: '16px'
-          }}>
-            Escolha suas marmitas saudáveis e saborosas
-          </p>
-        </div>
-
-        {/* Filtros de Categoria */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          flexWrap: 'wrap',
-          gap: '10px',
-          marginBottom: '30px'
-        }}>
-          {categorias.map(categoria => (
+            <h1 style={{ color: '#009245', margin: 0 }}>
+              🛒 Meu Carrinho ({calcularQuantidadeTotal()} marmitas)
+            </h1>
             <button
-              key={categoria.id}
-              onClick={() => setSelectedCategory(categoria.id)}
+              onClick={confirmarLimparCarrinho}
               style={{
-                padding: '10px 20px',
-                border: '2px solid #009245',
-                borderRadius: '25px',
-                backgroundColor: selectedCategory === categoria.id ? '#009245' : 'white',
-                color: selectedCategory === categoria.id ? 'white' : '#009245',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease'
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                padding: '8px 15px',
+                borderRadius: '5px',
+                fontSize: '14px',
+                cursor: 'pointer'
               }}
             >
-              {categoria.nome}
+              Limpar Carrinho
             </button>
-          ))}
-        </div>
-
-        {/* Loading ou mensagem se não tem produtos */}
-        {produtosDisponiveis.length === 0 && (
-          <div style={{
-            textAlign: 'center',
-            padding: '50px',
-            color: '#666'
-          }}>
-            <div style={{ fontSize: '48px', marginBottom: '20px' }}>🍽️</div>
-            <h3>Carregando produtos...</h3>
-            <p>Aguarde enquanto carregamos nosso delicioso cardápio!</p>
           </div>
-        )}
 
-        {/* Grid de Produtos */}
-        {produtosDisponiveis.length > 0 && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: '20px',
-            marginBottom: '40px'
-          }}>
-            {produtosFiltrados.map(produto => (
+          {/* Lista de Itens */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {carrinho.map(item => (
               <div
-                key={produto.id}
+                key={item.id}
                 style={{
                   backgroundColor: 'white',
+                  padding: '20px',
                   borderRadius: '10px',
-                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                  overflow: 'hidden',
-                  transition: 'transform 0.3s ease'
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  display: 'flex',
+                  gap: '15px',
+                  alignItems: 'center'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
               >
-                {/* Imagem do Produto */}
                 <img
-                  src={produto.imagem}
-                  alt={produto.nome}
+                  src={item.imagem}
+                  alt={item.nome}
                   style={{
-                    width: '100%',
-                    height: '200px',
-                    objectFit: 'cover'
+                    width: '80px',
+                    height: '80px',
+                    objectFit: 'cover',
+                    borderRadius: '5px'
                   }}
                 />
                 
-                {/* Conteúdo do Card */}
-                <div style={{ padding: '20px' }}>
-                  <h3 style={{
-                    color: '#009245',
-                    fontSize: '18px',
-                    marginBottom: '10px'
-                  }}>
-                    {produto.nome}
-                  </h3>
-                  
-                  <p style={{
-                    color: '#666',
-                    fontSize: '14px',
-                    lineHeight: '1.4',
-                    marginBottom: '15px'
-                  }}>
-                    {produto.descricao}
+                <div style={{ flex: 1 }}>
+                  <h3 style={{ color: '#009245', margin: '0 0 5px 0' }}>{item.nome}</h3>
+                  <p style={{ color: '#666', fontSize: '14px', margin: '0 0 10px 0' }}>
+                    {item.descricao}
                   </p>
-                  
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}>
-                    <span style={{
-                      fontSize: '24px',
-                      fontWeight: 'bold',
-                      color: '#009245'
-                    }}>
-                      R$ {produto.preco.toFixed(2)}
-                    </span>
-                    
-                    <button
-                      onClick={() => adicionarAoCarrinho(produto)}
-                      style={{
-                        backgroundColor: '#f38e3c',
-                        color: 'white',
-                        border: 'none',
-                        padding: '12px 20px',
-                        borderRadius: '5px',
-                        fontWeight: 'bold',
-                        cursor: 'pointer',
-                        fontSize: '14px'
-                      }}
-                    >
-                      + Adicionar
-                    </button>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#009245' }}>
+                    R$ {item.preco.toFixed(2)}
                   </div>
                 </div>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <button
+                    onClick={() => atualizarQuantidade(item.id, item.quantidade - 1)}
+                    style={{
+                      backgroundColor: '#dc3545',
+                      color: 'white',
+                      border: 'none',
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '50%',
+                      cursor: 'pointer',
+                      fontSize: '16px'
+                    }}
+                  >
+                    -
+                  </button>
+                  
+                  <span style={{
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    minWidth: '30px',
+                    textAlign: 'center'
+                  }}>
+                    {item.quantidade}
+                  </span>
+                  
+                  <button
+                    onClick={() => atualizarQuantidade(item.id, item.quantidade + 1)}
+                    style={{
+                      backgroundColor: '#28a745',
+                      color: 'white',
+                      border: 'none',
+                      width: '30px',
+                      height: '30px',
+                      borderRadius: '50%',
+                      cursor: 'pointer',
+                      fontSize: '16px'
+                    }}
+                  >
+                    +
+                  </button>
+                </div>
+
+                <div style={{
+                  fontSize: '20px',
+                  fontWeight: 'bold',
+                  color: '#009245',
+                  minWidth: '80px',
+                  textAlign: 'right'
+                }}>
+                  R$ {(item.preco * item.quantidade).toFixed(2)}
+                </div>
+
+                <button
+                  onClick={() => removerItem(item.id)}
+                  style={{
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    color: '#dc3545',
+                    fontSize: '20px',
+                    cursor: 'pointer',
+                    padding: '5px'
+                  }}
+                >
+                  🗑️
+                </button>
               </div>
             ))}
           </div>
-        )}
 
-        {/* Mensagem se categoria não tem produtos */}
-        {produtosDisponiveis.length > 0 && produtosFiltrados.length === 0 && (
+          {/* Endereço de Entrega Formatado */}
           <div style={{
-            textAlign: 'center',
-            padding: '50px',
-            color: '#666'
-          }}>
-            <div style={{ fontSize: '48px', marginBottom: '20px' }}>🔍</div>
-            <h3>Nenhum produto encontrado</h3>
-            <p>Não há produtos disponíveis nesta categoria no momento.</p>
-          </div>
-        )}
-
-        {/* Resumo do Carrinho */}
-        {calcularQuantidadeTotal() > 0 && (
-          <div style={{
-            backgroundColor: '#009245',
-            color: 'white',
+            backgroundColor: 'white',
             padding: '20px',
             borderRadius: '10px',
-            textAlign: 'center',
-            position: 'sticky',
-            bottom: '20px'
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            marginTop: '20px'
           }}>
-            <p style={{ margin: '0 0 10px 0', fontSize: '16px' }}>
-              🛒 {calcularQuantidadeTotal()} marmita(s) no carrinho
-              {calcularQuantidadeTotal() < 30 && (
-                <span style={{ display: 'block', fontSize: '14px', marginTop: '5px' }}>
-                  ⚠️ Mínimo: 30 marmitas (faltam {30 - calcularQuantidadeTotal()})
-                </span>
-              )}
-            </p>
-            <button
-              onClick={irParaCarrinho}
+            <h3 style={{ color: '#009245', marginBottom: '15px' }}>📍 Endereço de Entrega</h3>
+            
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '2fr 1fr',
+              gap: '15px',
+              marginBottom: '15px'
+            }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                  Rua/Avenida *
+                </label>
+                <input
+                  type="text"
+                  value={endereco.rua}
+                  onChange={(e) => handleEnderecoChange('rua', e.target.value)}
+                  placeholder="Ex: Rua das Flores"
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ddd',
+                    borderRadius: '5px',
+                    fontSize: '14px'
+                  }}
+                  required
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                  Número *
+                </label>
+                <input
+                  type="text"
+                  value={endereco.numero}
+                  onChange={(e) => handleEnderecoChange('numero', e.target.value)}
+                  placeholder="Ex: 123"
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ddd',
+                    borderRadius: '5px',
+                    fontSize: '14px'
+                  }}
+                  required
+                />
+              </div>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '15px',
+              marginBottom: '15px'
+            }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                  Bairro *
+                </label>
+                <input
+                  type="text"
+                  value={endereco.bairro}
+                  onChange={(e) => handleEnderecoChange('bairro', e.target.value)}
+                  placeholder="Ex: Centro"
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ddd',
+                    borderRadius: '5px',
+                    fontSize: '14px'
+                  }}
+                  required
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                  CEP *
+                </label>
+                <input
+                  type="text"
+                  value={endereco.cep}
+                  onChange={(e) => handleEnderecoChange('cep', e.target.value)}
+                  placeholder="00000-000"
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ddd',
+                    borderRadius: '5px',
+                    fontSize: '14px'
+                  }}
+                  required
+                />
+              </div>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '2fr 1fr',
+              gap: '15px',
+              marginBottom: '15px'
+            }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                  Cidade *
+                </label>
+                <input
+                  type="text"
+                  value={endereco.cidade}
+                  onChange={(e) => handleEnderecoChange('cidade', e.target.value)}
+                  placeholder="Ex: São Paulo"
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ddd',
+                    borderRadius: '5px',
+                    fontSize: '14px'
+                  }}
+                  required
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                  Estado *
+                </label>
+                <select
+                  value={endereco.estado}
+                  onChange={(e) => handleEnderecoChange('estado', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ddd',
+                    borderRadius: '5px',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value="SP">SP</option>
+                  <option value="RJ">RJ</option>
+                  <option value="MG">MG</option>
+                  <option value="SC">SC</option>
+                  <option value="PR">PR</option>
+                  <option value="RS">RS</option>
+                  <option value="GO">GO</option>
+                  <option value="MT">MT</option>
+                  <option value="MS">MS</option>
+                  <option value="DF">DF</option>
+                  <option value="ES">ES</option>
+                  <option value="BA">BA</option>
+                  <option value="SE">SE</option>
+                  <option value="AL">AL</option>
+                  <option value="PE">PE</option>
+                  <option value="PB">PB</option>
+                  <option value="RN">RN</option>
+                  <option value="CE">CE</option>
+                  <option value="PI">PI</option>
+                  <option value="MA">MA</option>
+                  <option value="PA">PA</option>
+                  <option value="AP">AP</option>
+                  <option value="AM">AM</option>
+                  <option value="RR">RR</option>
+                  <option value="AC">AC</option>
+                  <option value="RO">RO</option>
+                  <option value="TO">TO</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                Referência (opcional)
+              </label>
+              <input
+                type="text"
+                value={endereco.referencia}
+                onChange={(e) => handleEnderecoChange('referencia', e.target.value)}
+                placeholder="Ex: Próximo ao shopping, portão azul..."
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ddd',
+                  borderRadius: '5px',
+                  fontSize: '14px'
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Observações */}
+          <div style={{
+            backgroundColor: 'white',
+            padding: '20px',
+            borderRadius: '10px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            marginTop: '15px'
+          }}>
+            <h3 style={{ color: '#009245', marginBottom: '15px' }}>💬 Observações (opcional)</h3>
+            <textarea
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+              placeholder="Alguma observação especial para seu pedido?"
               style={{
-                backgroundColor: '#f38e3c',
+                width: '100%',
+                height: '60px',
+                padding: '10px',
+                border: '1px solid #ddd',
+                borderRadius: '5px',
+                fontSize: '14px',
+                resize: 'vertical'
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Coluna Direita - Resumo do Pedido */}
+        <div>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '25px',
+            borderRadius: '10px',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+            position: 'sticky',
+            top: '20px'
+          }}>
+            <h2 style={{ color: '#009245', marginBottom: '20px' }}>📊 Resumo do Pedido</h2>
+            
+            {/* Aviso pedido mínimo */}
+            <div style={{
+              backgroundColor: calcularQuantidadeTotal() < 30 ? '#fff3cd' : '#d4edda',
+              padding: '15px',
+              borderRadius: '5px',
+              fontSize: '14px',
+              color: calcularQuantidadeTotal() < 30 ? '#856404' : '#155724',
+              marginBottom: '20px',
+              border: `1px solid ${calcularQuantidadeTotal() < 30 ? '#ffeaa7' : '#c3e6cb'}`
+            }}>
+              <strong>
+                {calcularQuantidadeTotal() < 30 ? '⚠️' : '✅'} Pedido mínimo: 30 marmitas
+              </strong>
+              <br />
+              Você tem: {calcularQuantidadeTotal()} marmita(s)
+              {calcularQuantidadeTotal() < 30 && (
+                <>
+                  <br />
+                  <strong>Faltam: {30 - calcularQuantidadeTotal()} marmita(s)</strong>
+                </>
+              )}
+            </div>
+            
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: '10px',
+              fontSize: '16px'
+            }}>
+              <span>Subtotal:</span>
+              <span>R$ {calcularSubtotal().toFixed(2)}</span>
+            </div>
+            
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: '15px',
+              fontSize: '16px'
+            }}>
+              <span>Taxa de entrega:</span>
+              <span style={{ color: calcularTaxaEntrega() === 0 ? '#28a745' : '#000' }}>
+                {calcularTaxaEntrega() === 0 ? 'GRÁTIS' : `R$ ${calcularTaxaEntrega().toFixed(2)}`}
+              </span>
+            </div>
+
+            {calcularSubtotal() < 50 && (
+              <div style={{
+                backgroundColor: '#fff3cd',
+                padding: '10px',
+                borderRadius: '5px',
+                fontSize: '14px',
+                color: '#856404',
+                marginBottom: '15px'
+              }}>
+                💡 Frete grátis em pedidos acima de R$ 50,00
+              </div>
+            )}
+            
+            <hr style={{ margin: '15px 0', border: '1px solid #eee' }} />
+            
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: '20px',
+              fontWeight: 'bold',
+              color: '#009245',
+              marginBottom: '25px'
+            }}>
+              <span>Total:</span>
+              <span>R$ {calcularTotal().toFixed(2)}</span>
+            </div>
+            
+            <button
+              onClick={finalizarPedido}
+              disabled={calcularQuantidadeTotal() < 30}
+              style={{
+                backgroundColor: calcularQuantidadeTotal() < 30 ? '#ccc' : '#f38e3c',
                 color: 'white',
                 border: 'none',
-                padding: '15px 30px',
+                padding: '15px',
+                width: '100%',
                 borderRadius: '5px',
+                fontSize: '18px',
                 fontWeight: 'bold',
-                cursor: 'pointer',
-                fontSize: '16px'
+                cursor: calcularQuantidadeTotal() < 30 ? 'not-allowed' : 'pointer',
+                marginBottom: '10px',
+                opacity: calcularQuantidadeTotal() < 30 ? 0.6 : 1
               }}
             >
-              Ver Carrinho e Finalizar Pedido
+              {calcularQuantidadeTotal() < 30 ? 'Pedido Mínimo: 30 Marmitas' : 'Finalizar Pedido'}
+            </button>
+            
+            <button
+              onClick={continuarComprando}
+              style={{
+                backgroundColor: 'transparent',
+                color: '#009245',
+                border: '2px solid #009245',
+                padding: '12px',
+                width: '100%',
+                borderRadius: '5px',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              Continuar Comprando
             </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
 };
 
-export default PedidoProdutos;
+export default CarrinhoPage;

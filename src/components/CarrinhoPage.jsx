@@ -3,14 +3,39 @@ import React, { useState, useEffect } from 'react';
 const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, limparCarrinho, calcularQuantidadeTotal }) => {
   const [cnpjInfo, setCnpjInfo] = useState('');
   const [observacoes, setObservacoes] = useState('');
-  const [enderecoEntrega, setEnderecoEntrega] = useState('');
+  
+  // Estados para endereço formatado
+  const [endereco, setEndereco] = useState({
+    rua: '',
+    numero: '',
+    bairro: '',
+    cep: '',
+    cidade: '',
+    estado: 'SP',
+    referencia: ''
+  });
 
   useEffect(() => {
     // Recupera informações do sessionStorage
     const cnpj = sessionStorage.getItem('cnpj') || '';
     const empresa = sessionStorage.getItem('empresaInfo') || '';
     setCnpjInfo(`${empresa} - CNPJ: ${cnpj}`);
-  }, []);
+    
+    // Intercepta o botão voltar do navegador
+    const handlePopState = (event) => {
+      event.preventDefault();
+      onNavigate('pedido-produtos');
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    
+    // Adiciona uma entrada no histórico para interceptar o botão voltar
+    window.history.pushState(null, '', window.location.href);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [onNavigate]);
 
   const calcularSubtotal = () => {
     return carrinho.reduce((total, item) => total + (item.preco * item.quantidade), 0);
@@ -25,6 +50,34 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     return calcularSubtotal() + calcularTaxaEntrega();
   };
 
+  const validarEndereco = () => {
+    if (!endereco.rua.trim()) {
+      alert('Por favor, informe a rua!');
+      return false;
+    }
+    if (!endereco.numero.trim()) {
+      alert('Por favor, informe o número!');
+      return false;
+    }
+    if (!endereco.bairro.trim()) {
+      alert('Por favor, informe o bairro!');
+      return false;
+    }
+    if (!endereco.cep.trim()) {
+      alert('Por favor, informe o CEP!');
+      return false;
+    }
+    if (!endereco.cidade.trim()) {
+      alert('Por favor, informe a cidade!');
+      return false;
+    }
+    return true;
+  };
+
+  const formatarEnderecoCompleto = () => {
+    return `${endereco.rua}, ${endereco.numero} - ${endereco.bairro}, ${endereco.cidade}/${endereco.estado} - CEP: ${endereco.cep}${endereco.referencia ? ` - Ref: ${endereco.referencia}` : ''}`;
+  };
+
   const finalizarPedido = () => {
     if (carrinho.length === 0) {
       alert('Carrinho está vazio!');
@@ -37,8 +90,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       return;
     }
 
-    if (!enderecoEntrega.trim()) {
-      alert('Por favor, informe o endereço de entrega!');
+    if (!validarEndereco()) {
       return;
     }
 
@@ -49,7 +101,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       taxaEntrega: calcularTaxaEntrega(),
       total: calcularTotal(),
       observacoes,
-      enderecoEntrega,
+      enderecoEntrega: formatarEnderecoCompleto(),
       data: new Date().toISOString(),
       numero: Math.floor(Math.random() * 10000) + 1000
     };
@@ -66,6 +118,19 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     if (window.confirm('Tem certeza que deseja limpar o carrinho?')) {
       limparCarrinho();
     }
+  };
+
+  const handleEnderecoChange = (campo, valor) => {
+    if (campo === 'cep') {
+      // Máscara para CEP
+      valor = valor.replace(/\D/g, '').replace(/(\d{5})(\d)/, '$1-$2');
+      if (valor.length > 9) valor = valor.substring(0, 9);
+    }
+    
+    setEndereco(prev => ({
+      ...prev,
+      [campo]: valor
+    }));
   };
 
   if (carrinho.length === 0) {
@@ -357,7 +422,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             ))}
           </div>
 
-          {/* Endereço de Entrega */}
+          {/* Endereço de Entrega Formatado */}
           <div style={{
             backgroundColor: 'white',
             padding: '20px',
@@ -366,21 +431,191 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             marginTop: '20px'
           }}>
             <h3 style={{ color: '#009245', marginBottom: '15px' }}>📍 Endereço de Entrega</h3>
-            <textarea
-              value={enderecoEntrega}
-              onChange={(e) => setEnderecoEntrega(e.target.value)}
-              placeholder="Digite o endereço completo para entrega..."
-              style={{
-                width: '100%',
-                height: '80px',
-                padding: '10px',
-                border: '1px solid #ddd',
-                borderRadius: '5px',
-                fontSize: '14px',
-                resize: 'vertical'
-              }}
-              required
-            />
+            
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '2fr 1fr',
+              gap: '15px',
+              marginBottom: '15px'
+            }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                  Rua/Avenida *
+                </label>
+                <input
+                  type="text"
+                  value={endereco.rua}
+                  onChange={(e) => handleEnderecoChange('rua', e.target.value)}
+                  placeholder="Ex: Rua das Flores"
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ddd',
+                    borderRadius: '5px',
+                    fontSize: '14px'
+                  }}
+                  required
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                  Número *
+                </label>
+                <input
+                  type="text"
+                  value={endereco.numero}
+                  onChange={(e) => handleEnderecoChange('numero', e.target.value)}
+                  placeholder="Ex: 123"
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ddd',
+                    borderRadius: '5px',
+                    fontSize: '14px'
+                  }}
+                  required
+                />
+              </div>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '15px',
+              marginBottom: '15px'
+            }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                  Bairro *
+                </label>
+                <input
+                  type="text"
+                  value={endereco.bairro}
+                  onChange={(e) => handleEnderecoChange('bairro', e.target.value)}
+                  placeholder="Ex: Centro"
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ddd',
+                    borderRadius: '5px',
+                    fontSize: '14px'
+                  }}
+                  required
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                  CEP *
+                </label>
+                <input
+                  type="text"
+                  value={endereco.cep}
+                  onChange={(e) => handleEnderecoChange('cep', e.target.value)}
+                  placeholder="00000-000"
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ddd',
+                    borderRadius: '5px',
+                    fontSize: '14px'
+                  }}
+                  required
+                />
+              </div>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '2fr 1fr',
+              gap: '15px',
+              marginBottom: '15px'
+            }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                  Cidade *
+                </label>
+                <input
+                  type="text"
+                  value={endereco.cidade}
+                  onChange={(e) => handleEnderecoChange('cidade', e.target.value)}
+                  placeholder="Ex: São Paulo"
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ddd',
+                    borderRadius: '5px',
+                    fontSize: '14px'
+                  }}
+                  required
+                />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                  Estado *
+                </label>
+                <select
+                  value={endereco.estado}
+                  onChange={(e) => handleEnderecoChange('estado', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #ddd',
+                    borderRadius: '5px',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value="SP">SP</option>
+                  <option value="RJ">RJ</option>
+                  <option value="MG">MG</option>
+                  <option value="SC">SC</option>
+                  <option value="PR">PR</option>
+                  <option value="RS">RS</option>
+                  <option value="GO">GO</option>
+                  <option value="MT">MT</option>
+                  <option value="MS">MS</option>
+                  <option value="DF">DF</option>
+                  <option value="ES">ES</option>
+                  <option value="BA">BA</option>
+                  <option value="SE">SE</option>
+                  <option value="AL">AL</option>
+                  <option value="PE">PE</option>
+                  <option value="PB">PB</option>
+                  <option value="RN">RN</option>
+                  <option value="CE">CE</option>
+                  <option value="PI">PI</option>
+                  <option value="MA">MA</option>
+                  <option value="PA">PA</option>
+                  <option value="AP">AP</option>
+                  <option value="AM">AM</option>
+                  <option value="RR">RR</option>
+                  <option value="AC">AC</option>
+                  <option value="RO">RO</option>
+                  <option value="TO">TO</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                Referência (opcional)
+              </label>
+              <input
+                type="text"
+                value={endereco.referencia}
+                onChange={(e) => handleEnderecoChange('referencia', e.target.value)}
+                placeholder="Ex: Próximo ao shopping, portão azul..."
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: '1px solid #ddd',
+                  borderRadius: '5px',
+                  fontSize: '14px'
+                }}
+              />
+            </div>
           </div>
 
           {/* Observações */}

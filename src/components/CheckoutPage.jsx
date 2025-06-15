@@ -27,6 +27,21 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       // Se não tem pedido, volta para o carrinho
       onNavigate('carrinho');
     }
+    
+    // Intercepta o botão voltar do navegador
+    const handlePopState = (event) => {
+      event.preventDefault();
+      onNavigate('carrinho');
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    
+    // Adiciona uma entrada no histórico para interceptar o botão voltar
+    window.history.pushState(null, '', window.location.href);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, [onNavigate]);
 
   const handleCartaoChange = (campo, valor) => {
