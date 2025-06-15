@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { produtoService } from '../services/produtoService';
 
 const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQuantidadeTotal }) => {
   const [cnpjInfo, setCnpjInfo] = useState('');
@@ -13,7 +14,8 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Peito de frango grelhado, arroz integral, brócolis e cenoura',
       preco: 18.90,
       categoria: 'fitness',
-      imagem: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=200&fit=crop'
+      imagem: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=200&fit=crop',
+      disponivel: true
     },
     {
       id: 2,
@@ -21,7 +23,8 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Quinoa, grão-de-bico, abobrinha refogada e salada verde',
       preco: 16.90,
       categoria: 'vegana',
-      imagem: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=200&fit=crop'
+      imagem: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=200&fit=crop',
+      disponivel: true
     },
     {
       id: 3,
@@ -29,7 +32,8 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Bife acebolado, arroz, feijão, farofa e salada',
       preco: 15.90,
       categoria: 'tradicional',
-      imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=300&h=200&fit=crop'
+      imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=300&h=200&fit=crop',
+      disponivel: true
     },
     {
       id: 4,
@@ -37,7 +41,8 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Salmão grelhado, couve-flor gratinada e aspargos',
       preco: 22.90,
       categoria: 'fitness',
-      imagem: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=300&h=200&fit=crop'
+      imagem: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=300&h=200&fit=crop',
+      disponivel: true
     },
     {
       id: 5,
@@ -45,7 +50,8 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Risotto de camarão com legumes e ervas finas',
       preco: 28.90,
       categoria: 'gourmet',
-      imagem: 'https://images.unsplash.com/photo-1563379091339-03246963d96c?w=300&h=200&fit=crop'
+      imagem: 'https://images.unsplash.com/photo-1563379091339-03246963d96c?w=300&h=200&fit=crop',
+      disponivel: true
     },
     {
       id: 6,
@@ -53,7 +59,8 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Lasanha de berinjela, salada de rúcula e tomate seco',
       preco: 17.90,
       categoria: 'vegana',
-      imagem: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=300&h=200&fit=crop'
+      imagem: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=300&h=200&fit=crop',
+      disponivel: true
     }
   ];
 
@@ -65,28 +72,33 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
     { id: 'gourmet', nome: 'Gourmet' }
   ];
 
-// No PedidoProdutos.jsx, substitua o useEffect:
-useEffect(() => {
+  useEffect(() => {
     // Recupera informações do sessionStorage
     const cnpj = sessionStorage.getItem('cnpj') || '';
     const empresa = sessionStorage.getItem('empresaInfo') || '';
     setCnpjInfo(`${empresa} - CNPJ: ${cnpj}`);
-  
-    // Carrega produtos do Supabase
+
+    // Carrega produtos do Supabase ou usa produtos padrão
     const carregarProdutos = async () => {
       try {
-        const produtos = await produtoService.listarProdutos();
-        setProdutosDisponiveis(produtos);
+        const produtosSupabase = await produtoService.listarProdutos();
+        if (produtosSupabase && produtosSupabase.length > 0) {
+          setProdutosDisponiveis(produtosSupabase);
+        } else {
+          // Se não conseguir carregar do Supabase, usa produtos padrão
+          setProdutosDisponiveis(produtos);
+        }
       } catch (error) {
-        console.error('Erro ao carregar produtos:', error);
+        console.error('Erro ao carregar produtos do Supabase:', error);
         // Fallback para produtos padrão se der erro
-        setProdutosDisponiveis(produtosPadrao);
+        setProdutosDisponiveis(produtos);
       }
     };
-  
+
     carregarProdutos();
   }, []);
-  // Filtra produtos por categoria (usando produtos disponíveis)
+
+  // Filtra produtos por categoria (usando produtos disponíveis ou padrão)
   const produtosFiltrados = selectedCategory === 'todos' 
     ? produtosDisponiveis 
     : produtosDisponiveis.filter(produto => produto.categoria === selectedCategory);
@@ -221,89 +233,117 @@ useEffect(() => {
           ))}
         </div>
 
+        {/* Loading ou mensagem se não tem produtos */}
+        {produtosDisponiveis.length === 0 && (
+          <div style={{
+            textAlign: 'center',
+            padding: '50px',
+            color: '#666'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '20px' }}>🍽️</div>
+            <h3>Carregando produtos...</h3>
+            <p>Aguarde enquanto carregamos nosso delicioso cardápio!</p>
+          </div>
+        )}
+
         {/* Grid de Produtos */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: '20px',
-          marginBottom: '40px'
-        }}>
-          {produtosFiltrados.map(produto => (
-            <div
-              key={produto.id}
-              style={{
-                backgroundColor: 'white',
-                borderRadius: '10px',
-                boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                overflow: 'hidden',
-                transition: 'transform 0.3s ease'
-              }}
-              onMouseEnter={(e) => e.target.style.transform = 'translateY(-5px)'}
-              onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-            >
-              {/* Imagem do Produto */}
-              <img
-                src={produto.imagem}
-                alt={produto.nome}
+        {produtosDisponiveis.length > 0 && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '20px',
+            marginBottom: '40px'
+          }}>
+            {produtosFiltrados.map(produto => (
+              <div
+                key={produto.id}
                 style={{
-                  width: '100%',
-                  height: '200px',
-                  objectFit: 'cover'
+                  backgroundColor: 'white',
+                  borderRadius: '10px',
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                  overflow: 'hidden',
+                  transition: 'transform 0.3s ease'
                 }}
-              />
-              
-              {/* Conteúdo do Card */}
-              <div style={{ padding: '20px' }}>
-                <h3 style={{
-                  color: '#009245',
-                  fontSize: '18px',
-                  marginBottom: '10px'
-                }}>
-                  {produto.nome}
-                </h3>
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                {/* Imagem do Produto */}
+                <img
+                  src={produto.imagem}
+                  alt={produto.nome}
+                  style={{
+                    width: '100%',
+                    height: '200px',
+                    objectFit: 'cover'
+                  }}
+                />
                 
-                <p style={{
-                  color: '#666',
-                  fontSize: '14px',
-                  lineHeight: '1.4',
-                  marginBottom: '15px'
-                }}>
-                  {produto.descricao}
-                </p>
-                
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <span style={{
-                    fontSize: '24px',
-                    fontWeight: 'bold',
-                    color: '#009245'
+                {/* Conteúdo do Card */}
+                <div style={{ padding: '20px' }}>
+                  <h3 style={{
+                    color: '#009245',
+                    fontSize: '18px',
+                    marginBottom: '10px'
                   }}>
-                    R$ {produto.preco.toFixed(2)}
-                  </span>
+                    {produto.nome}
+                  </h3>
                   
-                  <button
-                    onClick={() => adicionarAoCarrinho(produto)}
-                    style={{
-                      backgroundColor: '#f38e3c',
-                      color: 'white',
-                      border: 'none',
-                      padding: '12px 20px',
-                      borderRadius: '5px',
+                  <p style={{
+                    color: '#666',
+                    fontSize: '14px',
+                    lineHeight: '1.4',
+                    marginBottom: '15px'
+                  }}>
+                    {produto.descricao}
+                  </p>
+                  
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <span style={{
+                      fontSize: '24px',
                       fontWeight: 'bold',
-                      cursor: 'pointer',
-                      fontSize: '14px'
-                    }}
-                  >
-                    + Adicionar
-                  </button>
+                      color: '#009245'
+                    }}>
+                      R$ {produto.preco.toFixed(2)}
+                    </span>
+                    
+                    <button
+                      onClick={() => adicionarAoCarrinho(produto)}
+                      style={{
+                        backgroundColor: '#f38e3c',
+                        color: 'white',
+                        border: 'none',
+                        padding: '12px 20px',
+                        borderRadius: '5px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        fontSize: '14px'
+                      }}
+                    >
+                      + Adicionar
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
+
+        {/* Mensagem se categoria não tem produtos */}
+        {produtosDisponiveis.length > 0 && produtosFiltrados.length === 0 && (
+          <div style={{
+            textAlign: 'center',
+            padding: '50px',
+            color: '#666'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '20px' }}>🔍</div>
+            <h3>Nenhum produto encontrado</h3>
+            <p>Não há produtos disponíveis nesta categoria no momento.</p>
+          </div>
+        )}
 
         {/* Resumo do Carrinho */}
         {calcularQuantidadeTotal() > 0 && (

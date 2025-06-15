@@ -68,53 +68,99 @@ const AdminPage = ({ onNavigate }) => {
   const loadProducts = () => {
     const produtosSalvos = localStorage.getItem('adminProdutos');
     if (produtosSalvos) {
-      setProdutos(JSON.parse(produtosSalvos));
+      try {
+        const produtosParsed = JSON.parse(produtosSalvos);
+        setProdutos(produtosParsed);
+      } catch (error) {
+        console.error('Erro ao fazer parse dos produtos salvos:', error);
+        initializeDefaultProducts();
+      }
     } else {
-      // Produtos iniciais padrão
-      const produtosIniciais = [
-        {
-          id: 1,
-          nome: 'Marmita Fitness Frango',
-          descricao: 'Peito de frango grelhado, arroz integral, brócolis e cenoura',
-          preco: 18.90,
-          categoria: 'fitness',
-          imagem: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=200&fit=crop',
-          disponivel: true,
-          estoque: 95
-        },
-        {
-          id: 2,
-          nome: 'Marmita Vegana',
-          descricao: 'Quinoa, grão-de-bico, abobrinha refogada e salada verde',
-          preco: 16.90,
-          categoria: 'vegana',
-          imagem: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=200&fit=crop',
-          disponivel: true,
-          estoque: 88
-        },
-        {
-          id: 3,
-          nome: 'Marmita Tradicional',
-          descricao: 'Bife acebolado, arroz, feijão, farofa e salada',
-          preco: 15.90,
-          categoria: 'tradicional',
-          imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=300&h=200&fit=crop',
-          disponivel: true,
-          estoque: 120
-        }
-      ];
-      setProdutos(produtosIniciais);
-      localStorage.setItem('adminProdutos', JSON.stringify(produtosIniciais));
+      initializeDefaultProducts();
     }
   };
 
+  const initializeDefaultProducts = () => {
+    // Produtos iniciais padrão
+    const produtosIniciais = [
+      {
+        id: 1,
+        nome: 'Marmita Fitness Frango',
+        descricao: 'Peito de frango grelhado, arroz integral, brócolis e cenoura',
+        preco: 18.90,
+        categoria: 'fitness',
+        imagem: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=200&fit=crop',
+        disponivel: true,
+        estoque: 95
+      },
+      {
+        id: 2,
+        nome: 'Marmita Vegana',
+        descricao: 'Quinoa, grão-de-bico, abobrinha refogada e salada verde',
+        preco: 16.90,
+        categoria: 'vegana',
+        imagem: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=200&fit=crop',
+        disponivel: true,
+        estoque: 88
+      },
+      {
+        id: 3,
+        nome: 'Marmita Tradicional',
+        descricao: 'Bife acebolado, arroz, feijão, farofa e salada',
+        preco: 15.90,
+        categoria: 'tradicional',
+        imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=300&h=200&fit=crop',
+        disponivel: true,
+        estoque: 120
+      },
+      {
+        id: 4,
+        nome: 'Marmita Low Carb',
+        descricao: 'Salmão grelhado, couve-flor gratinada e aspargos',
+        preco: 22.90,
+        categoria: 'fitness',
+        imagem: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=300&h=200&fit=crop',
+        disponivel: true,
+        estoque: 75
+      },
+      {
+        id: 5,
+        nome: 'Marmita do Chef',
+        descricao: 'Risotto de camarão com legumes e ervas finas',
+        preco: 28.90,
+        categoria: 'gourmet',
+        imagem: 'https://images.unsplash.com/photo-1563379091339-03246963d96c?w=300&h=200&fit=crop',
+        disponivel: true,
+        estoque: 50
+      },
+      {
+        id: 6,
+        nome: 'Marmita Vegetariana',
+        descricao: 'Lasanha de berinjela, salada de rúcula e tomate seco',
+        preco: 17.90,
+        categoria: 'vegana',
+        imagem: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=300&h=200&fit=crop',
+        disponivel: true,
+        estoque: 60
+      }
+    ];
+    
+    setProdutos(produtosIniciais);
+    localStorage.setItem('adminProdutos', JSON.stringify(produtosIniciais));
+  };
+
   const saveProducts = (newProducts) => {
-    setProdutos(newProducts);
-    localStorage.setItem('adminProdutos', JSON.stringify(newProducts));
-    // Força re-render
-    setTimeout(() => {
-      loadProducts();
-    }, 100);
+    try {
+      setProdutos(newProducts);
+      localStorage.setItem('adminProdutos', JSON.stringify(newProducts));
+      // Força re-render
+      setTimeout(() => {
+        loadProducts();
+      }, 100);
+    } catch (error) {
+      console.error('Erro ao salvar produtos:', error);
+      alert('Erro ao salvar produtos. Tente novamente.');
+    }
   };
 
   const calcularEstatisticas = (pedidosList) => {
@@ -135,49 +181,54 @@ const AdminPage = ({ onNavigate }) => {
   const handleProductSubmit = (e) => {
     e.preventDefault();
     
-    let produtosAtualizados;
-    
-    if (editingProduct) {
-      // Editar produto existente
-      const novoProduto = {
-        ...editingProduct,
-        ...productForm,
-        preco: parseFloat(productForm.preco),
-        estoque: parseInt(productForm.estoque)
-      };
+    try {
+      let produtosAtualizados;
       
-      produtosAtualizados = produtos.map(p => 
-        p.id === editingProduct.id ? novoProduto : p
-      );
+      if (editingProduct) {
+        // Editar produto existente
+        const novoProduto = {
+          ...editingProduct,
+          ...productForm,
+          preco: parseFloat(productForm.preco),
+          estoque: parseInt(productForm.estoque)
+        };
+        
+        produtosAtualizados = produtos.map(p => 
+          p.id === editingProduct.id ? novoProduto : p
+        );
+        
+        setEditingProduct(null);
+        alert('Produto atualizado com sucesso!');
+      } else {
+        // Adicionar novo produto
+        const novoProduto = {
+          id: Math.max(...produtos.map(p => p.id), 0) + 1,
+          ...productForm,
+          preco: parseFloat(productForm.preco),
+          estoque: parseInt(productForm.estoque)
+        };
+        
+        produtosAtualizados = [...produtos, novoProduto];
+        alert('Produto adicionado com sucesso!');
+      }
       
-      setEditingProduct(null);
-      alert('Produto atualizado com sucesso!');
-    } else {
-      // Adicionar novo produto
-      const novoProduto = {
-        id: Math.max(...produtos.map(p => p.id), 0) + 1,
-        ...productForm,
-        preco: parseFloat(productForm.preco),
-        estoque: parseInt(productForm.estoque)
-      };
+      saveProducts(produtosAtualizados);
       
-      produtosAtualizados = [...produtos, novoProduto];
-      alert('Produto adicionado com sucesso!');
+      // Reset form
+      setProductForm({
+        nome: '',
+        descricao: '',
+        preco: '',
+        categoria: 'fitness',
+        imagem: '',
+        disponivel: true,
+        estoque: 100
+      });
+      setShowAddProduct(false);
+    } catch (error) {
+      console.error('Erro ao processar produto:', error);
+      alert('Erro ao processar produto. Verifique os dados e tente novamente.');
     }
-    
-    saveProducts(produtosAtualizados);
-    
-    // Reset form
-    setProductForm({
-      nome: '',
-      descricao: '',
-      preco: '',
-      categoria: 'fitness',
-      imagem: '',
-      disponivel: true,
-      estoque: 100
-    });
-    setShowAddProduct(false);
   };
 
   const editProduct = (produto) => {
@@ -196,20 +247,30 @@ const AdminPage = ({ onNavigate }) => {
 
   const deleteProduct = (id) => {
     if (window.confirm('Tem certeza que deseja excluir este produto?')) {
-      const produtosAtualizados = produtos.filter(p => p.id !== id);
-      saveProducts(produtosAtualizados);
-      alert('Produto excluído com sucesso!');
+      try {
+        const produtosAtualizados = produtos.filter(p => p.id !== id);
+        saveProducts(produtosAtualizados);
+        alert('Produto excluído com sucesso!');
+      } catch (error) {
+        console.error('Erro ao excluir produto:', error);
+        alert('Erro ao excluir produto. Tente novamente.');
+      }
     }
   };
 
   const toggleProductAvailability = (id) => {
-    const produtosAtualizados = produtos.map(p => 
-      p.id === id ? { ...p, disponivel: !p.disponivel } : p
-    );
-    saveProducts(produtosAtualizados);
-    
-    const produto = produtos.find(p => p.id === id);
-    alert(`Produto ${produto.disponivel ? 'desativado' : 'ativado'} com sucesso!`);
+    try {
+      const produtosAtualizados = produtos.map(p => 
+        p.id === id ? { ...p, disponivel: !p.disponivel } : p
+      );
+      saveProducts(produtosAtualizados);
+      
+      const produto = produtos.find(p => p.id === id);
+      alert(`Produto ${produto.disponivel ? 'desativado' : 'ativado'} com sucesso!`);
+    } catch (error) {
+      console.error('Erro ao alterar disponibilidade:', error);
+      alert('Erro ao alterar disponibilidade. Tente novamente.');
+    }
   };
 
   const logout = () => {
