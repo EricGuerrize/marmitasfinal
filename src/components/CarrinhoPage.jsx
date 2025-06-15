@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, limparCarrinho, calcularQuantidadeTotal }) => {
   const [cnpjInfo, setCnpjInfo] = useState('');
   const [observacoes, setObservacoes] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
   
   // Estados para endereço formatado
   const [endereco, setEndereco] = useState({
@@ -15,6 +16,18 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     referencia: ''
   });
 
+  // Detecta se é mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   useEffect(() => {
     // Recupera informações do sessionStorage
     const cnpj = sessionStorage.getItem('cnpj') || '';
@@ -24,13 +37,17 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     // Intercepta o botão voltar do navegador
     const handlePopState = (event) => {
       event.preventDefault();
+      event.stopPropagation();
       onNavigate('pedido-produtos');
+      return false;
     };
     
+    // Remove qualquer listener anterior
+    window.removeEventListener('popstate', handlePopState);
     window.addEventListener('popstate', handlePopState);
     
     // Adiciona uma entrada no histórico para interceptar o botão voltar
-    window.history.pushState(null, '', window.location.href);
+    window.history.pushState({ page: 'carrinho' }, '', window.location.pathname);
     
     return () => {
       window.removeEventListener('popstate', handlePopState);
@@ -147,36 +164,43 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '10px 40px',
-          borderBottom: '1px solid #ccc'
+          padding: isMobile ? '10px 15px' : '10px 40px',
+          borderBottom: '1px solid #ccc',
+          flexWrap: isMobile ? 'wrap' : 'nowrap'
         }}>
           <img 
-            style={{ height: '60px' }}
+            style={{ height: isMobile ? '50px' : '60px' }}
             src="/assets/logo.jpg" 
             alt="Logo Fit In Box"
           />
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '20px'
+            gap: isMobile ? '10px' : '20px',
+            flexDirection: isMobile ? 'column' : 'row',
+            marginTop: isMobile ? '10px' : '0',
+            width: isMobile ? '100%' : 'auto'
           }}>
             <span style={{
               fontWeight: 'bold',
               color: '#009245',
-              fontSize: '14px'
+              fontSize: isMobile ? '12px' : '14px',
+              textAlign: 'center'
             }}>
               {cnpjInfo}
             </span>
             <button 
               onClick={continuarComprando}
               style={{
-                padding: '10px 20px',
+                padding: isMobile ? '8px 15px' : '10px 20px',
                 borderRadius: '5px',
                 color: 'white',
                 fontWeight: 'bold',
                 cursor: 'pointer',
                 border: 'none',
-                backgroundColor: '#009245'
+                backgroundColor: '#009245',
+                fontSize: isMobile ? '14px' : '16px',
+                width: isMobile ? '100%' : 'auto'
               }}
             >
               VOLTAR AOS PRODUTOS
@@ -194,15 +218,24 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         }}>
           <div style={{
             backgroundColor: 'white',
-            padding: '60px',
+            padding: isMobile ? '40px 20px' : '60px',
             borderRadius: '10px',
             boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
             textAlign: 'center',
-            maxWidth: '500px'
+            maxWidth: isMobile ? '100%' : '500px',
+            width: '100%'
           }}>
-            <div style={{ fontSize: '80px', marginBottom: '20px' }}>🛒</div>
-            <h2 style={{ color: '#666', marginBottom: '20px' }}>Seu carrinho está vazio</h2>
-            <p style={{ color: '#999', marginBottom: '30px' }}>
+            <div style={{ fontSize: isMobile ? '60px' : '80px', marginBottom: '20px' }}>🛒</div>
+            <h2 style={{ 
+              color: '#666', 
+              marginBottom: '20px',
+              fontSize: isMobile ? '20px' : '24px'
+            }}>Seu carrinho está vazio</h2>
+            <p style={{ 
+              color: '#999', 
+              marginBottom: '30px',
+              fontSize: isMobile ? '14px' : '16px'
+            }}>
               Adicione alguns produtos deliciosos para continuar!
             </p>
             <button
@@ -211,11 +244,12 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 backgroundColor: '#009245',
                 color: 'white',
                 border: 'none',
-                padding: '15px 30px',
+                padding: isMobile ? '12px 20px' : '15px 30px',
                 borderRadius: '5px',
-                fontSize: '16px',
+                fontSize: isMobile ? '14px' : '16px',
                 fontWeight: 'bold',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                width: isMobile ? '100%' : 'auto'
               }}
             >
               Ver Produtos
@@ -239,36 +273,43 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '10px 40px',
-        borderBottom: '1px solid #ccc'
+        padding: isMobile ? '10px 15px' : '10px 40px',
+        borderBottom: '1px solid #ccc',
+        flexWrap: isMobile ? 'wrap' : 'nowrap'
       }}>
         <img 
-          style={{ height: '60px' }}
+          style={{ height: isMobile ? '50px' : '60px' }}
           src="/assets/logo.jpg" 
           alt="Logo Fit In Box"
         />
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '20px'
+          gap: isMobile ? '10px' : '20px',
+          flexDirection: isMobile ? 'column' : 'row',
+          marginTop: isMobile ? '10px' : '0',
+          width: isMobile ? '100%' : 'auto'
         }}>
           <span style={{
             fontWeight: 'bold',
             color: '#009245',
-            fontSize: '14px'
+            fontSize: isMobile ? '12px' : '14px',
+            textAlign: 'center'
           }}>
             {cnpjInfo}
           </span>
           <button 
             onClick={continuarComprando}
             style={{
-              padding: '10px 20px',
+              padding: isMobile ? '8px 15px' : '10px 20px',
               borderRadius: '5px',
               color: 'white',
               fontWeight: 'bold',
               cursor: 'pointer',
               border: 'none',
-              backgroundColor: '#009245'
+              backgroundColor: '#009245',
+              fontSize: isMobile ? '14px' : '16px',
+              width: isMobile ? '100%' : 'auto'
             }}
           >
             CONTINUAR COMPRANDO
@@ -280,10 +321,10 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       <div style={{
         maxWidth: '1000px',
         margin: '0 auto',
-        padding: '20px',
+        padding: isMobile ? '10px' : '20px',
         display: 'grid',
-        gridTemplateColumns: '2fr 1fr',
-        gap: '30px'
+        gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
+        gap: isMobile ? '20px' : '30px'
       }}>
         {/* Coluna Esquerda - Itens do Carrinho */}
         <div>
@@ -291,9 +332,16 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: '20px'
+            marginBottom: '20px',
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: isMobile ? '10px' : '0'
           }}>
-            <h1 style={{ color: '#009245', margin: 0 }}>
+            <h1 style={{ 
+              color: '#009245', 
+              margin: 0,
+              fontSize: isMobile ? '20px' : '24px',
+              textAlign: isMobile ? 'center' : 'left'
+            }}>
               🛒 Meu Carrinho ({calcularQuantidadeTotal()} marmitas)
             </h1>
             <button
@@ -319,31 +367,47 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 key={item.id}
                 style={{
                   backgroundColor: 'white',
-                  padding: '20px',
+                  padding: isMobile ? '15px' : '20px',
                   borderRadius: '10px',
                   boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                   display: 'flex',
                   gap: '15px',
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  flexDirection: isMobile ? 'column' : 'row'
                 }}
               >
                 <img
                   src={item.imagem}
                   alt={item.nome}
                   style={{
-                    width: '80px',
-                    height: '80px',
+                    width: isMobile ? '100%' : '80px',
+                    height: isMobile ? '150px' : '80px',
                     objectFit: 'cover',
                     borderRadius: '5px'
                   }}
                 />
                 
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ color: '#009245', margin: '0 0 5px 0' }}>{item.nome}</h3>
-                  <p style={{ color: '#666', fontSize: '14px', margin: '0 0 10px 0' }}>
+                <div style={{ 
+                  flex: 1,
+                  textAlign: isMobile ? 'center' : 'left'
+                }}>
+                  <h3 style={{ 
+                    color: '#009245', 
+                    margin: '0 0 5px 0',
+                    fontSize: isMobile ? '16px' : '18px'
+                  }}>{item.nome}</h3>
+                  <p style={{ 
+                    color: '#666', 
+                    fontSize: '14px', 
+                    margin: '0 0 10px 0' 
+                  }}>
                     {item.descricao}
                   </p>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#009245' }}>
+                  <div style={{ 
+                    fontSize: isMobile ? '16px' : '18px', 
+                    fontWeight: 'bold', 
+                    color: '#009245' 
+                  }}>
                     R$ {item.preco.toFixed(2)}
                   </div>
                 </div>
@@ -351,7 +415,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '10px'
+                  gap: '10px',
+                  flexDirection: isMobile ? 'row' : 'row'
                 }}>
                   <button
                     onClick={() => atualizarQuantidade(item.id, item.quantidade - 1)}
@@ -396,10 +461,10 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 </div>
 
                 <div style={{
-                  fontSize: '20px',
+                  fontSize: isMobile ? '18px' : '20px',
                   fontWeight: 'bold',
                   color: '#009245',
-                  minWidth: '80px',
+                  minWidth: isMobile ? 'auto' : '80px',
                   textAlign: 'right'
                 }}>
                   R$ {(item.preco * item.quantidade).toFixed(2)}
@@ -425,21 +490,30 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           {/* Endereço de Entrega Formatado */}
           <div style={{
             backgroundColor: 'white',
-            padding: '20px',
+            padding: isMobile ? '15px' : '20px',
             borderRadius: '10px',
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
             marginTop: '20px'
           }}>
-            <h3 style={{ color: '#009245', marginBottom: '15px' }}>📍 Endereço de Entrega</h3>
+            <h3 style={{ 
+              color: '#009245', 
+              marginBottom: '15px',
+              fontSize: isMobile ? '16px' : '18px'
+            }}>📍 Endereço de Entrega</h3>
             
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '2fr 1fr',
+              gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
               gap: '15px',
               marginBottom: '15px'
             }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                <label style={{ 
+                  display: 'block', 
+                  marginBottom: '5px', 
+                  fontWeight: 'bold', 
+                  fontSize: '14px' 
+                }}>
                   Rua/Avenida *
                 </label>
                 <input
@@ -459,7 +533,12 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               </div>
               
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                <label style={{ 
+                  display: 'block', 
+                  marginBottom: '5px', 
+                  fontWeight: 'bold', 
+                  fontSize: '14px' 
+                }}>
                   Número *
                 </label>
                 <input
@@ -481,12 +560,17 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
               gap: '15px',
               marginBottom: '15px'
             }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                <label style={{ 
+                  display: 'block', 
+                  marginBottom: '5px', 
+                  fontWeight: 'bold', 
+                  fontSize: '14px' 
+                }}>
                   Bairro *
                 </label>
                 <input
@@ -506,7 +590,12 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               </div>
               
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                <label style={{ 
+                  display: 'block', 
+                  marginBottom: '5px', 
+                  fontWeight: 'bold', 
+                  fontSize: '14px' 
+                }}>
                   CEP *
                 </label>
                 <input
@@ -528,12 +617,17 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '2fr 1fr',
+              gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
               gap: '15px',
               marginBottom: '15px'
             }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                <label style={{ 
+                  display: 'block', 
+                  marginBottom: '5px', 
+                  fontWeight: 'bold', 
+                  fontSize: '14px' 
+                }}>
                   Cidade *
                 </label>
                 <input
@@ -553,7 +647,12 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               </div>
               
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+                <label style={{ 
+                  display: 'block', 
+                  marginBottom: '5px', 
+                  fontWeight: 'bold', 
+                  fontSize: '14px' 
+                }}>
                   Estado *
                 </label>
                 <select
@@ -599,7 +698,12 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             </div>
 
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '5px', 
+                fontWeight: 'bold', 
+                fontSize: '14px' 
+              }}>
                 Referência (opcional)
               </label>
               <input
@@ -621,12 +725,16 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           {/* Observações */}
           <div style={{
             backgroundColor: 'white',
-            padding: '20px',
+            padding: isMobile ? '15px' : '20px',
             borderRadius: '10px',
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
             marginTop: '15px'
           }}>
-            <h3 style={{ color: '#009245', marginBottom: '15px' }}>💬 Observações (opcional)</h3>
+            <h3 style={{ 
+              color: '#009245', 
+              marginBottom: '15px',
+              fontSize: isMobile ? '16px' : '18px'
+            }}>💬 Observações (opcional)</h3>
             <textarea
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
@@ -648,13 +756,17 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         <div>
           <div style={{
             backgroundColor: 'white',
-            padding: '25px',
+            padding: isMobile ? '20px' : '25px',
             borderRadius: '10px',
             boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-            position: 'sticky',
-            top: '20px'
+            position: isMobile ? 'static' : 'sticky',
+            top: isMobile ? 'auto' : '20px'
           }}>
-            <h2 style={{ color: '#009245', marginBottom: '20px' }}>📊 Resumo do Pedido</h2>
+            <h2 style={{ 
+              color: '#009245', 
+              marginBottom: '20px',
+              fontSize: isMobile ? '18px' : '20px'
+            }}>📊 Resumo do Pedido</h2>
             
             {/* Aviso pedido mínimo */}
             <div style={{
@@ -719,7 +831,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
-              fontSize: '20px',
+              fontSize: isMobile ? '18px' : '20px',
               fontWeight: 'bold',
               color: '#009245',
               marginBottom: '25px'
@@ -738,7 +850,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 padding: '15px',
                 width: '100%',
                 borderRadius: '5px',
-                fontSize: '18px',
+                fontSize: isMobile ? '16px' : '18px',
                 fontWeight: 'bold',
                 cursor: calcularQuantidadeTotal() < 30 ? 'not-allowed' : 'pointer',
                 marginBottom: '10px',

@@ -28,27 +28,76 @@ const HomePage = ({ onNavigate }) => {
       .slice(0, 18);
   };
 
+  // Função para validar formato do CNPJ
+  const validarFormatoCnpj = (cnpj) => {
+    // Remove caracteres especiais
+    const numeros = cnpj.replace(/\D/g, '');
+    
+    // Verifica se tem 14 dígitos
+    if (numeros.length !== 14) {
+      return false;
+    }
+    
+    // Verifica se não são todos números iguais
+    if (/^(\d)\1+$/.test(numeros)) {
+      return false;
+    }
+    
+    // Validação básica do algoritmo do CNPJ
+    let soma = 0;
+    let peso = 2;
+    
+    // Primeiro dígito verificador
+    for (let i = 11; i >= 0; i--) {
+      soma += parseInt(numeros[i]) * peso;
+      peso = peso === 9 ? 2 : peso + 1;
+    }
+    
+    let resto = soma % 11;
+    let digito1 = resto < 2 ? 0 : 11 - resto;
+    
+    if (parseInt(numeros[12]) !== digito1) {
+      return false;
+    }
+    
+    // Segundo dígito verificador
+    soma = 0;
+    peso = 2;
+    
+    for (let i = 12; i >= 0; i--) {
+      soma += parseInt(numeros[i]) * peso;
+      peso = peso === 9 ? 2 : peso + 1;
+    }
+    
+    resto = soma % 11;
+    let digito2 = resto < 2 ? 0 : 11 - resto;
+    
+    return parseInt(numeros[13]) === digito2;
+  };
+
   const handleCnpjChange = (e) => {
     const maskedValue = applyCnpjMask(e.target.value);
     setCnpj(maskedValue);
   };
 
   const validarCnpj = () => {
-    const cnpjsValidos = ["05.336.475/0001-77", "11.111.111/0001-11", "22.222.222/0001-22"];
-    
     if (!cnpj.trim()) {
       alert('Por favor, informe o CNPJ');
       return;
     }
     
-    if (cnpjsValidos.includes(cnpj)) {
-      // Salva CNPJ para usar nas outras páginas
-      sessionStorage.setItem('cnpj', cnpj);
-      sessionStorage.setItem('empresaInfo', 'H Azevedo de Abreu refeições saudáveis');
-      onNavigate('prosseguir');
-    } else {
-      onNavigate('cnpj-nao-cadastrado');
+    if (!validarFormatoCnpj(cnpj)) {
+      alert('CNPJ inválido! Verifique os dados e tente novamente.');
+      return;
     }
+    
+    // Gera um nome de empresa baseado no CNPJ para demonstração
+    const empresaNome = `Empresa ${cnpj.substring(0, 8)}`;
+    
+    // Salva CNPJ para usar nas outras páginas
+    sessionStorage.setItem('cnpj', cnpj);
+    sessionStorage.setItem('empresaInfo', empresaNome);
+    onNavigate('prosseguir');
   };
 
   const handleKeyPress = (e) => {
@@ -195,6 +244,18 @@ const HomePage = ({ onNavigate }) => {
             ACESSAR
           </button>
         </div>
+
+        {/* Dica para teste */}
+        <div style={{
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          padding: '15px',
+          borderRadius: '8px',
+          margin: '20px auto',
+          maxWidth: '600px',
+          fontSize: '14px'
+        }}>
+          💡 <strong>Para teste:</strong> Use qualquer CNPJ válido (ex: 11.222.333/0001-81)
+        </div>
       </section>
 
       {/* Info Section */}
@@ -302,7 +363,7 @@ const HomePage = ({ onNavigate }) => {
             <p style={{
               fontSize: '0.9em'
             }}>
-              E Prático e Seguro
+              É Prático e Seguro
             </p>
           </div>
         </div>

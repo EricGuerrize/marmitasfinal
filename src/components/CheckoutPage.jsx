@@ -12,6 +12,19 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
   });
   const [enderecoCobranca, setEnderecoCobranca] = useState('');
   const [processandoPedido, setProcessandoPedido] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detecta se é mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     // Recupera informações do sessionStorage
@@ -31,13 +44,17 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
     // Intercepta o botão voltar do navegador
     const handlePopState = (event) => {
       event.preventDefault();
+      event.stopPropagation();
       onNavigate('carrinho');
+      return false;
     };
     
+    // Remove qualquer listener anterior
+    window.removeEventListener('popstate', handlePopState);
     window.addEventListener('popstate', handlePopState);
     
     // Adiciona uma entrada no histórico para interceptar o botão voltar
-    window.history.pushState(null, '', window.location.href);
+    window.history.pushState({ page: 'checkout' }, '', window.location.pathname);
     
     return () => {
       window.removeEventListener('popstate', handlePopState);
@@ -162,36 +179,43 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '10px 40px',
-        borderBottom: '1px solid #ccc'
+        padding: isMobile ? '10px 15px' : '10px 40px',
+        borderBottom: '1px solid #ccc',
+        flexWrap: isMobile ? 'wrap' : 'nowrap'
       }}>
         <img 
-          style={{ height: '60px' }}
+          style={{ height: isMobile ? '50px' : '60px' }}
           src="/assets/logo.jpg" 
           alt="Logo Fit In Box"
         />
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '20px'
+          gap: isMobile ? '10px' : '20px',
+          flexDirection: isMobile ? 'column' : 'row',
+          marginTop: isMobile ? '10px' : '0',
+          width: isMobile ? '100%' : 'auto'
         }}>
           <span style={{
             fontWeight: 'bold',
             color: '#009245',
-            fontSize: '14px'
+            fontSize: isMobile ? '12px' : '14px',
+            textAlign: 'center'
           }}>
             {cnpjInfo}
           </span>
           <button 
             onClick={voltarCarrinho}
             style={{
-              padding: '10px 20px',
+              padding: isMobile ? '8px 15px' : '10px 20px',
               borderRadius: '5px',
               color: 'white',
               fontWeight: 'bold',
               cursor: 'pointer',
               border: 'none',
-              backgroundColor: '#009245'
+              backgroundColor: '#009245',
+              fontSize: isMobile ? '14px' : '16px',
+              width: isMobile ? '100%' : 'auto'
             }}
           >
             VOLTAR AO CARRINHO
@@ -203,26 +227,34 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       <div style={{
         maxWidth: '1000px',
         margin: '0 auto',
-        padding: '20px',
+        padding: isMobile ? '10px' : '20px',
         display: 'grid',
-        gridTemplateColumns: '2fr 1fr',
-        gap: '30px'
+        gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
+        gap: isMobile ? '20px' : '30px'
       }}>
         {/* Coluna Esquerda - Dados do Pagamento */}
         <div>
-          <h1 style={{ color: '#009245', marginBottom: '20px' }}>
+          <h1 style={{ 
+            color: '#009245', 
+            marginBottom: '20px',
+            fontSize: isMobile ? '20px' : '24px'
+          }}>
             💳 Finalizar Pedido
           </h1>
 
           {/* Forma de Pagamento */}
           <div style={{
             backgroundColor: 'white',
-            padding: '25px',
+            padding: isMobile ? '20px' : '25px',
             borderRadius: '10px',
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
             marginBottom: '20px'
           }}>
-            <h2 style={{ color: '#009245', marginBottom: '20px' }}>💰 Forma de Pagamento</h2>
+            <h2 style={{ 
+              color: '#009245', 
+              marginBottom: '20px',
+              fontSize: isMobile ? '16px' : '18px'
+            }}>💰 Forma de Pagamento</h2>
             
             <div style={{ marginBottom: '15px' }}>
               <label style={{
@@ -280,16 +312,20 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
           {formaPagamento === 'cartao' && (
             <div style={{
               backgroundColor: 'white',
-              padding: '25px',
+              padding: isMobile ? '20px' : '25px',
               borderRadius: '10px',
               boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
               marginBottom: '20px'
             }}>
-              <h3 style={{ color: '#009245', marginBottom: '20px' }}>💳 Dados do Cartão</h3>
+              <h3 style={{ 
+                color: '#009245', 
+                marginBottom: '20px',
+                fontSize: isMobile ? '16px' : '18px'
+              }}>💳 Dados do Cartão</h3>
               
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: '2fr 1fr',
+                gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
                 gap: '15px',
                 marginBottom: '15px'
               }}>
@@ -333,7 +369,7 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
 
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: '2fr 1fr',
+                gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
                 gap: '15px',
                 marginBottom: '15px'
               }}>
@@ -401,13 +437,17 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
           {formaPagamento === 'pix' && (
             <div style={{
               backgroundColor: 'white',
-              padding: '25px',
+              padding: isMobile ? '20px' : '25px',
               borderRadius: '10px',
               boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
               marginBottom: '20px',
               textAlign: 'center'
             }}>
-              <h3 style={{ color: '#009245', marginBottom: '20px' }}>📱 Pagamento PIX</h3>
+              <h3 style={{ 
+                color: '#009245', 
+                marginBottom: '20px',
+                fontSize: isMobile ? '16px' : '18px'
+              }}>📱 Pagamento PIX</h3>
               
               <div style={{
                 backgroundColor: '#f8f9fa',
@@ -416,8 +456,8 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
                 marginBottom: '15px'
               }}>
                 <div style={{
-                  width: '150px',
-                  height: '150px',
+                  width: isMobile ? '120px' : '150px',
+                  height: isMobile ? '120px' : '150px',
                   backgroundColor: '#fff',
                   border: '2px solid #ddd',
                   borderRadius: '8px',
@@ -433,7 +473,11 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
                   (Simulação)
                 </div>
                 
-                <p style={{ margin: 0, fontSize: '14px', color: '#666' }}>
+                <p style={{ 
+                  margin: 0, 
+                  fontSize: '14px', 
+                  color: '#666' 
+                }}>
                   Escaneie o QR Code com seu banco ou copie o código PIX
                 </p>
               </div>
@@ -455,13 +499,17 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
         <div>
           <div style={{
             backgroundColor: 'white',
-            padding: '25px',
+            padding: isMobile ? '20px' : '25px',
             borderRadius: '10px',
             boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-            position: 'sticky',
-            top: '20px'
+            position: isMobile ? 'static' : 'sticky',
+            top: isMobile ? 'auto' : '20px'
           }}>
-            <h2 style={{ color: '#009245', marginBottom: '20px' }}>📊 Resumo Final</h2>
+            <h2 style={{ 
+              color: '#009245', 
+              marginBottom: '20px',
+              fontSize: isMobile ? '18px' : '20px'
+            }}>📊 Resumo Final</h2>
             
             <div style={{
               backgroundColor: '#f8f9fa',
@@ -517,7 +565,7 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
-              fontSize: '20px',
+              fontSize: isMobile ? '18px' : '20px',
               fontWeight: 'bold',
               color: '#009245',
               marginBottom: '25px'
@@ -541,7 +589,7 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
                 padding: '15px',
                 width: '100%',
                 borderRadius: '5px',
-                fontSize: '18px',
+                fontSize: isMobile ? '16px' : '18px',
                 fontWeight: 'bold',
                 cursor: processandoPedido ? 'wait' : 'pointer',
                 marginBottom: '10px',

@@ -1,6 +1,27 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 const CnpjNaoCadastrado = ({ onNavigate }) => {
+
+  useEffect(() => {
+    // Intercepta o botão voltar do navegador
+    const handlePopState = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onNavigate('home');
+      return false;
+    };
+    
+    // Remove qualquer listener anterior
+    window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('popstate', handlePopState);
+    
+    // Adiciona uma entrada no histórico para interceptar o botão voltar
+    window.history.pushState({ page: 'cnpj-nao-cadastrado' }, '', window.location.pathname);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [onNavigate]);
   
   const voltarInicio = () => {
     onNavigate('home');
@@ -75,7 +96,7 @@ const CnpjNaoCadastrado = ({ onNavigate }) => {
             marginBottom: '20px',
             fontWeight: 'bold'
           }}>
-            CNPJ NÃO CADASTRADO
+            CNPJ INVÁLIDO
           </h2>
           
           <p style={{
@@ -84,9 +105,9 @@ const CnpjNaoCadastrado = ({ onNavigate }) => {
             marginBottom: '30px',
             lineHeight: '1.5'
           }}>
-            O CNPJ informado não está cadastrado em nossa base de dados.
+            O CNPJ informado não é válido.
             <br />
-            Verifique se os dados estão corretos ou entre em contato conosco.
+            Verifique se os dados estão corretos e tente novamente.
           </p>
 
           <div style={{
@@ -166,8 +187,8 @@ const CnpjNaoCadastrado = ({ onNavigate }) => {
               lineHeight: '1.6'
             }}>
               <li>Verifique se o CNPJ está digitado corretamente</li>
-              <li>Confirme se sua empresa possui cadastro ativo</li>
-              <li>Entre em contato para solicitar cadastramento</li>
+              <li>Confirme se todos os dígitos estão presentes</li>
+              <li>Use apenas números ou o formato XX.XXX.XXX/XXXX-XX</li>
             </ul>
           </div>
         </div>

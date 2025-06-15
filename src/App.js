@@ -16,13 +16,22 @@ function App() {
   useEffect(() => {
     const carrinhoSalvo = sessionStorage.getItem('carrinho');
     if (carrinhoSalvo) {
-      setCarrinho(JSON.parse(carrinhoSalvo));
+      try {
+        setCarrinho(JSON.parse(carrinhoSalvo));
+      } catch (error) {
+        console.error('Erro ao carregar carrinho:', error);
+        setCarrinho([]);
+      }
     }
   }, []);
 
   // Salva carrinho no sessionStorage sempre que muda
   useEffect(() => {
-    sessionStorage.setItem('carrinho', JSON.stringify(carrinho));
+    try {
+      sessionStorage.setItem('carrinho', JSON.stringify(carrinho));
+    } catch (error) {
+      console.error('Erro ao salvar carrinho:', error);
+    }
   }, [carrinho]);
 
   // Função para navegar entre páginas

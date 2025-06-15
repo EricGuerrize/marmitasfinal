@@ -9,7 +9,26 @@ const ProsseguirPage = ({ onNavigate }) => {
     const cnpj = sessionStorage.getItem('cnpj') || '';
     const empresa = sessionStorage.getItem('empresaInfo') || '';
     setCnpjInfo(`${empresa} - CNPJ: ${cnpj}`);
-  }, []);
+    
+    // Intercepta o botão voltar do navegador
+    const handlePopState = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onNavigate('home');
+      return false;
+    };
+    
+    // Remove qualquer listener anterior
+    window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('popstate', handlePopState);
+    
+    // Adiciona uma entrada no histórico para interceptar o botão voltar
+    window.history.pushState({ page: 'prosseguir' }, '', window.location.pathname);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [onNavigate]);
 
   const handleOptionChange = (option) => {
     setSelectedOption(option);
