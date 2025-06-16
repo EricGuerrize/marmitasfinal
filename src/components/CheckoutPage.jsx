@@ -4,13 +4,6 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
   const [cnpjInfo, setCnpjInfo] = useState('');
   const [pedidoAtual, setPedidoAtual] = useState(null);
   const [formaPagamento, setFormaPagamento] = useState('pix');
-  const [dadosCartao, setDadosCartao] = useState({
-    numero: '',
-    nome: '',
-    validade: '',
-    cvv: ''
-  });
-  const [enderecoCobranca, setEnderecoCobranca] = useState('');
   const [processandoPedido, setProcessandoPedido] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -61,56 +54,7 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
     };
   }, [onNavigate]);
 
-  const handleCartaoChange = (campo, valor) => {
-    if (campo === 'numero') {
-      // Máscara para número do cartão
-      valor = valor.replace(/\D/g, '').replace(/(\d{4})(?=\d)/g, '$1 ').trim();
-      if (valor.length > 19) valor = valor.substring(0, 19);
-    } else if (campo === 'validade') {
-      // Máscara para validade MM/AA
-      valor = valor.replace(/\D/g, '').replace(/(\d{2})(\d)/, '$1/$2');
-      if (valor.length > 5) valor = valor.substring(0, 5);
-    } else if (campo === 'cvv') {
-      // Apenas números para CVV
-      valor = valor.replace(/\D/g, '');
-      if (valor.length > 3) valor = valor.substring(0, 3);
-    }
-
-    setDadosCartao(prev => ({
-      ...prev,
-      [campo]: valor
-    }));
-  };
-
-  const validarFormulario = () => {
-    if (formaPagamento === 'cartao') {
-      if (!dadosCartao.numero || dadosCartao.numero.length < 19) {
-        alert('Número do cartão inválido!');
-        return false;
-      }
-      if (!dadosCartao.nome.trim()) {
-        alert('Nome no cartão é obrigatório!');
-        return false;
-      }
-      if (!dadosCartao.validade || dadosCartao.validade.length < 5) {
-        alert('Validade do cartão inválida!');
-        return false;
-      }
-      if (!dadosCartao.cvv || dadosCartao.cvv.length < 3) {
-        alert('CVV inválido!');
-        return false;
-      }
-      if (!enderecoCobranca.trim()) {
-        alert('Endereço de cobrança é obrigatório para cartão!');
-        return false;
-      }
-    }
-    return true;
-  };
-
   const finalizarPedido = async () => {
-    if (!validarFormulario()) return;
-
     setProcessandoPedido(true);
 
     try {
@@ -121,11 +65,7 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       const pedidoFinal = {
         ...pedidoAtual,
         formaPagamento,
-        dadosPagamento: formaPagamento === 'cartao' ? {
-          numeroMascarado: dadosCartao.numero.replace(/\d(?=\d{4})/g, '*'),
-          nome: dadosCartao.nome,
-          enderecoCobranca
-        } : null,
+        dadosPagamento: null,
         status: 'confirmado',
         dataConfirmacao: new Date().toISOString(),
         previsaoEntrega: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString() // 2 dias
@@ -261,22 +201,22 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
                 display: 'flex',
                 alignItems: 'center',
                 padding: '15px',
-                border: `2px solid ${formaPagamento === 'pix' ? '#009245' : '#ddd'}`,
+                border: `2px solid #009245`,
                 borderRadius: '8px',
                 cursor: 'pointer',
                 marginBottom: '10px',
-                backgroundColor: formaPagamento === 'pix' ? '#f0f9f0' : 'white'
+                backgroundColor: '#f0f9f0'
               }}>
                 <input
                   type="radio"
                   name="pagamento"
                   value="pix"
-                  checked={formaPagamento === 'pix'}
-                  onChange={(e) => setFormaPagamento(e.target.value)}
+                  checked={true}
+                  readOnly
                   style={{ marginRight: '10px' }}
                 />
                 <div>
-                  <strong>PIX - Desconto de 5%</strong>
+                  <strong>PIX</strong>
                   <br />
                   <small style={{ color: '#666' }}>Pagamento instantâneo via QR Code</small>
                 </div>
@@ -286,213 +226,76 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
                 display: 'flex',
                 alignItems: 'center',
                 padding: '15px',
-                border: `2px solid ${formaPagamento === 'cartao' ? '#009245' : '#ddd'}`,
+                border: `2px solid #ddd`,
                 borderRadius: '8px',
-                cursor: 'pointer',
-                backgroundColor: formaPagamento === 'cartao' ? '#f0f9f0' : 'white'
+                cursor: 'not-allowed',
+                backgroundColor: '#f5f5f5',
+                opacity: 0.6
               }}>
                 <input
                   type="radio"
                   name="pagamento"
                   value="cartao"
-                  checked={formaPagamento === 'cartao'}
-                  onChange={(e) => setFormaPagamento(e.target.value)}
+                  disabled
                   style={{ marginRight: '10px' }}
                 />
                 <div>
                   <strong>Cartão de Crédito</strong>
                   <br />
-                  <small style={{ color: '#666' }}>Visa, Mastercard, Elo</small>
+                  <small style={{ color: '#999' }}>Indisponível no momento</small>
                 </div>
               </label>
             </div>
           </div>
 
-          {/* Dados do Cartão (se cartão selecionado) */}
-          {formaPagamento === 'cartao' && (
-            <div style={{
-              backgroundColor: 'white',
-              padding: isMobile ? '20px' : '25px',
-              borderRadius: '10px',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              marginBottom: '20px'
-            }}>
-              <h3 style={{ 
-                color: '#009245', 
-                marginBottom: '20px',
-                fontSize: isMobile ? '16px' : '18px'
-              }}>💳 Dados do Cartão</h3>
-              
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
-                gap: '15px',
-                marginBottom: '15px'
-              }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                    Número do Cartão
-                  </label>
-                  <input
-                    type="text"
-                    value={dadosCartao.numero}
-                    onChange={(e) => handleCartaoChange('numero', e.target.value)}
-                    placeholder="0000 0000 0000 0000"
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid #ddd',
-                      borderRadius: '5px',
-                      fontSize: '16px'
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                    CVV
-                  </label>
-                  <input
-                    type="text"
-                    value={dadosCartao.cvv}
-                    onChange={(e) => handleCartaoChange('cvv', e.target.value)}
-                    placeholder="123"
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid #ddd',
-                      borderRadius: '5px',
-                      fontSize: '16px'
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
-                gap: '15px',
-                marginBottom: '15px'
-              }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                    Nome no Cartão
-                  </label>
-                  <input
-                    type="text"
-                    value={dadosCartao.nome}
-                    onChange={(e) => handleCartaoChange('nome', e.target.value)}
-                    placeholder="Nome completo"
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid #ddd',
-                      borderRadius: '5px',
-                      fontSize: '16px'
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                    Validade
-                  </label>
-                  <input
-                    type="text"
-                    value={dadosCartao.validade}
-                    onChange={(e) => handleCartaoChange('validade', e.target.value)}
-                    placeholder="MM/AA"
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid #ddd',
-                      borderRadius: '5px',
-                      fontSize: '16px'
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                  Endereço de Cobrança
-                </label>
-                <textarea
-                  value={enderecoCobranca}
-                  onChange={(e) => setEnderecoCobranca(e.target.value)}
-                  placeholder="Endereço completo para cobrança..."
-                  style={{
-                    width: '100%',
-                    height: '80px',
-                    padding: '12px',
-                    border: '1px solid #ddd',
-                    borderRadius: '5px',
-                    fontSize: '14px',
-                    resize: 'vertical'
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* PIX (se PIX selecionado) */}
-          {formaPagamento === 'pix' && (
-            <div style={{
-              backgroundColor: 'white',
-              padding: isMobile ? '20px' : '25px',
-              borderRadius: '10px',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          {/* PIX - única opção disponível */}
+          <div style={{
+            backgroundColor: 'white',
+            padding: isMobile ? '20px' : '25px',
+            borderRadius: '10px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            marginBottom: '20px',
+            textAlign: 'center'
+          }}>
+            <h3 style={{ 
+              color: '#009245', 
               marginBottom: '20px',
-              textAlign: 'center'
+              fontSize: isMobile ? '16px' : '18px'
+            }}>📱 Pagamento PIX</h3>
+            
+            <div style={{
+              backgroundColor: '#f8f9fa',
+              padding: '20px',
+              borderRadius: '8px',
+              marginBottom: '15px'
             }}>
-              <h3 style={{ 
-                color: '#009245', 
-                marginBottom: '20px',
-                fontSize: isMobile ? '16px' : '18px'
-              }}>📱 Pagamento PIX</h3>
-              
               <div style={{
-                backgroundColor: '#f8f9fa',
-                padding: '20px',
+                width: isMobile ? '120px' : '150px',
+                height: isMobile ? '120px' : '150px',
+                backgroundColor: '#fff',
+                border: '2px solid #ddd',
                 borderRadius: '8px',
-                marginBottom: '15px'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 15px auto',
+                fontSize: '12px',
+                color: '#666'
               }}>
-                <div style={{
-                  width: isMobile ? '120px' : '150px',
-                  height: isMobile ? '120px' : '150px',
-                  backgroundColor: '#fff',
-                  border: '2px solid #ddd',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 15px auto',
-                  fontSize: '12px',
-                  color: '#666'
-                }}>
-                  QR CODE PIX
-                  <br />
-                  (Simulação)
-                </div>
-                
-                <p style={{ 
-                  margin: 0, 
-                  fontSize: '14px', 
-                  color: '#666' 
-                }}>
-                  Escaneie o QR Code com seu banco ou copie o código PIX
-                </p>
+                QR CODE PIX
+                <br />
+                (Simulação)
               </div>
               
-              <div style={{
-                backgroundColor: '#fff3cd',
-                padding: '15px',
-                borderRadius: '5px',
-                fontSize: '14px',
-                color: '#856404'
+              <p style={{ 
+                margin: 0, 
+                fontSize: '14px', 
+                color: '#666' 
               }}>
-                💡 <strong>Desconto de 5%</strong> aplicado automaticamente no PIX!
-              </div>
+                Escaneie o QR Code com seu banco ou copie o código PIX
+              </p>
             </div>
-          )}
+          </div>
         </div>
 
         {/* Coluna Direita - Resumo do Pedido */}
@@ -546,19 +349,6 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
                 {pedidoAtual.taxaEntrega === 0 ? 'GRÁTIS' : `R$ ${pedidoAtual.taxaEntrega.toFixed(2)}`}
               </span>
             </div>
-
-            {formaPagamento === 'pix' && (
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                marginBottom: '10px',
-                fontSize: '16px',
-                color: '#28a745'
-              }}>
-                <span>Desconto PIX (5%):</span>
-                <span>- R$ {(pedidoAtual.total * 0.05).toFixed(2)}</span>
-              </div>
-            )}
             
             <hr style={{ margin: '15px 0', border: '1px solid #eee' }} />
             
@@ -571,12 +361,7 @@ const CheckoutPage = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
               marginBottom: '25px'
             }}>
               <span>Total:</span>
-              <span>
-                R$ {formaPagamento === 'pix' 
-                  ? (pedidoAtual.total * 0.95).toFixed(2) 
-                  : pedidoAtual.total.toFixed(2)
-                }
-              </span>
+              <span>R$ {pedidoAtual.total.toFixed(2)}</span>
             </div>
             
             <button

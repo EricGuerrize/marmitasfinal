@@ -52,40 +52,91 @@ const PedidoConfirmado = ({ onNavigate }) => {
   };
 
   const baixarComprovante = () => {
-    // Simula download do comprovante
-    const comprovante = `
-COMPROVANTE DE PEDIDO
-=====================
-
-Pedido: #${pedidoConfirmado.numero}
-Data: ${formatarData(pedidoConfirmado.dataConfirmacao)}
-Empresa: ${cnpjInfo}
-
-ITENS:
-${pedidoConfirmado.itens.map(item => 
-  `${item.quantidade}x ${item.nome} - R$ ${(item.preco * item.quantidade).toFixed(2)}`
-).join('\n')}
-
-Subtotal: R$ ${pedidoConfirmado.subtotal.toFixed(2)}
-Taxa de entrega: ${pedidoConfirmado.taxaEntrega === 0 ? 'GRÁTIS' : `R$ ${pedidoConfirmado.taxaEntrega.toFixed(2)}`}
-${pedidoConfirmado.formaPagamento === 'pix' ? 'Desconto PIX (5%): -R$ ' + (pedidoConfirmado.total * 0.05).toFixed(2) + '\n' : ''}
-TOTAL: R$ ${pedidoConfirmado.formaPagamento === 'pix' ? (pedidoConfirmado.total * 0.95).toFixed(2) : pedidoConfirmado.total.toFixed(2)}
-
-Forma de pagamento: ${pedidoConfirmado.formaPagamento === 'pix' ? 'PIX' : 'Cartão de Crédito'}
-Previsão de entrega: ${formatarDataEntrega(pedidoConfirmado.previsaoEntrega)}
-
-Fit In Box - Alimentação Saudável
+    // Cria conteúdo HTML para PDF
+    const conteudoPDF = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Comprovante Pedido #${pedidoConfirmado.numero}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .header { text-align: center; margin-bottom: 30px; }
+          .logo { color: #009245; font-size: 24px; font-weight: bold; }
+          .titulo { color: #009245; font-size: 20px; margin: 20px 0; }
+          .info-box { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; }
+          .item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+          .total { font-size: 18px; font-weight: bold; color: #009245; }
+          .rodape { margin-top: 30px; text-align: center; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo">🍽️ FIT IN BOX</div>
+          <h1>COMPROVANTE DE PEDIDO</h1>
+        </div>
+        
+        <div class="info-box">
+          <strong>Pedido:</strong> #${pedidoConfirmado.numero}<br>
+          <strong>Data:</strong> ${formatarData(pedidoConfirmado.dataConfirmacao)}<br>
+          <strong>Empresa:</strong> ${cnpjInfo}<br>
+          <strong>Status:</strong> ${pedidoConfirmado.status.toUpperCase()}
+        </div>
+        
+        <h2 class="titulo">ITENS DO PEDIDO</h2>
+        ${pedidoConfirmado.itens.map(item => 
+          `<div class="item">
+            <span>${item.quantidade}x ${item.nome}</span>
+            <span>R$ ${(item.preco * item.quantidade).toFixed(2)}</span>
+          </div>`
+        ).join('')}
+        
+        <div style="margin: 20px 0;">
+          <div class="item">
+            <span>Subtotal:</span>
+            <span>R$ ${pedidoConfirmado.subtotal.toFixed(2)}</span>
+          </div>
+          <div class="item">
+            <span>Taxa de entrega:</span>
+            <span>${pedidoConfirmado.taxaEntrega === 0 ? 'GRÁTIS' : `R$ ${pedidoConfirmado.taxaEntrega.toFixed(2)}`}</span>
+          </div>
+          <div class="item total">
+            <span>TOTAL:</span>
+            <span>R$ ${pedidoConfirmado.total.toFixed(2)}</span>
+          </div>
+        </div>
+        
+        <div class="info-box">
+          <strong>Forma de pagamento:</strong> ${pedidoConfirmado.formaPagamento === 'pix' ? 'PIX' : 'Cartão de Crédito'}<br>
+          <strong>Previsão de entrega:</strong> ${formatarDataEntrega(pedidoConfirmado.previsaoEntrega)}
+        </div>
+        
+        <div class="info-box">
+          <strong>Endereço de entrega:</strong><br>
+          ${pedidoConfirmado.enderecoEntrega}
+          ${pedidoConfirmado.observacoes ? `<br><br><strong>Observações:</strong><br>${pedidoConfirmado.observacoes}` : ''}
+        </div>
+        
+        <div class="rodape">
+          <p>Fit In Box - Alimentação Saudável</p>
+          <p>Obrigado pela preferência!</p>
+        </div>
+      </body>
+      </html>
     `;
 
-    const blob = new Blob([comprovante], { type: 'text/plain' });
+    // Cria um blob com o conteúdo HTML
+    const blob = new Blob([conteudoPDF], { type: 'text/html' });
     const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `comprovante-pedido-${pedidoConfirmado.numero}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+    
+    // Abre em nova janela para o usuário imprimir como PDF
+    const novaJanela = window.open(url, '_blank');
+    novaJanela.onload = () => {
+      setTimeout(() => {
+        novaJanela.print();
+        window.URL.revokeObjectURL(url);
+      }, 500);
+    };
   };
 
   if (!pedidoConfirmado) {
@@ -309,18 +360,6 @@ Fit In Box - Alimentação Saudável
                 {pedidoConfirmado.taxaEntrega === 0 ? 'GRÁTIS' : `R$ ${pedidoConfirmado.taxaEntrega.toFixed(2)}`}
               </span>
             </div>
-
-            {pedidoConfirmado.formaPagamento === 'pix' && (
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                marginBottom: '10px',
-                color: '#28a745'
-              }}>
-                <span>Desconto PIX (5%):</span>
-                <span>- R$ {(pedidoConfirmado.total * 0.05).toFixed(2)}</span>
-              </div>
-            )}
             
             <hr style={{ margin: '15px 0', border: '1px solid #ddd' }} />
             
@@ -332,12 +371,7 @@ Fit In Box - Alimentação Saudável
               color: '#009245'
             }}>
               <span>Total Pago:</span>
-              <span>
-                R$ {pedidoConfirmado.formaPagamento === 'pix' 
-                  ? (pedidoConfirmado.total * 0.95).toFixed(2) 
-                  : pedidoConfirmado.total.toFixed(2)
-                }
-              </span>
+              <span>R$ {pedidoConfirmado.total.toFixed(2)}</span>
             </div>
           </div>
 
@@ -350,15 +384,7 @@ Fit In Box - Alimentação Saudável
           }}>
             <strong>💳 Forma de Pagamento:</strong>
             <div style={{ marginTop: '5px' }}>
-              {pedidoConfirmado.formaPagamento === 'pix' ? (
-                <span>PIX - Pagamento confirmado ✅</span>
-              ) : (
-                <span>
-                  Cartão de Crédito - {pedidoConfirmado.dadosPagamento?.numeroMascarado}
-                  <br />
-                  <small>Titular: {pedidoConfirmado.dadosPagamento?.nome}</small>
-                </span>
-              )}
+              <span>PIX - Pagamento confirmado ✅</span>
             </div>
           </div>
 
@@ -406,7 +432,7 @@ Fit In Box - Alimentação Saudável
               gap: '8px'
             }}
           >
-            📄 Baixar Comprovante
+            📄 Baixar Comprovante PDF
           </button>
 
           <button

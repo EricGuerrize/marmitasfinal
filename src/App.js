@@ -39,18 +39,18 @@ function App() {
     setCurrentPage(page);
   };
 
-  // Função para adicionar ao carrinho
-  const adicionarAoCarrinho = (produto) => {
+  // Função para adicionar ao carrinho - CORRIGIDA
+  const adicionarAoCarrinho = (produto, quantidadeAdicionar = 1) => {
     const itemExistente = carrinho.find(item => item.id === produto.id);
     
     if (itemExistente) {
       setCarrinho(carrinho.map(item => 
         item.id === produto.id 
-          ? { ...item, quantidade: item.quantidade + 1 }
+          ? { ...item, quantidade: item.quantidade + quantidadeAdicionar }
           : item
       ));
     } else {
-      setCarrinho([...carrinho, { ...produto, quantidade: 1 }]);
+      setCarrinho([...carrinho, { ...produto, quantidade: quantidadeAdicionar }]);
     }
   };
 

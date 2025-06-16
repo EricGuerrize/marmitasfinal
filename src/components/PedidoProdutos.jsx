@@ -204,11 +204,11 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
     }
   };
 
+  // FUNÇÃO CORRIGIDA - adiciona a quantidade escolhida de uma vez
   const adicionarProdutoComQuantidade = (produto) => {
     const quantidade = getQuantidade(produto.id);
-    for (let i = 0; i < quantidade; i++) {
-      adicionarAoCarrinho(produto);
-    }
+    // Adiciona a quantidade escolhida de uma vez
+    adicionarAoCarrinho(produto, quantidade);
     // Reset quantidade após adicionar
     setQuantidades(prev => ({
       ...prev,
