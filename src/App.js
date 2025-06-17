@@ -4,7 +4,7 @@ import ProsseguirPage from './components/ProsseguirPage';
 import CnpjNaoCadastrado from './components/CnpjNaoCadastrado';
 import PedidoProdutos from './components/PedidoProdutos';
 import CarrinhoPage from './components/CarrinhoPage';
-import CheckoutPage from './components/CheckoutPage';
+import ResumoPedido from './components/ResumoPedido'; // NOVA PÁGINA
 import PedidoConfirmado from './components/PedidoConfirmado';
 import AdminPage from './components/AdminPage';
 import { NotificationProvider, useNotification } from './components/NotificationSystem';
@@ -22,14 +22,13 @@ function AppContent() {
       try {
         const carrinhoData = JSON.parse(carrinhoSalvo);
         setCarrinho(carrinhoData);
-        // REMOVIDO: Notificação de carrinho restaurado
       } catch (error) {
         console.error('Erro ao carregar carrinho:', error);
         setCarrinho([]);
         error('Erro ao restaurar carrinho anterior');
       }
     }
-  }, [error]); // Removido success da dependência
+  }, [error]);
 
   // Salva carrinho no sessionStorage sempre que muda
   useEffect(() => {
@@ -46,7 +45,7 @@ function AppContent() {
     setCurrentPage(page);
   };
 
-  // Função para adicionar ao carrinho - MELHORADA
+  // Função para adicionar ao carrinho
   const adicionarAoCarrinho = (produto, quantidadeAdicionar = 1) => {
     try {
       const itemExistente = carrinho.find(item => item.id === produto.id);
@@ -77,7 +76,7 @@ function AppContent() {
     }
   };
 
-  // Função para atualizar quantidade - MELHORADA
+  // Função para atualizar quantidade
   const atualizarQuantidade = (id, novaQuantidade) => {
     try {
       const produto = carrinho.find(item => item.id === id);
@@ -100,7 +99,7 @@ function AppContent() {
     }
   };
 
-  // Função para remover item - MELHORADA
+  // Função para remover item
   const removerItem = (id) => {
     try {
       const produto = carrinho.find(item => item.id === id);
@@ -115,7 +114,7 @@ function AppContent() {
     }
   };
 
-  // Função para limpar carrinho - MELHORADA
+  // Função para limpar carrinho
   const limparCarrinho = () => {
     try {
       const quantidadeAnterior = calcularQuantidadeTotal();
@@ -163,8 +162,8 @@ function AppContent() {
       case 'carrinho':
         return <CarrinhoPage {...props} />;
 
-      case 'checkout':
-        return <CheckoutPage {...props} />;
+      case 'resumo-pedido': // NOVA ROTA
+        return <ResumoPedido {...props} />;
 
       case 'pedido-confirmado':
         return <PedidoConfirmado onNavigate={navigate} />;
