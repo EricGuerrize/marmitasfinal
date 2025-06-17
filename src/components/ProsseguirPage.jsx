@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react';
 
 const ProsseguirPage = ({ onNavigate }) => {
   const [selectedOption, setSelectedOption] = useState('fazerPedido');
-  const [cnpjInfo, setCnpjInfo] = useState('');
+  const [cnpj, setCnpj] = useState('');
 
   useEffect(() => {
-    // Recupera informações do sessionStorage
-    const cnpj = sessionStorage.getItem('cnpj') || '';
-    const empresa = sessionStorage.getItem('empresaInfo') || '';
-    setCnpjInfo(`${empresa} - CNPJ: ${cnpj}`);
+    // Recupera informações do sessionStorage - APENAS CNPJ
+    const cnpjInfo = sessionStorage.getItem('cnpj') || '';
+    setCnpj(cnpjInfo);
     
     // Intercepta o botão voltar do navegador
     const handlePopState = (event) => {
@@ -76,7 +75,7 @@ const ProsseguirPage = ({ onNavigate }) => {
             fontWeight: 'bold',
             color: '#009245'
           }}>
-            {cnpjInfo}
+            CNPJ: {cnpj}
           </span>
           <button 
             onClick={handlePedidosClick}

@@ -147,10 +147,13 @@ const CnpjNaoCadastrado = ({ onNavigate }) => {
             
             <button 
               onClick={() => {
-                alert('Entre em contato pelo telefone: (11) 9999-9999');
+                const numeroWhatsApp = '5565992556938';
+                const mensagem = '🍽️ Olá! Tenho dúvidas sobre o cadastro do meu CNPJ no sistema Fit In Box.';
+                const url = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
+                window.open(url, '_blank');
               }}
               style={{
-                backgroundColor: '#f38e3c',
+                backgroundColor: '#25D366',
                 color: 'white',
                 padding: '15px 30px',
                 border: 'none',
@@ -158,10 +161,14 @@ const CnpjNaoCadastrado = ({ onNavigate }) => {
                 fontSize: '16px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
-                minWidth: '200px'
+                minWidth: '200px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
               }}
             >
-              Entrar em Contato
+              📱 WhatsApp
             </button>
           </div>
 
@@ -189,6 +196,7 @@ const CnpjNaoCadastrado = ({ onNavigate }) => {
               <li>Verifique se o CNPJ está digitado corretamente</li>
               <li>Confirme se todos os dígitos estão presentes</li>
               <li>Use apenas números ou o formato XX.XXX.XXX/XXXX-XX</li>
+              <li>Entre em contato via WhatsApp para suporte</li>
             </ul>
           </div>
         </div>

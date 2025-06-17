@@ -3,7 +3,7 @@ import { useCep } from '../hooks/useCep';
 import { useNotification } from './NotificationSystem';
 
 const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, limparCarrinho, calcularQuantidadeTotal }) => {
-  const [cnpjInfo, setCnpjInfo] = useState('');
+  const [cnpj, setCnpj] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   
@@ -33,10 +33,9 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
   }, []);
 
   useEffect(() => {
-    // Recupera informações do sessionStorage
-    const cnpj = sessionStorage.getItem('cnpj') || '';
-    const empresa = sessionStorage.getItem('empresaInfo') || '';
-    setCnpjInfo(`${empresa} - CNPJ: ${cnpj}`);
+    // Recupera informações do sessionStorage - APENAS CNPJ
+    const cnpjInfo = sessionStorage.getItem('cnpj') || '';
+    setCnpj(cnpjInfo);
     
     // Intercepta o botão voltar do navegador
     const handlePopState = (event) => {
@@ -164,7 +163,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               fontSize: isMobile ? '12px' : '14px',
               textAlign: 'center'
             }}>
-              {cnpjInfo}
+              CNPJ: {cnpj}
             </span>
             <button 
               onClick={continuarComprando}
@@ -273,7 +272,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             fontSize: isMobile ? '12px' : '14px',
             textAlign: 'center'
           }}>
-            {cnpjInfo}
+            CNPJ: {cnpj}
           </span>
           <button 
             onClick={continuarComprando}
@@ -464,7 +463,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             ))}
           </div>
 
-          {/* Endereço de Entrega - USANDO HOOK DE CEP */}
+          {/* Endereço de Entrega */}
           <div style={{
             backgroundColor: 'white',
             padding: isMobile ? '15px' : '20px',
@@ -704,7 +703,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             </div>
           </div>
 
-          {/* Observações */}
+          {/* Observações - CAMPO MENOR */}
           <div style={{
             backgroundColor: 'white',
             padding: isMobile ? '15px' : '20px',
@@ -719,18 +718,26 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             }}>💬 Observações (opcional)</h3>
             <textarea
               value={observacoes}
-              onChange={(e) => setObservacoes(e.target.value)}
-              placeholder="Alguma observação especial para seu pedido?"
+              onChange={(e) => {
+                if (e.target.value.length <= 200) {
+                  setObservacoes(e.target.value);
+                }
+              }}
+              placeholder="Ex: Sem cebola, entregar na portaria..."
               style={{
                 width: '100%',
-                height: '60px',
+                height: '80px',
                 padding: '10px',
                 border: '1px solid #ddd',
                 borderRadius: '5px',
                 fontSize: '14px',
-                resize: 'vertical'
+                resize: 'vertical',
+                maxHeight: '120px'
               }}
             />
+            <small style={{ color: '#666', fontSize: '12px' }}>
+              {observacoes.length}/200 caracteres
+            </small>
           </div>
         </div>
 

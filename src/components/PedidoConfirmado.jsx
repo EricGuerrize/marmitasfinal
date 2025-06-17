@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 
 const PedidoConfirmado = ({ onNavigate }) => {
-  const [cnpjInfo, setCnpjInfo] = useState('');
+  const [cnpj, setCnpj] = useState('');
   const [pedidoConfirmado, setPedidoConfirmado] = useState(null);
 
   useEffect(() => {
-    // Recupera informações do sessionStorage
-    const cnpj = sessionStorage.getItem('cnpj') || '';
-    const empresa = sessionStorage.getItem('empresaInfo') || '';
-    setCnpjInfo(`${empresa} - CNPJ: ${cnpj}`);
+    // Recupera informações do sessionStorage - APENAS CNPJ
+    const cnpjInfo = sessionStorage.getItem('cnpj') || '';
+    setCnpj(cnpjInfo);
 
     // Recupera pedido confirmado
     const pedidoSalvo = sessionStorage.getItem('pedidoConfirmado');
@@ -52,18 +51,18 @@ const PedidoConfirmado = ({ onNavigate }) => {
   };
 
   const enviarNovamenteWhatsApp = () => {
-    const numeroWhatsApp = '5565992556938'; // Substitua pelo número real
+    const numeroWhatsApp = '5565992556938';
     
     // Monta a mensagem para WhatsApp
     let mensagem = `🍽️ *CONSULTA DE PEDIDO - FIT IN BOX*\n\n`;
     mensagem += `📋 *Pedido:* #${pedidoConfirmado.numero}\n`;
-    mensagem += `🏢 *Empresa:* ${cnpjInfo}\n`;
-    mensagem += `📅 *Data:* ${formatarData(pedidoConfirmado.dataConfirmacao)}\n`;
+    mensagem += `🏢 *CNPJ:* ${cnpj}\n`;
+    mensagem += `📅 *Data:* ${formatarData(pedidoConfirmado.dataConfirmacao || pedidoConfirmado.dataEnvio)}\n`;
     mensagem += `💰 *Total:* R$ ${pedidoConfirmado.total.toFixed(2)}\n\n`;
     mensagem += `Gostaria de tirar alguma dúvida sobre este pedido.`;
 
-    // URL do WhatsApp
-    const url = `https://wa.me/${(5565992556938)}?text=${encodeURIComponent(mensagem)}`;
+    // URL do WhatsApp com código do país
+    const url = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
     window.open(url, '_blank');
   };
 
@@ -94,8 +93,8 @@ const PedidoConfirmado = ({ onNavigate }) => {
         
         <div class="info-box">
           <strong>Pedido:</strong> #${pedidoConfirmado.numero}<br>
-          <strong>Data:</strong> ${formatarData(pedidoConfirmado.dataConfirmacao)}<br>
-          <strong>Empresa:</strong> ${cnpjInfo}<br>
+          <strong>Data:</strong> ${formatarData(pedidoConfirmado.dataConfirmacao || pedidoConfirmado.dataEnvio)}<br>
+          <strong>CNPJ:</strong> ${cnpj}<br>
           <strong>Status:</strong> ${pedidoConfirmado.status.toUpperCase()}
         </div>
         
@@ -103,7 +102,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
         ${pedidoConfirmado.itens.map(item => 
           `<div class="item">
             <span>${item.quantidade}x ${item.nome}</span>
-            <span>R$ ${(item.preco * item.quantidade).toFixed(2)}</span>
+            <span>R$ ${(item.quantidade * item.preco).toFixed(2)}</span>
           </div>`
         ).join('')}
         
@@ -200,7 +199,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
             color: '#009245',
             fontSize: '14px'
           }}>
-            {cnpjInfo}
+            CNPJ: {cnpj}
           </span>
           <button 
             onClick={fazerNovoPedido}
@@ -307,7 +306,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
               <div>
                 <strong style={{ color: '#155724' }}>Data do Pedido:</strong>
                 <div style={{ fontSize: '16px', color: '#155724' }}>
-                  {formatarData(pedidoConfirmado.dataConfirmacao)}
+                  {formatarData(pedidoConfirmado.dataConfirmacao || pedidoConfirmado.dataEnvio)}
                 </div>
               </div>
             </div>
@@ -557,7 +556,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
               borderRadius: '8px'
             }}>
               <strong>📱 WhatsApp</strong>
-              <div>(11) 99999-9999</div>
+              <div>+55 (65) 99255-6938</div>
             </div>
             
             <div style={{

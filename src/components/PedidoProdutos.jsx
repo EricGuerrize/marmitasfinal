@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { produtoService } from '../services/produtoService';
 
 const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQuantidadeTotal }) => {
-  const [cnpjInfo, setCnpjInfo] = useState('');
+  const [cnpj, setCnpj] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [produtosDisponiveis, setProdutosDisponiveis] = useState([]);
   const [quantidades, setQuantidades] = useState({});
@@ -141,10 +141,9 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
   }, []);
 
   useEffect(() => {
-    // Recupera informações do sessionStorage
-    const cnpj = sessionStorage.getItem('cnpj') || '';
-    const empresa = sessionStorage.getItem('empresaInfo') || '';
-    setCnpjInfo(`${empresa} - CNPJ: ${cnpj}`);
+    // Recupera informações do sessionStorage - APENAS CNPJ
+    const cnpjInfo = sessionStorage.getItem('cnpj') || '';
+    setCnpj(cnpjInfo);
 
     // Carrega produtos do localStorage/admin ou usa produtos padrão
     const carregarProdutos = async () => {
@@ -284,7 +283,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
             fontSize: isMobile ? '12px' : '14px',
             textAlign: 'center'
           }}>
-            {cnpjInfo}
+            CNPJ: {cnpj}
           </span>
           <div style={{
             display: 'flex',

@@ -15,25 +15,21 @@ function AppContent() {
   const [carrinho, setCarrinho] = useState([]);
   const { success, error, warning } = useNotification();
 
-  // Carrega carrinho do sessionStorage ao iniciar
+  // Carrega carrinho do sessionStorage ao iniciar (SEM NOTIFICAÇÃO)
   useEffect(() => {
     const carrinhoSalvo = sessionStorage.getItem('carrinho');
     if (carrinhoSalvo) {
       try {
         const carrinhoData = JSON.parse(carrinhoSalvo);
         setCarrinho(carrinhoData);
-        
-        if (carrinhoData.length > 0) {
-          const totalItens = carrinhoData.reduce((total, item) => total + item.quantidade, 0);
-          success(`Carrinho restaurado com ${totalItens} item(s)`, 3000);
-        }
+        // REMOVIDO: Notificação de carrinho restaurado
       } catch (error) {
         console.error('Erro ao carregar carrinho:', error);
         setCarrinho([]);
         error('Erro ao restaurar carrinho anterior');
       }
     }
-  }, [success, error]);
+  }, [error]); // Removido success da dependência
 
   // Salva carrinho no sessionStorage sempre que muda
   useEffect(() => {
