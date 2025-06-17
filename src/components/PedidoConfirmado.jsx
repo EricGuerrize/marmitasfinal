@@ -51,6 +51,22 @@ const PedidoConfirmado = ({ onNavigate }) => {
     onNavigate('consultar-pedido');
   };
 
+  const enviarNovamenteWhatsApp = () => {
+    const numeroWhatsApp = '5511999999999'; // Substitua pelo número real
+    
+    // Monta a mensagem para WhatsApp
+    let mensagem = `🍽️ *CONSULTA DE PEDIDO - FIT IN BOX*\n\n`;
+    mensagem += `📋 *Pedido:* #${pedidoConfirmado.numero}\n`;
+    mensagem += `🏢 *Empresa:* ${cnpjInfo}\n`;
+    mensagem += `📅 *Data:* ${formatarData(pedidoConfirmado.dataConfirmacao)}\n`;
+    mensagem += `💰 *Total:* R$ ${pedidoConfirmado.total.toFixed(2)}\n\n`;
+    mensagem += `Gostaria de tirar alguma dúvida sobre este pedido.`;
+
+    // URL do WhatsApp
+    const url = `https://wa.me/${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
+    window.open(url, '_blank');
+  };
+
   const baixarComprovante = () => {
     // Cria conteúdo HTML para PDF
     const conteudoPDF = `
@@ -107,7 +123,6 @@ const PedidoConfirmado = ({ onNavigate }) => {
         </div>
         
         <div class="info-box">
-          <strong>Forma de pagamento:</strong> ${pedidoConfirmado.formaPagamento === 'pix' ? 'PIX' : 'Cartão de Crédito'}<br>
           <strong>Previsão de entrega:</strong> ${formatarDataEntrega(pedidoConfirmado.previsaoEntrega)}
         </div>
         
@@ -119,6 +134,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
         
         <div class="rodape">
           <p>Fit In Box - Alimentação Saudável</p>
+          <p>Pedido enviado via WhatsApp</p>
           <p>Obrigado pela preferência!</p>
         </div>
       </body>
@@ -230,16 +246,44 @@ const PedidoConfirmado = ({ onNavigate }) => {
             fontSize: '32px',
             marginBottom: '10px'
           }}>
-            Pedido Confirmado com Sucesso!
+            Pedido Enviado com Sucesso!
           </h1>
           
           <p style={{
             color: '#666',
             fontSize: '18px',
-            marginBottom: '30px'
+            marginBottom: '20px'
           }}>
-            Seu pedido foi processado e está sendo preparado com carinho.
+            Seu pedido foi enviado via WhatsApp e está sendo processado pela nossa equipe.
           </p>
+
+          {/* Status do WhatsApp */}
+          <div style={{
+            backgroundColor: '#e7f3ff',
+            border: '1px solid #b3d9ff',
+            borderRadius: '8px',
+            padding: '15px',
+            marginBottom: '20px'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              color: '#0066cc',
+              fontWeight: 'bold'
+            }}>
+              <span style={{ fontSize: '24px' }}>📱</span>
+              Pedido enviado via WhatsApp
+            </div>
+            <p style={{ 
+              margin: '10px 0 0 0', 
+              fontSize: '14px',
+              color: '#333'
+            }}>
+              Nossa equipe entrará em contato em breve para confirmar os detalhes
+            </p>
+          </div>
 
           <div style={{
             backgroundColor: '#d4edda',
@@ -370,21 +414,8 @@ const PedidoConfirmado = ({ onNavigate }) => {
               fontWeight: 'bold',
               color: '#009245'
             }}>
-              <span>Total Pago:</span>
+              <span>Total:</span>
               <span>R$ {pedidoConfirmado.total.toFixed(2)}</span>
-            </div>
-          </div>
-
-          {/* Forma de Pagamento */}
-          <div style={{
-            backgroundColor: '#e7f3ff',
-            padding: '15px',
-            borderRadius: '8px',
-            marginBottom: '20px'
-          }}>
-            <strong>💳 Forma de Pagamento:</strong>
-            <div style={{ marginTop: '5px' }}>
-              <span>PIX - Pagamento confirmado ✅</span>
             </div>
           </div>
 
@@ -416,6 +447,26 @@ const PedidoConfirmado = ({ onNavigate }) => {
           gap: '15px'
         }}>
           <button
+            onClick={enviarNovamenteWhatsApp}
+            style={{
+              backgroundColor: '#25D366',
+              color: 'white',
+              border: 'none',
+              padding: '15px 20px',
+              borderRadius: '8px',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}
+          >
+            📱 Abrir WhatsApp
+          </button>
+
+          <button
             onClick={baixarComprovante}
             style={{
               backgroundColor: '#17a2b8',
@@ -432,7 +483,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
               gap: '8px'
             }}
           >
-            📄 Baixar Comprovante PDF
+            📄 Baixar Comprovante
           </button>
 
           <button
@@ -490,8 +541,8 @@ const PedidoConfirmado = ({ onNavigate }) => {
           </h3>
           
           <p style={{ color: '#666', marginBottom: '20px' }}>
-            Se você tiver alguma dúvida sobre seu pedido ou precisar fazer alterações,
-            entre em contato conosco:
+            Nossa equipe já recebeu seu pedido via WhatsApp. Se precisar de esclarecimentos
+            ou quiser fazer alterações, entre em contato conosco:
           </p>
           
           <div style={{

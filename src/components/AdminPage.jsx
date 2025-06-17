@@ -6,6 +6,7 @@ const AdminPage = ({ onNavigate }) => {
   const [pedidos, setPedidos] = useState([]);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   
   // Form states para adicionar/editar produto
   const [productForm, setProductForm] = useState({
@@ -27,11 +28,41 @@ const AdminPage = ({ onNavigate }) => {
   });
 
   useEffect(() => {
-    // Carrega produtos do localStorage (simulando backend)
+    // Carrega produtos do localStorage
     loadProducts();
     
-    // Carrega pedidos simulados
-    const pedidosSimulados = [
+    // Carrega pedidos
+    loadPedidos();
+
+    // Atualiza dados a cada 5 segundos
+    const intervalId = setInterval(() => {
+      loadPedidos();
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const loadProducts = () => {
+    const produtosSalvos = localStorage.getItem('adminProdutos');
+    if (produtosSalvos) {
+      try {
+        const produtosParsed = JSON.parse(produtosSalvos);
+        setProdutos(produtosParsed);
+      } catch (error) {
+        console.error('Erro ao fazer parse dos produtos salvos:', error);
+        initializeDefaultProducts();
+      }
+    } else {
+      initializeDefaultProducts();
+    }
+  };
+
+  const loadPedidos = () => {
+    // Carrega pedidos do localStorage (vindos do frontend)
+    const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
+    
+    // Pedidos simulados para demonstração (se não houver pedidos reais)
+    const pedidosSimulados = pedidosAdmin.length === 0 ? [
       {
         id: 1,
         numero: 1001,
@@ -58,30 +89,14 @@ const AdminPage = ({ onNavigate }) => {
           { nome: 'Marmita Fitness Frango', quantidade: 30, preco: 18.90 }
         ]
       }
-    ];
-    setPedidos(pedidosSimulados);
+    ] : [];
 
-    // Calcula estatísticas
-    calcularEstatisticas(pedidosSimulados);
-  }, []);
-
-  const loadProducts = () => {
-    const produtosSalvos = localStorage.getItem('adminProdutos');
-    if (produtosSalvos) {
-      try {
-        const produtosParsed = JSON.parse(produtosSalvos);
-        setProdutos(produtosParsed);
-      } catch (error) {
-        console.error('Erro ao fazer parse dos produtos salvos:', error);
-        initializeDefaultProducts();
-      }
-    } else {
-      initializeDefaultProducts();
-    }
+    const todosPedidos = [...pedidosSimulados, ...pedidosAdmin];
+    setPedidos(todosPedidos);
+    calcularEstatisticas(todosPedidos);
   };
 
   const initializeDefaultProducts = () => {
-    // Produtos iniciais padrão
     const produtosIniciais = [
       {
         id: 1,
@@ -153,7 +168,8 @@ const AdminPage = ({ onNavigate }) => {
     try {
       setProdutos(newProducts);
       localStorage.setItem('adminProdutos', JSON.stringify(newProducts));
-      // Força re-render
+      
+      // Força atualização imediata
       setTimeout(() => {
         loadProducts();
       }, 100);
@@ -178,7 +194,45 @@ const AdminPage = ({ onNavigate }) => {
     });
   };
 
-  const handleProductSubmit = (e) => {
+  // Função para upload de imagem
+  const handleImageUpload = (file) => {
+    return new Promise((resolve, reject) => {
+      if (!file) {
+        reject('Nenhum arquivo selecionado');
+        return;
+      }
+
+      // Verifica se é uma imagem
+      if (!file.type.startsWith('image/')) {
+        reject('Por favor, selecione apenas arquivos de imagem');
+        return;
+      }
+
+      // Verifica o tamanho (máximo 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        reject('Imagem deve ter menos de 5MB');
+        return;
+      }
+
+      setUploadingImage(true);
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        // Simula upload para servidor (aqui apenas convertemos para base64)
+        setTimeout(() => {
+          setUploadingImage(false);
+          resolve(e.target.result);
+        }, 2000); // Simula 2 segundos de upload
+      };
+      reader.onerror = () => {
+        setUploadingImage(false);
+        reject('Erro ao ler arquivo');
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleProductSubmit = async (e) => {
     e.preventDefault();
     
     try {
@@ -600,34 +654,103 @@ const AdminPage = ({ onNavigate }) => {
                     </div>
                   </div>
 
+                  {/* Upload de imagem MELHORADO */}
                   <div style={{ marginBottom: '20px' }}>
                     <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                      URL da Imagem
+                      Imagem do Produto
                     </label>
-                    <input
-                      type="url"
-                      value={productForm.imagem}
-                      onChange={(e) => setProductForm({...productForm, imagem: e.target.value})}
-                      placeholder="https://exemplo.com/imagem.jpg"
-                      style={{
-                        width: '100%',
-                        padding: '10px',
-                        border: '1px solid #ddd',
-                        borderRadius: '5px'
-                      }}
-                    />
+                    
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto',
+                      gap: '10px',
+                      alignItems: 'end'
+                    }}>
+                      <input
+                        type="url"
+                        value={productForm.imagem}
+                        onChange={(e) => setProductForm({...productForm, imagem: e.target.value})}
+                        placeholder="https://exemplo.com/imagem.jpg ou faça upload"
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '1px solid #ddd',
+                          borderRadius: '5px'
+                        }}
+                      />
+                      
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              try {
+                                const imageUrl = await handleImageUpload(file);
+                                setProductForm({...productForm, imagem: imageUrl});
+                                alert('Imagem carregada com sucesso!');
+                              } catch (error) {
+                                alert(`Erro: ${error}`);
+                              }
+                            }
+                          }}
+                          style={{
+                            position: 'absolute',
+                            opacity: 0,
+                            width: '100%',
+                            height: '100%',
+                            cursor: 'pointer'
+                          }}
+                          disabled={uploadingImage}
+                        />
+                        <button
+                          type="button"
+                          disabled={uploadingImage}
+                          style={{
+                            backgroundColor: uploadingImage ? '#ccc' : '#007bff',
+                            color: 'white',
+                            border: 'none',
+                            padding: '10px 15px',
+                            borderRadius: '5px',
+                            cursor: uploadingImage ? 'wait' : 'pointer',
+                            fontWeight: 'bold',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {uploadingImage ? '⏳ Enviando...' : '📁 Upload'}
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {productForm.imagem && (
+                      <div style={{ marginTop: '10px' }}>
+                        <img
+                          src={productForm.imagem}
+                          alt="Preview"
+                          style={{
+                            width: '100px',
+                            height: '80px',
+                            objectFit: 'cover',
+                            borderRadius: '5px',
+                            border: '1px solid #ddd'
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button
                       type="submit"
+                      disabled={uploadingImage}
                       style={{
-                        backgroundColor: '#007bff',
+                        backgroundColor: uploadingImage ? '#ccc' : '#007bff',
                         color: 'white',
                         border: 'none',
                         padding: '12px 20px',
                         borderRadius: '5px',
-                        cursor: 'pointer',
+                        cursor: uploadingImage ? 'wait' : 'pointer',
                         fontWeight: 'bold'
                       }}
                     >
@@ -795,94 +918,125 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Pedidos Tab */}
+        {/* Pedidos Tab - ATUALIZADO COM SYNC AUTOMÁTICO */}
         {activeTab === 'pedidos' && (
           <div>
-            <h1 style={{ color: '#343a40', marginBottom: '30px' }}>📋 Gerenciar Pedidos</h1>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '30px'
+            }}>
+              <h1 style={{ color: '#343a40', margin: 0 }}>📋 Gerenciar Pedidos</h1>
+              <div style={{
+                backgroundColor: '#28a745',
+                color: 'white',
+                padding: '8px 12px',
+                borderRadius: '15px',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}>
+                🔄 Atualização automática ativa
+              </div>
+            </div>
             
             <div style={{
               display: 'flex',
               flexDirection: 'column',
               gap: '20px'
             }}>
-              {pedidos.map(pedido => (
-                <div
-                  key={pedido.id}
-                  style={{
-                    backgroundColor: 'white',
-                    padding: '25px',
-                    borderRadius: '10px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                  }}
-                >
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    marginBottom: '15px'
-                  }}>
-                    <div>
-                      <h3 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
-                        Pedido #{pedido.numero}
-                      </h3>
-                      <p style={{ margin: 0, color: '#6c757d' }}>
-                        {pedido.cliente} - {pedido.cnpj}
-                      </p>
-                      <p style={{ margin: '5px 0 0 0', color: '#6c757d', fontSize: '14px' }}>
-                        {new Date(pedido.data).toLocaleDateString('pt-BR', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
+              {pedidos.length === 0 ? (
+                <div style={{
+                  backgroundColor: 'white',
+                  padding: '40px',
+                  borderRadius: '10px',
+                  textAlign: 'center',
+                  color: '#666'
+                }}>
+                  <div style={{ fontSize: '48px', marginBottom: '20px' }}>📋</div>
+                  <h3>Nenhum pedido encontrado</h3>
+                  <p>Os novos pedidos aparecerão aqui automaticamente.</p>
+                </div>
+              ) : (
+                pedidos.map(pedido => (
+                  <div
+                    key={pedido.id}
+                    style={{
+                      backgroundColor: 'white',
+                      padding: '25px',
+                      borderRadius: '10px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      marginBottom: '15px'
+                    }}>
+                      <div>
+                        <h3 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
+                          Pedido #{pedido.numero}
+                        </h3>
+                        <p style={{ margin: 0, color: '#6c757d' }}>
+                          {pedido.cliente} - {pedido.cnpj}
+                        </p>
+                        <p style={{ margin: '5px 0 0 0', color: '#6c757d', fontSize: '14px' }}>
+                          {new Date(pedido.data).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                      
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{
+                          backgroundColor: pedido.status === 'confirmado' ? '#28a745' : '#ffc107',
+                          color: pedido.status === 'confirmado' ? 'white' : '#000',
+                          padding: '6px 12px',
+                          borderRadius: '15px',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          textTransform: 'uppercase'
+                        }}>
+                          {pedido.status}
+                        </span>
+                        <div style={{
+                          fontSize: '24px',
+                          fontWeight: 'bold',
+                          color: '#28a745',
+                          marginTop: '5px'
+                        }}>
+                          R$ {pedido.total.toFixed(2)}
+                        </div>
+                      </div>
                     </div>
                     
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{
-                        backgroundColor: pedido.status === 'confirmado' ? '#28a745' : '#ffc107',
-                        color: pedido.status === 'confirmado' ? 'white' : '#000',
-                        padding: '6px 12px',
-                        borderRadius: '15px',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        textTransform: 'uppercase'
-                      }}>
-                        {pedido.status}
-                      </span>
-                      <div style={{
-                        fontSize: '24px',
-                        fontWeight: 'bold',
-                        color: '#28a745',
-                        marginTop: '5px'
-                      }}>
-                        R$ {pedido.total.toFixed(2)}
-                      </div>
+                    <div>
+                      <h4 style={{ margin: '15px 0 10px 0', color: '#343a40' }}>Itens do Pedido:</h4>
+                      {pedido.itens.map((item, index) => (
+                        <div
+                          key={index}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            padding: '8px 0',
+                            borderBottom: index < pedido.itens.length - 1 ? '1px solid #eee' : 'none'
+                          }}
+                        >
+                          <span>{item.quantidade}x {item.nome}</span>
+                          <span style={{ fontWeight: 'bold' }}>
+                            R$ {(item.quantidade * item.preco).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  
-                  <div>
-                    <h4 style={{ margin: '15px 0 10px 0', color: '#343a40' }}>Itens do Pedido:</h4>
-                    {pedido.itens.map((item, index) => (
-                      <div
-                        key={index}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          padding: '8px 0',
-                          borderBottom: index < pedido.itens.length - 1 ? '1px solid #eee' : 'none'
-                        }}
-                      >
-                        <span>{item.quantidade}x {item.nome}</span>
-                        <span style={{ fontWeight: 'bold' }}>
-                          R$ {(item.quantidade * item.preco).toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         )}
@@ -975,7 +1129,7 @@ const AdminPage = ({ onNavigate }) => {
                 <div style={{ marginBottom: '15px' }}>
                   <div style={{ color: '#6c757d', marginBottom: '5px' }}>Pedido Médio:</div>
                   <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#28a745' }}>
-                    R$ {(stats.totalVendas / stats.totalPedidos).toFixed(2)}
+                    R$ {stats.totalPedidos > 0 ? (stats.totalVendas / stats.totalPedidos).toFixed(2) : '0.00'}
                   </div>
                 </div>
                 <div>
