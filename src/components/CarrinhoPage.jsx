@@ -1,20 +1,24 @@
 import React, { useState, useEffect } from 'react';
+import { useCep } from '../hooks/useCep';
+import { useNotification } from './NotificationSystem';
 
 const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, limparCarrinho, calcularQuantidadeTotal }) => {
   const [cnpjInfo, setCnpjInfo] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   
-  // Estados para endereço formatado
-  const [endereco, setEndereco] = useState({
-    rua: '',
-    numero: '',
-    bairro: '',
-    cep: '',
-    cidade: '',
-    estado: 'SP',
-    referencia: ''
-  });
+  // Hook personalizado para CEP
+  const { 
+    endereco, 
+    loading: buscandoCep, 
+    error: erroCep,
+    atualizarCampo,
+    validarEndereco,
+    formatarEnderecoCompleto
+  } = useCep();
+
+  // Hook de notificações
+  const { success, error: showError } = useNotification();
 
   // Detecta se é mobile
   useEffect(() => {
@@ -42,11 +46,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       return false;
     };
     
-    // Remove qualquer listener anterior
     window.removeEventListener('popstate', handlePopState);
     window.addEventListener('popstate', handlePopState);
-    
-    // Adiciona uma entrada no histórico para interceptar o botão voltar
     window.history.pushState({ page: 'carrinho' }, '', window.location.pathname);
     
     return () => {
@@ -54,60 +55,48 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     };
   }, [onNavigate]);
 
+  // Mostra notificação quando CEP é encontrado
+  useEffect(() => {
+    if (endereco.cidade && endereco.rua && !buscandoCep) {
+      success('Endereço encontrado! Verifique se está correto.', 3000);
+    }
+  }, [endereco.cidade, endereco.rua, buscandoCep, success]);
+
+  // Mostra erro de CEP
+  useEffect(() => {
+    if (erroCep) {
+      showError(`Erro no CEP: ${erroCep}`);
+    }
+  }, [erroCep, showError]);
+
   const calcularSubtotal = () => {
     return carrinho.reduce((total, item) => total + (item.preco * item.quantidade), 0);
   };
 
   const calcularTaxaEntrega = () => {
     const subtotal = calcularSubtotal();
-    return subtotal > 50 ? 0 : 5.00; // Frete grátis acima de R$ 50
+    return subtotal > 50 ? 0 : 5.00;
   };
 
   const calcularTotal = () => {
     return calcularSubtotal() + calcularTaxaEntrega();
   };
 
-  const validarEndereco = () => {
-    if (!endereco.rua.trim()) {
-      alert('Por favor, informe a rua!');
-      return false;
-    }
-    if (!endereco.numero.trim()) {
-      alert('Por favor, informe o número!');
-      return false;
-    }
-    if (!endereco.bairro.trim()) {
-      alert('Por favor, informe o bairro!');
-      return false;
-    }
-    if (!endereco.cep.trim()) {
-      alert('Por favor, informe o CEP!');
-      return false;
-    }
-    if (!endereco.cidade.trim()) {
-      alert('Por favor, informe a cidade!');
-      return false;
-    }
-    return true;
-  };
-
-  const formatarEnderecoCompleto = () => {
-    return `${endereco.rua}, ${endereco.numero} - ${endereco.bairro}, ${endereco.cidade}/${endereco.estado} - CEP: ${endereco.cep}${endereco.referencia ? ` - Ref: ${endereco.referencia}` : ''}`;
-  };
-
   const finalizarPedido = () => {
     if (carrinho.length === 0) {
-      alert('Carrinho está vazio!');
+      showError('Carrinho está vazio!');
       return;
     }
 
     const quantidadeTotal = calcularQuantidadeTotal();
     if (quantidadeTotal < 30) {
-      alert(`Pedido mínimo de 30 marmitas. Você tem ${quantidadeTotal} marmita(s). Adicione mais ${30 - quantidadeTotal} marmita(s).`);
+      showError(`Pedido mínimo de 30 marmitas. Você tem ${quantidadeTotal} marmita(s). Adicione mais ${30 - quantidadeTotal} marmita(s).`);
       return;
     }
 
-    if (!validarEndereco()) {
+    const validacao = validarEndereco();
+    if (!validacao.isValid) {
+      showError(validacao.mensagem);
       return;
     }
 
@@ -124,7 +113,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     };
 
     sessionStorage.setItem('pedidoAtual', JSON.stringify(pedido));
-    onNavigate('checkout');
+    success('Pedido preparado! Redirecionando...');
+    setTimeout(() => onNavigate('checkout'), 1000);
   };
 
   const continuarComprando = () => {
@@ -135,19 +125,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     if (window.confirm('Tem certeza que deseja limpar o carrinho?')) {
       limparCarrinho();
     }
-  };
-
-  const handleEnderecoChange = (campo, valor) => {
-    if (campo === 'cep') {
-      // Máscara para CEP
-      valor = valor.replace(/\D/g, '').replace(/(\d{5})(\d)/, '$1-$2');
-      if (valor.length > 9) valor = valor.substring(0, 9);
-    }
-    
-    setEndereco(prev => ({
-      ...prev,
-      [campo]: valor
-    }));
   };
 
   if (carrinho.length === 0) {
@@ -487,7 +464,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             ))}
           </div>
 
-          {/* Endereço de Entrega Formatado */}
+          {/* Endereço de Entrega - USANDO HOOK DE CEP */}
           <div style={{
             backgroundColor: 'white',
             padding: isMobile ? '15px' : '20px',
@@ -500,6 +477,36 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               marginBottom: '15px',
               fontSize: isMobile ? '16px' : '18px'
             }}>📍 Endereço de Entrega</h3>
+            
+            {/* CEP com busca automática */}
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '5px', 
+                fontWeight: 'bold', 
+                fontSize: '14px' 
+              }}>
+                CEP * {buscandoCep && <span style={{ color: '#f38e3c' }}>🔍 Buscando...</span>}
+              </label>
+              <input
+                type="text"
+                value={endereco.cep}
+                onChange={(e) => atualizarCampo('cep', e.target.value)}
+                placeholder="00000-000"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  border: `1px solid ${erroCep ? '#dc3545' : '#ddd'}`,
+                  borderRadius: '5px',
+                  fontSize: '14px',
+                  backgroundColor: buscandoCep ? '#f8f9fa' : 'white'
+                }}
+                required
+              />
+              <small style={{ color: '#666', fontSize: '12px' }}>
+                Digite o CEP para preenchimento automático do endereço
+              </small>
+            </div>
             
             <div style={{
               display: 'grid',
@@ -519,7 +526,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 <input
                   type="text"
                   value={endereco.rua}
-                  onChange={(e) => handleEnderecoChange('rua', e.target.value)}
+                  onChange={(e) => atualizarCampo('rua', e.target.value)}
                   placeholder="Ex: Rua das Flores"
                   style={{
                     width: '100%',
@@ -544,7 +551,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 <input
                   type="text"
                   value={endereco.numero}
-                  onChange={(e) => handleEnderecoChange('numero', e.target.value)}
+                  onChange={(e) => atualizarCampo('numero', e.target.value)}
                   placeholder="Ex: 123"
                   style={{
                     width: '100%',
@@ -576,7 +583,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 <input
                   type="text"
                   value={endereco.bairro}
-                  onChange={(e) => handleEnderecoChange('bairro', e.target.value)}
+                  onChange={(e) => atualizarCampo('bairro', e.target.value)}
                   placeholder="Ex: Centro"
                   style={{
                     width: '100%',
@@ -596,13 +603,13 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   fontWeight: 'bold', 
                   fontSize: '14px' 
                 }}>
-                  CEP *
+                  Cidade *
                 </label>
                 <input
                   type="text"
-                  value={endereco.cep}
-                  onChange={(e) => handleEnderecoChange('cep', e.target.value)}
-                  placeholder="00000-000"
+                  value={endereco.cidade}
+                  onChange={(e) => atualizarCampo('cidade', e.target.value)}
+                  placeholder="Ex: São Paulo"
                   style={{
                     width: '100%',
                     padding: '10px',
@@ -628,13 +635,13 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   fontWeight: 'bold', 
                   fontSize: '14px' 
                 }}>
-                  Cidade *
+                  Referência (opcional)
                 </label>
                 <input
                   type="text"
-                  value={endereco.cidade}
-                  onChange={(e) => handleEnderecoChange('cidade', e.target.value)}
-                  placeholder="Ex: São Paulo"
+                  value={endereco.referencia}
+                  onChange={(e) => atualizarCampo('referencia', e.target.value)}
+                  placeholder="Ex: Próximo ao shopping, portão azul..."
                   style={{
                     width: '100%',
                     padding: '10px',
@@ -642,7 +649,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                     borderRadius: '5px',
                     fontSize: '14px'
                   }}
-                  required
                 />
               </div>
               
@@ -657,7 +663,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 </label>
                 <select
                   value={endereco.estado}
-                  onChange={(e) => handleEnderecoChange('estado', e.target.value)}
+                  onChange={(e) => atualizarCampo('estado', e.target.value)}
                   style={{
                     width: '100%',
                     padding: '10px',
@@ -695,30 +701,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   <option value="TO">TO</option>
                 </select>
               </div>
-            </div>
-
-            <div>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: '5px', 
-                fontWeight: 'bold', 
-                fontSize: '14px' 
-              }}>
-                Referência (opcional)
-              </label>
-              <input
-                type="text"
-                value={endereco.referencia}
-                onChange={(e) => handleEnderecoChange('referencia', e.target.value)}
-                placeholder="Ex: Próximo ao shopping, portão azul..."
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px',
-                  fontSize: '14px'
-                }}
-              />
             </div>
           </div>
 

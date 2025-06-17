@@ -52,7 +52,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
   };
 
   const enviarNovamenteWhatsApp = () => {
-    const numeroWhatsApp = '5511999999999'; // Substitua pelo número real
+    const numeroWhatsApp = '5565992556938'; // Substitua pelo número real
     
     // Monta a mensagem para WhatsApp
     let mensagem = `🍽️ *CONSULTA DE PEDIDO - FIT IN BOX*\n\n`;
@@ -63,7 +63,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
     mensagem += `Gostaria de tirar alguma dúvida sobre este pedido.`;
 
     // URL do WhatsApp
-    const url = `https://wa.me/${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
+    const url = `https://wa.me/${(5565992556938)}?text=${encodeURIComponent(mensagem)}`;
     window.open(url, '_blank');
   };
 

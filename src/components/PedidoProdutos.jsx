@@ -146,24 +146,39 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
     const empresa = sessionStorage.getItem('empresaInfo') || '';
     setCnpjInfo(`${empresa} - CNPJ: ${cnpj}`);
 
-    // Carrega produtos do Supabase ou usa produtos padrão
+    // Carrega produtos do localStorage/admin ou usa produtos padrão
     const carregarProdutos = async () => {
       try {
+        // Primeiro tenta carregar do localStorage (produtos do admin)
+        const produtosAdmin = localStorage.getItem('adminProdutos');
+        if (produtosAdmin) {
+          const produtosParsed = JSON.parse(produtosAdmin);
+          const produtosAtivos = produtosParsed.filter(p => p.disponivel);
+          if (produtosAtivos.length > 0) {
+            setProdutosDisponiveis(produtosAtivos);
+            return;
+          }
+        }
+
+        // Se não tem produtos do admin, tenta Supabase
         const produtosSupabase = await produtoService.listarProdutos();
         if (produtosSupabase && produtosSupabase.length > 0) {
           setProdutosDisponiveis(produtosSupabase);
         } else {
-          // Se não conseguir carregar do Supabase, usa produtos padrão
+          // Fallback para produtos padrão
           setProdutosDisponiveis(produtos);
         }
       } catch (error) {
-        console.error('Erro ao carregar produtos do Supabase:', error);
+        console.error('Erro ao carregar produtos:', error);
         // Fallback para produtos padrão se der erro
         setProdutosDisponiveis(produtos);
       }
     };
 
     carregarProdutos();
+
+    // Atualiza produtos a cada 5 segundos para pegar mudanças do admin
+    const intervalId = setInterval(carregarProdutos, 5000);
     
     // Intercepta o botão voltar do navegador
     const handlePopState = (event) => {
@@ -182,10 +197,11 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
     
     return () => {
       window.removeEventListener('popstate', handlePopState);
+      clearInterval(intervalId);
     };
   }, [onNavigate]);
 
-  // Filtra produtos por categoria (usando produtos disponíveis ou padrão)
+  // Filtra produtos por categoria
   const produtosFiltrados = selectedCategory === 'todos' 
     ? produtosDisponiveis 
     : produtosDisponiveis.filter(produto => produto.categoria === selectedCategory);
@@ -196,7 +212,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
   };
 
   const updateQuantidade = (produtoId, novaQuantidade) => {
-    if (novaQuantidade >= 1) {
+    if (novaQuantidade >= 1 && novaQuantidade <= 999) {
       setQuantidades(prev => ({
         ...prev,
         [produtoId]: novaQuantidade
@@ -204,10 +220,15 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
     }
   };
 
-  // FUNÇÃO CORRIGIDA - adiciona a quantidade escolhida de uma vez
+  // Função para lidar com input direto da quantidade
+  const handleQuantidadeInput = (produtoId, value) => {
+    const quantidade = parseInt(value) || 1;
+    updateQuantidade(produtoId, quantidade);
+  };
+
+  // Adiciona produto com quantidade escolhida
   const adicionarProdutoComQuantidade = (produto) => {
     const quantidade = getQuantidade(produto.id);
-    // Adiciona a quantidade escolhida de uma vez
     adicionarAoCarrinho(produto, quantidade);
     // Reset quantidade após adicionar
     setQuantidades(prev => ({
@@ -462,7 +483,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
                       gap: '10px',
                       width: isMobile ? '100%' : 'auto'
                     }}>
-                      {/* Controle de Quantidade */}
+                      {/* Controle de Quantidade - COM CAMPO DIGITAL */}
                       <div style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -490,15 +511,25 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
                           -
                         </button>
                         
-                        <span style={{
-                          fontSize: isMobile ? '18px' : '16px',
-                          fontWeight: 'bold',
-                          minWidth: isMobile ? '40px' : '30px',
-                          textAlign: 'center',
-                          color: '#009245'
-                        }}>
-                          {getQuantidade(produto.id)}
-                        </span>
+                        {/* CAMPO DIGITAL PARA QUANTIDADE */}
+                        <input
+                          type="number"
+                          min="1"
+                          max="999"
+                          value={getQuantidade(produto.id)}
+                          onChange={(e) => handleQuantidadeInput(produto.id, e.target.value)}
+                          style={{
+                            width: isMobile ? '60px' : '50px',
+                            height: '30px',
+                            border: '1px solid #ddd',
+                            borderRadius: '5px',
+                            textAlign: 'center',
+                            fontSize: '16px',
+                            fontWeight: 'bold',
+                            color: '#009245',
+                            backgroundColor: 'white'
+                          }}
+                        />
                         
                         <button
                           onClick={() => updateQuantidade(produto.id, getQuantidade(produto.id) + 1)}
