@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { cnpjService } from '../services/cnpjService';
 
 const HomePage = ({ onNavigate }) => {
   const [cnpj, setCnpj] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  const [consultandoCnpj, setConsultandoCnpj] = useState(false);
+  const [dadosEmpresa, setDadosEmpresa] = useState(null);
+  const [erroConsulta, setErroConsulta] = useState('');
 
   // Detecta se é mobile
   useEffect(() => {
@@ -16,69 +20,70 @@ const HomePage = ({ onNavigate }) => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Função para aplicar máscara de CNPJ
-  const applyCnpjMask = (value) => {
-    const onlyNumbers = value.replace(/\D/g, '');
-    
-    return onlyNumbers
-      .replace(/^(\d{2})(\d)/, '$1.$2')
-      .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-      .replace(/\.(\d{3})(\d)/, '.$1/$2')
-      .replace(/(\d{4})(\d)/, '$1-$2')
-      .slice(0, 18);
-  };
-
-  // Função para validar formato do CNPJ
-  const validarFormatoCnpj = (cnpj) => {
-    // Remove caracteres especiais
-    const numeros = cnpj.replace(/\D/g, '');
-    
-    // Verifica se tem 14 dígitos
-    if (numeros.length !== 14) {
-      return false;
-    }
-    
-    // Verifica se não são todos números iguais
-    if (/^(\d)\1+$/.test(numeros)) {
-      return false;
-    }
-    
-    // Validação básica do algoritmo do CNPJ
-    let soma = 0;
-    let peso = 2;
-    
-    // Primeiro dígito verificador
-    for (let i = 11; i >= 0; i--) {
-      soma += parseInt(numeros[i]) * peso;
-      peso = peso === 9 ? 2 : peso + 1;
-    }
-    
-    let resto = soma % 11;
-    let digito1 = resto < 2 ? 0 : 11 - resto;
-    
-    if (parseInt(numeros[12]) !== digito1) {
-      return false;
-    }
-    
-    // Segundo dígito verificador
-    soma = 0;
-    peso = 2;
-    
-    for (let i = 12; i >= 0; i--) {
-      soma += parseInt(numeros[i]) * peso;
-      peso = peso === 9 ? 2 : peso + 1;
-    }
-    
-    resto = soma % 11;
-    let digito2 = resto < 2 ? 0 : 11 - resto;
-    
-    return parseInt(numeros[13]) === digito2;
-  };
-
   const handleCnpjChange = (e) => {
-    const maskedValue = applyCnpjMask(e.target.value);
+    const maskedValue = cnpjService.aplicarMascaraCnpj(e.target.value);
     setCnpj(maskedValue);
+    
+    // Limpa dados da empresa quando o CNPJ é alterado
+    if (dadosEmpresa) {
+      setDadosEmpresa(null);
+      setErroConsulta('');
+    }
   };
+
+  // Consulta CNPJ automaticamente quando completo
+  useEffect(() => {
+    const consultarCnpjAutomatico = async () => {
+      const cnpjLimpo = cnpj.replace(/\D/g, '');
+      
+      // Se o CNPJ está completo (14 dígitos)
+      if (cnpjLimpo.length === 14) {
+        // Primeiro verifica se é válido
+        if (!cnpjService.validarCnpj(cnpjLimpo)) {
+          setErroConsulta('CNPJ inválido');
+          setDadosEmpresa(null);
+          return;
+        }
+
+        // Verifica se já tem na base local
+        const empresaLocal = cnpjService.buscarEmpresaLocal(cnpjLimpo);
+        if (empresaLocal) {
+          setDadosEmpresa(empresaLocal);
+          setErroConsulta('');
+          return;
+        }
+
+        // Consulta na API
+        setConsultandoCnpj(true);
+        setErroConsulta('');
+        
+        try {
+          const resultado = await cnpjService.consultarCnpj(cnpjLimpo);
+          
+          if (resultado.success) {
+            setDadosEmpresa(resultado.data);
+            setErroConsulta('');
+            
+            // Salva na base local para próximas consultas
+            cnpjService.salvarEmpresaLocal(cnpjLimpo, resultado.data);
+          } else {
+            setErroConsulta(resultado.error);
+            setDadosEmpresa(null);
+          }
+        } catch (error) {
+          setErroConsulta('Erro ao consultar CNPJ. Tente novamente.');
+          setDadosEmpresa(null);
+        } finally {
+          setConsultandoCnpj(false);
+        }
+      }
+    };
+
+    // Delay para evitar muitas consultas durante a digitação
+    const timeoutId = setTimeout(consultarCnpjAutomatico, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [cnpj]);
 
   const validarCnpj = () => {
     if (!cnpj.trim()) {
@@ -86,17 +91,34 @@ const HomePage = ({ onNavigate }) => {
       return;
     }
     
-    if (!validarFormatoCnpj(cnpj)) {
+    if (!cnpjService.validarCnpj(cnpj)) {
       alert('CNPJ inválido! Verifique os dados e tente novamente.');
       return;
     }
+
+    if (erroConsulta) {
+      // Se houve erro na consulta, pergunta se quer continuar mesmo assim
+      const continuar = window.confirm(
+        `Erro ao consultar CNPJ: ${erroConsulta}\n\n` +
+        'Deseja continuar mesmo assim? O sistema funcionará normalmente, mas sem os dados da empresa.'
+      );
+      
+      if (!continuar) return;
+    }
     
-    // Gera um nome de empresa baseado no CNPJ para demonstração
-    const empresaNome = `Empresa ${cnpj.substring(0, 8)}`;
+    // Salva CNPJ e dados da empresa (se encontrados)
+    const cnpjLimpo = cnpj.replace(/\D/g, '');
+    const nomeEmpresa = dadosEmpresa ? 
+      (dadosEmpresa.nomeFantasia || dadosEmpresa.razaoSocial || `Empresa ${cnpj.substring(0, 8)}`) :
+      `Empresa ${cnpj.substring(0, 8)}`;
     
-    // Salva CNPJ para usar nas outras páginas
     sessionStorage.setItem('cnpj', cnpj);
-    sessionStorage.setItem('empresaInfo', empresaNome);
+    sessionStorage.setItem('empresaInfo', nomeEmpresa);
+    
+    if (dadosEmpresa) {
+      sessionStorage.setItem('dadosEmpresa', JSON.stringify(dadosEmpresa));
+    }
+    
     onNavigate('prosseguir');
   };
 
@@ -231,19 +253,111 @@ const HomePage = ({ onNavigate }) => {
           />
           <button 
             onClick={validarCnpj}
+            disabled={consultandoCnpj}
             style={{
-              backgroundColor: '#f38e3c',
+              backgroundColor: consultandoCnpj ? '#ccc' : '#f38e3c',
               border: 'none',
               padding: isMobile ? '15px' : '15px 30px',
               color: 'white',
               fontSize: '1em',
               fontWeight: 'bold',
-              cursor: 'pointer'
+              cursor: consultandoCnpj ? 'wait' : 'pointer',
+              opacity: consultandoCnpj ? 0.7 : 1
             }}
           >
-            ACESSAR
+            {consultandoCnpj ? 'CONSULTANDO...' : 'ACESSAR'}
           </button>
         </div>
+
+        {/* Status da Consulta CNPJ */}
+        {consultandoCnpj && (
+          <div style={{
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            padding: '15px',
+            borderRadius: '8px',
+            margin: '20px auto',
+            maxWidth: '600px',
+            fontSize: '14px'
+          }}>
+            🔍 <strong>Consultando CNPJ...</strong> Aguarde um momento.
+          </div>
+        )}
+
+        {/* Dados da Empresa Encontrados */}
+        {dadosEmpresa && !consultandoCnpj && (
+          <div style={{
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            color: '#333',
+            padding: '20px',
+            borderRadius: '8px',
+            margin: '20px auto',
+            maxWidth: '600px',
+            textAlign: 'left',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              marginBottom: '15px',
+              color: '#28a745'
+            }}>
+              <span style={{ fontSize: '24px', marginRight: '10px' }}>✅</span>
+              <strong style={{ fontSize: '16px' }}>Empresa encontrada!</strong>
+            </div>
+            
+            <div style={{ fontSize: '14px', lineHeight: '1.6' }}>
+              <div style={{ marginBottom: '8px' }}>
+                <strong>Razão Social:</strong> {dadosEmpresa.razaoSocial}
+              </div>
+              
+              {dadosEmpresa.nomeFantasia && dadosEmpresa.nomeFantasia !== dadosEmpresa.razaoSocial && (
+                <div style={{ marginBottom: '8px' }}>
+                  <strong>Nome Fantasia:</strong> {dadosEmpresa.nomeFantasia}
+                </div>
+              )}
+              
+              <div style={{ marginBottom: '8px' }}>
+                <strong>CNPJ:</strong> {dadosEmpresa.cnpj || cnpj}
+              </div>
+              
+              {dadosEmpresa.situacao && (
+                <div style={{ marginBottom: '8px' }}>
+                  <strong>Situação:</strong> {dadosEmpresa.situacao}
+                </div>
+              )}
+              
+              {dadosEmpresa.atividade && (
+                <div style={{ marginBottom: '8px' }}>
+                  <strong>Atividade:</strong> {dadosEmpresa.atividade}
+                </div>
+              )}
+              
+              {dadosEmpresa.municipio && dadosEmpresa.uf && (
+                <div style={{ marginBottom: '8px' }}>
+                  <strong>Localização:</strong> {dadosEmpresa.municipio}/{dadosEmpresa.uf}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Erro na Consulta */}
+        {erroConsulta && !consultandoCnpj && (
+          <div style={{
+            backgroundColor: 'rgba(220, 53, 69, 0.9)',
+            padding: '15px',
+            borderRadius: '8px',
+            margin: '20px auto',
+            maxWidth: '600px',
+            fontSize: '14px'
+          }}>
+            ⚠️ <strong>Atenção:</strong> {erroConsulta}
+            <br />
+            <small style={{ opacity: 0.9 }}>
+              Você pode continuar mesmo assim. O sistema funcionará normalmente.
+            </small>
+          </div>
+        )}
 
         {/* Dica para teste */}
         <div style={{
@@ -254,7 +368,7 @@ const HomePage = ({ onNavigate }) => {
           maxWidth: '600px',
           fontSize: '14px'
         }}>
-          💡 <strong>Para teste:</strong> Use qualquer CNPJ válido (ex: 11.222.333/0001-81)
+          💡 <strong>Para teste:</strong> Use CNPJs reais (ex: 11.222.333/0001-81) ou qualquer CNPJ válido
         </div>
       </section>
 
@@ -298,12 +412,12 @@ const HomePage = ({ onNavigate }) => {
               marginTop: '10px',
               fontSize: '1.1em'
             }}>
-              Cadastre-se
+              Consulta Automática
             </h3>
             <p style={{
               fontSize: '0.9em'
             }}>
-              para realizar pedidos
+              Seus dados são consultados automaticamente via CNPJ
             </p>
           </div>
 
@@ -328,12 +442,12 @@ const HomePage = ({ onNavigate }) => {
               marginTop: '10px',
               fontSize: '1.1em'
             }}>
-              Consulte seu CNPJ
+              Acesso Personalizado
             </h3>
             <p style={{
               fontSize: '0.9em'
             }}>
-              Visualize Produtos Disponiveis para sua Empresa
+              Visualize produtos disponíveis para sua empresa
             </p>
           </div>
 
