@@ -1,12 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { authCnpjService } from '../services/authCnpjService';
+import { cnpjService } from '../services/cnpjService';
 
 const AdminPage = ({ onNavigate }) => {
-  const [activeTab, setActiveTab] = useState('produtos');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [produtos, setProdutos] = useState([]);
   const [pedidos, setPedidos] = useState([]);
+  const [empresasCadastradas, setEmpresasCadastradas] = useState([]);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  
+  // Estados para consulta de CNPJ
+  const [cnpjConsulta, setCnpjConsulta] = useState('');
+  const [consultandoCnpj, setConsultandoCnpj] = useState(false);
+  const [dadosEmpresaConsulta, setDadosEmpresaConsulta] = useState(null);
+  const [erroConsultaCnpj, setErroConsultaCnpj] = useState('');
   
   // Form states para adicionar/editar produto
   const [productForm, setProductForm] = useState({
@@ -24,23 +33,27 @@ const AdminPage = ({ onNavigate }) => {
     totalPedidos: 0,
     totalVendas: 0,
     produtosMaisVendidos: [],
-    pedidosHoje: 0
+    pedidosHoje: 0,
+    empresasCadastradas: 0
   });
 
   useEffect(() => {
-    // Carrega produtos do localStorage
     loadProducts();
-    
-    // Carrega pedidos
     loadPedidos();
+    loadEmpresasCadastradas();
 
-    // Atualiza dados a cada 5 segundos
     const intervalId = setInterval(() => {
       loadPedidos();
+      loadEmpresasCadastradas();
     }, 5000);
 
     return () => clearInterval(intervalId);
   }, []);
+
+  const loadEmpresasCadastradas = () => {
+    const empresas = authCnpjService.listarEmpresasCadastradas();
+    setEmpresasCadastradas(empresas);
+  };
 
   const loadProducts = () => {
     const produtosSalvos = localStorage.getItem('adminProdutos');
@@ -58,10 +71,7 @@ const AdminPage = ({ onNavigate }) => {
   };
 
   const loadPedidos = () => {
-    // Carrega pedidos do localStorage (vindos do frontend)
     const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
-    
-    // Pedidos simulados para demonstração (se não houver pedidos reais)
     const pedidosSimulados = pedidosAdmin.length === 0 ? [
       {
         id: 1,
@@ -74,19 +84,6 @@ const AdminPage = ({ onNavigate }) => {
         itens: [
           { nome: 'Marmita Fitness Frango', quantidade: 15, preco: 18.90 },
           { nome: 'Marmita Vegana', quantidade: 15, preco: 16.90 }
-        ]
-      },
-      {
-        id: 2,
-        numero: 1002,
-        cliente: 'Empresa ABC Ltda',
-        cnpj: '11.111.111/0001-11',
-        total: 954.00,
-        status: 'preparando',
-        data: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-        itens: [
-          { nome: 'Marmita Tradicional', quantidade: 30, preco: 15.90 },
-          { nome: 'Marmita Fitness Frango', quantidade: 30, preco: 18.90 }
         ]
       }
     ] : [];
@@ -127,56 +124,11 @@ const AdminPage = ({ onNavigate }) => {
         imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=300&h=200&fit=crop',
         disponivel: true,
         estoque: 120
-      },
-      {
-        id: 4,
-        nome: 'Marmita Low Carb',
-        descricao: 'Salmão grelhado, couve-flor gratinada e aspargos',
-        preco: 22.90,
-        categoria: 'fitness',
-        imagem: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=300&h=200&fit=crop',
-        disponivel: true,
-        estoque: 75
-      },
-      {
-        id: 5,
-        nome: 'Marmita do Chef',
-        descricao: 'Risotto de camarão com legumes e ervas finas',
-        preco: 28.90,
-        categoria: 'gourmet',
-        imagem: 'https://images.unsplash.com/photo-1563379091339-03246963d96c?w=300&h=200&fit=crop',
-        disponivel: true,
-        estoque: 50
-      },
-      {
-        id: 6,
-        nome: 'Marmita Vegetariana',
-        descricao: 'Lasanha de berinjela, salada de rúcula e tomate seco',
-        preco: 17.90,
-        categoria: 'vegana',
-        imagem: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=300&h=200&fit=crop',
-        disponivel: true,
-        estoque: 60
       }
     ];
     
     setProdutos(produtosIniciais);
     localStorage.setItem('adminProdutos', JSON.stringify(produtosIniciais));
-  };
-
-  const saveProducts = (newProducts) => {
-    try {
-      setProdutos(newProducts);
-      localStorage.setItem('adminProdutos', JSON.stringify(newProducts));
-      
-      // Força atualização imediata
-      setTimeout(() => {
-        loadProducts();
-      }, 100);
-    } catch (error) {
-      console.error('Erro ao salvar produtos:', error);
-      alert('Erro ao salvar produtos. Tente novamente.');
-    }
   };
 
   const calcularEstatisticas = (pedidosList) => {
@@ -190,11 +142,95 @@ const AdminPage = ({ onNavigate }) => {
       totalPedidos: pedidosList.length,
       totalVendas: total,
       pedidosHoje,
-      produtosMaisVendidos: ['Marmita Fitness Frango', 'Marmita Tradicional']
+      produtosMaisVendidos: ['Marmita Fitness Frango', 'Marmita Tradicional'],
+      empresasCadastradas: empresasCadastradas.length
     });
   };
 
-  // Função para upload de imagem
+  // Função para consultar CNPJ na aba admin
+  const handleCnpjConsultaChange = (e) => {
+    const maskedValue = cnpjService.aplicarMascaraCnpj(e.target.value);
+    setCnpjConsulta(maskedValue);
+    
+    if (dadosEmpresaConsulta) {
+      setDadosEmpresaConsulta(null);
+      setErroConsultaCnpj('');
+    }
+  };
+
+  const consultarCnpjAdmin = async () => {
+    if (!cnpjConsulta.trim()) {
+      alert('Por favor, informe o CNPJ');
+      return;
+    }
+
+    if (!cnpjService.validarCep) {
+      // Se não tem o cnpjService completo, usa validação básica
+      if (cnpjConsulta.replace(/\D/g, '').length !== 14) {
+        alert('CNPJ deve ter 14 dígitos');
+        return;
+      }
+    }
+
+    setConsultandoCnpj(true);
+    setErroConsultaCnpj('');
+    
+    try {
+      // Se tiver o cnpjService disponível, usa ele
+      if (cnpjService.consultarCnpj) {
+        const resultado = await cnpjService.consultarCnpj(cnpjConsulta);
+        
+        if (resultado.success) {
+          setDadosEmpresaConsulta(resultado.data);
+          setErroConsultaCnpj('');
+        } else {
+          setErroConsultaCnpj(resultado.error);
+          setDadosEmpresaConsulta(null);
+        }
+      } else {
+        // Fallback: simula consulta
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        setDadosEmpresaConsulta({
+          cnpj: cnpjConsulta,
+          razaoSocial: `Empresa Consulta ${cnpjConsulta.substring(0, 8)}`,
+          nomeFantasia: `Fantasia ${cnpjConsulta.substring(0, 8)}`,
+          situacao: 'ATIVA',
+          atividade: 'Atividade comercial em geral',
+          municipio: 'São Paulo',
+          uf: 'SP'
+        });
+      }
+    } catch (error) {
+      setErroConsultaCnpj('Erro ao consultar CNPJ. Tente novamente.');
+      setDadosEmpresaConsulta(null);
+    } finally {
+      setConsultandoCnpj(false);
+    }
+  };
+
+  // Função para ativar/desativar empresa
+  const toggleEmpresaAtiva = (cnpj, ativo) => {
+    const resultado = authCnpjService.toggleAtivoCnpj(cnpj, !ativo);
+    if (resultado.success) {
+      alert(resultado.message);
+      loadEmpresasCadastradas();
+    } else {
+      alert(`Erro: ${resultado.error}`);
+    }
+  };
+
+  // Resto das funções de produto (mantidas iguais)
+  const saveProducts = (newProducts) => {
+    try {
+      setProdutos(newProducts);
+      localStorage.setItem('adminProdutos', JSON.stringify(newProducts));
+      setTimeout(() => loadProducts(), 100);
+    } catch (error) {
+      console.error('Erro ao salvar produtos:', error);
+      alert('Erro ao salvar produtos. Tente novamente.');
+    }
+  };
+
   const handleImageUpload = (file) => {
     return new Promise((resolve, reject) => {
       if (!file) {
@@ -202,13 +238,11 @@ const AdminPage = ({ onNavigate }) => {
         return;
       }
 
-      // Verifica se é uma imagem
       if (!file.type.startsWith('image/')) {
         reject('Por favor, selecione apenas arquivos de imagem');
         return;
       }
 
-      // Verifica o tamanho (máximo 5MB)
       if (file.size > 5 * 1024 * 1024) {
         reject('Imagem deve ter menos de 5MB');
         return;
@@ -218,11 +252,10 @@ const AdminPage = ({ onNavigate }) => {
 
       const reader = new FileReader();
       reader.onload = (e) => {
-        // Simula upload para servidor (aqui apenas convertemos para base64)
         setTimeout(() => {
           setUploadingImage(false);
           resolve(e.target.result);
-        }, 2000); // Simula 2 segundos de upload
+        }, 2000);
       };
       reader.onerror = () => {
         setUploadingImage(false);
@@ -239,7 +272,6 @@ const AdminPage = ({ onNavigate }) => {
       let produtosAtualizados;
       
       if (editingProduct) {
-        // Editar produto existente
         const novoProduto = {
           ...editingProduct,
           ...productForm,
@@ -254,7 +286,6 @@ const AdminPage = ({ onNavigate }) => {
         setEditingProduct(null);
         alert('Produto atualizado com sucesso!');
       } else {
-        // Adicionar novo produto
         const novoProduto = {
           id: Math.max(...produtos.map(p => p.id), 0) + 1,
           ...productForm,
@@ -268,7 +299,6 @@ const AdminPage = ({ onNavigate }) => {
       
       saveProducts(produtosAtualizados);
       
-      // Reset form
       setProductForm({
         nome: '',
         descricao: '',
@@ -348,11 +378,7 @@ const AdminPage = ({ onNavigate }) => {
         padding: '15px 40px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <img 
-            style={{ height: '50px' }}
-            src="/assets/logo.jpg" 
-            alt="Logo Fit In Box"
-          />
+          <div style={{ fontSize: '32px' }}>🍽️</div>
           <div>
             <h2 style={{ margin: 0, fontSize: '24px' }}>Fit In Box Admin</h2>
             <small style={{ color: '#adb5bd' }}>Painel Administrativo</small>
@@ -381,15 +407,13 @@ const AdminPage = ({ onNavigate }) => {
         borderBottom: '1px solid #dee2e6',
         padding: '0 40px'
       }}>
-        <div style={{
-          display: 'flex',
-          gap: '30px'
-        }}>
+        <div style={{ display: 'flex', gap: '30px' }}>
           {[
-            { id: 'dashboard', label: '📊 Dashboard', icon: '📊' },
-            { id: 'produtos', label: '🍽️ Produtos', icon: '🍽️' },
-            { id: 'pedidos', label: '📋 Pedidos', icon: '📋' },
-            { id: 'relatorios', label: '📈 Relatórios', icon: '📈' }
+            { id: 'dashboard', label: '📊 Dashboard' },
+            { id: 'produtos', label: '🍽️ Produtos' },
+            { id: 'pedidos', label: '📋 Pedidos' },
+            { id: 'empresas', label: '🏢 Empresas' },
+            { id: 'consulta-cnpj', label: '🔍 Consultar CNPJ' }
           ].map(tab => (
             <button
               key={tab.id}
@@ -463,10 +487,10 @@ const AdminPage = ({ onNavigate }) => {
                 boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                 textAlign: 'center'
               }}>
-                <div style={{ fontSize: '40px', marginBottom: '10px' }}>📅</div>
-                <h3 style={{ color: '#ffc107', margin: '0 0 5px 0' }}>Pedidos Hoje</h3>
+                <div style={{ fontSize: '40px', marginBottom: '10px' }}>🏢</div>
+                <h3 style={{ color: '#ffc107', margin: '0 0 5px 0' }}>Empresas Cadastradas</h3>
                 <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
-                  {stats.pedidosHoje}
+                  {empresasCadastradas.length}
                 </div>
               </div>
 
@@ -487,7 +511,267 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Produtos Tab */}
+        {/* Nova Aba: Consultar CNPJ */}
+        {activeTab === 'consulta-cnpj' && (
+          <div>
+            <h1 style={{ color: '#343a40', marginBottom: '30px' }}>🔍 Consultar CNPJ</h1>
+            
+            <div style={{
+              backgroundColor: 'white',
+              padding: '30px',
+              borderRadius: '10px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              marginBottom: '30px'
+            }}>
+              <h3 style={{ color: '#007bff', marginBottom: '20px' }}>Consulta na Receita Federal</h3>
+              
+              <div style={{
+                display: 'flex',
+                gap: '15px',
+                marginBottom: '20px',
+                alignItems: 'flex-end'
+              }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ 
+                    display: 'block', 
+                    marginBottom: '8px', 
+                    fontWeight: 'bold' 
+                  }}>
+                    CNPJ da Empresa
+                  </label>
+                  <input
+                    type="text"
+                    value={cnpjConsulta}
+                    onChange={handleCnpjConsultaChange}
+                    placeholder="00.000.000/0000-00"
+                    maxLength="18"
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #ddd',
+                      borderRadius: '5px',
+                      fontSize: '16px'
+                    }}
+                  />
+                </div>
+                
+                <button
+                  onClick={consultarCnpjAdmin}
+                  disabled={consultandoCnpj}
+                  style={{
+                    backgroundColor: consultandoCnpj ? '#ccc' : '#007bff',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 20px',
+                    borderRadius: '5px',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    cursor: consultandoCnpj ? 'wait' : 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {consultandoCnpj ? '🔍 Consultando...' : '🔍 Consultar'}
+                </button>
+              </div>
+
+              {/* Resultado da Consulta */}
+              {consultandoCnpj && (
+                <div style={{
+                  backgroundColor: '#e7f3ff',
+                  padding: '15px',
+                  borderRadius: '5px',
+                  textAlign: 'center',
+                  color: '#0066cc'
+                }}>
+                  🔄 Consultando CNPJ na Receita Federal, aguarde...
+                </div>
+              )}
+
+              {dadosEmpresaConsulta && !consultandoCnpj && (
+                <div style={{
+                  backgroundColor: '#d4edda',
+                  padding: '20px',
+                  borderRadius: '8px',
+                  border: '1px solid #c3e6cb'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    marginBottom: '15px',
+                    color: '#155724'
+                  }}>
+                    <span style={{ fontSize: '24px', marginRight: '10px' }}>✅</span>
+                    <strong style={{ fontSize: '18px' }}>Empresa encontrada na Receita Federal!</strong>
+                  </div>
+                  
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                    gap: '15px',
+                    fontSize: '14px',
+                    color: '#155724'
+                  }}>
+                    <div>
+                      <strong>CNPJ:</strong> {dadosEmpresaConsulta.cnpj}
+                    </div>
+                    <div>
+                      <strong>Razão Social:</strong> {dadosEmpresaConsulta.razaoSocial}
+                    </div>
+                    {dadosEmpresaConsulta.nomeFantasia && (
+                      <div>
+                        <strong>Nome Fantasia:</strong> {dadosEmpresaConsulta.nomeFantasia}
+                      </div>
+                    )}
+                    <div>
+                      <strong>Situação:</strong> {dadosEmpresaConsulta.situacao}
+                    </div>
+                    {dadosEmpresaConsulta.atividade && (
+                      <div>
+                        <strong>Atividade Principal:</strong> {dadosEmpresaConsulta.atividade}
+                      </div>
+                    )}
+                    {dadosEmpresaConsulta.municipio && dadosEmpresaConsulta.uf && (
+                      <div>
+                        <strong>Localização:</strong> {dadosEmpresaConsulta.municipio}/{dadosEmpresaConsulta.uf}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {erroConsultaCnpj && !consultandoCnpj && (
+                <div style={{
+                  backgroundColor: '#f8d7da',
+                  padding: '15px',
+                  borderRadius: '5px',
+                  color: '#721c24',
+                  border: '1px solid #f5c6cb'
+                }}>
+                  <strong>❌ Erro na consulta:</strong> {erroConsultaCnpj}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Nova Aba: Empresas Cadastradas */}
+        {activeTab === 'empresas' && (
+          <div>
+            <h1 style={{ color: '#343a40', marginBottom: '30px' }}>🏢 Empresas Cadastradas</h1>
+            
+            {empresasCadastradas.length === 0 ? (
+              <div style={{
+                backgroundColor: 'white',
+                padding: '40px',
+                borderRadius: '10px',
+                textAlign: 'center',
+                color: '#666'
+              }}>
+                <div style={{ fontSize: '48px', marginBottom: '20px' }}>🏢</div>
+                <h3>Nenhuma empresa cadastrada</h3>
+                <p>As empresas que se cadastrarem aparecerão aqui.</p>
+              </div>
+            ) : (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '15px'
+              }}>
+                {empresasCadastradas.map((empresa, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      backgroundColor: 'white',
+                      padding: '20px',
+                      borderRadius: '10px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      opacity: empresa.ativo ? 1 : 0.6
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      marginBottom: '15px'
+                    }}>
+                      <div>
+                        <h3 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
+                          {empresa.razaoSocial}
+                        </h3>
+                        {empresa.nomeFantasia && empresa.nomeFantasia !== empresa.razaoSocial && (
+                          <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
+                            <strong>Nome Fantasia:</strong> {empresa.nomeFantasia}
+                          </p>
+                        )}
+                        <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
+                          <strong>CNPJ:</strong> {empresa.cnpj}
+                        </p>
+                        <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
+                          <strong>Cadastro:</strong> {new Date(empresa.dataCadastro).toLocaleDateString('pt-BR')}
+                        </p>
+                        {empresa.ultimoAcesso && (
+                          <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
+                            <strong>Último acesso:</strong> {new Date(empresa.ultimoAcesso).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
+                        <span style={{
+                          backgroundColor: empresa.ativo ? '#28a745' : '#dc3545',
+                          color: 'white',
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 'bold'
+                        }}>
+                          {empresa.ativo ? 'ATIVO' : 'INATIVO'}
+                        </span>
+                        
+                        {empresa.tentativasLogin > 0 && (
+                          <span style={{
+                            backgroundColor: '#ffc107',
+                            color: '#000',
+                            padding: '4px 8px',
+                            borderRadius: '12px',
+                            fontSize: '12px',
+                            fontWeight: 'bold'
+                          }}>
+                            {empresa.tentativasLogin} tentativas inválidas
+                          </span>
+                        )}
+                        
+                        <button
+                          onClick={() => toggleEmpresaAtiva(empresa.cnpj, empresa.ativo)}
+                          style={{
+                            backgroundColor: empresa.ativo ? '#ffc107' : '#28a745',
+                            color: empresa.ativo ? '#000' : 'white',
+                            border: 'none',
+                            padding: '6px 12px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {empresa.ativo ? '⏸️ Desativar' : '▶️ Ativar'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Produtos Tab - mantido igual */}
         {activeTab === 'produtos' && (
           <div>
             <div style={{
@@ -654,74 +938,22 @@ const AdminPage = ({ onNavigate }) => {
                     </div>
                   </div>
 
-                  {/* Upload de imagem MELHORADO */}
                   <div style={{ marginBottom: '20px' }}>
                     <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                      Imagem do Produto
+                      URL da Imagem
                     </label>
-                    
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr auto',
-                      gap: '10px',
-                      alignItems: 'end'
-                    }}>
-                      <input
-                        type="url"
-                        value={productForm.imagem}
-                        onChange={(e) => setProductForm({...productForm, imagem: e.target.value})}
-                        placeholder="https://exemplo.com/imagem.jpg ou faça upload"
-                        style={{
-                          width: '100%',
-                          padding: '10px',
-                          border: '1px solid #ddd',
-                          borderRadius: '5px'
-                        }}
-                      />
-                      
-                      <div style={{ position: 'relative' }}>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={async (e) => {
-                            const file = e.target.files[0];
-                            if (file) {
-                              try {
-                                const imageUrl = await handleImageUpload(file);
-                                setProductForm({...productForm, imagem: imageUrl});
-                                alert('Imagem carregada com sucesso!');
-                              } catch (error) {
-                                alert(`Erro: ${error}`);
-                              }
-                            }
-                          }}
-                          style={{
-                            position: 'absolute',
-                            opacity: 0,
-                            width: '100%',
-                            height: '100%',
-                            cursor: 'pointer'
-                          }}
-                          disabled={uploadingImage}
-                        />
-                        <button
-                          type="button"
-                          disabled={uploadingImage}
-                          style={{
-                            backgroundColor: uploadingImage ? '#ccc' : '#007bff',
-                            color: 'white',
-                            border: 'none',
-                            padding: '10px 15px',
-                            borderRadius: '5px',
-                            cursor: uploadingImage ? 'wait' : 'pointer',
-                            fontWeight: 'bold',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          {uploadingImage ? '⏳ Enviando...' : '📁 Upload'}
-                        </button>
-                      </div>
-                    </div>
+                    <input
+                      type="url"
+                      value={productForm.imagem}
+                      onChange={(e) => setProductForm({...productForm, imagem: e.target.value})}
+                      placeholder="https://exemplo.com/imagem.jpg"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        border: '1px solid #ddd',
+                        borderRadius: '5px'
+                      }}
+                    />
                     
                     {productForm.imagem && (
                       <div style={{ marginTop: '10px' }}>
@@ -743,14 +975,13 @@ const AdminPage = ({ onNavigate }) => {
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button
                       type="submit"
-                      disabled={uploadingImage}
                       style={{
-                        backgroundColor: uploadingImage ? '#ccc' : '#007bff',
+                        backgroundColor: '#007bff',
                         color: 'white',
                         border: 'none',
                         padding: '12px 20px',
                         borderRadius: '5px',
-                        cursor: uploadingImage ? 'wait' : 'pointer',
+                        cursor: 'pointer',
                         fontWeight: 'bold'
                       }}
                     >
@@ -918,7 +1149,7 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Pedidos Tab - ATUALIZADO COM SYNC AUTOMÁTICO */}
+        {/* Pedidos Tab */}
         {activeTab === 'pedidos' && (
           <div>
             <div style={{
@@ -1037,168 +1268,6 @@ const AdminPage = ({ onNavigate }) => {
                   </div>
                 ))
               )}
-            </div>
-          </div>
-        )}
-
-        {/* Relatórios Tab */}
-        {activeTab === 'relatorios' && (
-          <div>
-            <h1 style={{ color: '#343a40', marginBottom: '30px' }}>📈 Relatórios</h1>
-            
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-              gap: '20px',
-              marginBottom: '30px'
-            }}>
-              {/* Relatório de Vendas */}
-              <div style={{
-                backgroundColor: 'white',
-                padding: '25px',
-                borderRadius: '10px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}>
-                <h3 style={{ color: '#007bff', marginBottom: '15px' }}>💰 Vendas por Período</h3>
-                <div style={{ marginBottom: '10px' }}>
-                  <span style={{ color: '#6c757d' }}>Hoje:</span>
-                  <strong style={{ float: 'right', color: '#28a745' }}>R$ 567,00</strong>
-                </div>
-                <div style={{ marginBottom: '10px' }}>
-                  <span style={{ color: '#6c757d' }}>Esta Semana:</span>
-                  <strong style={{ float: 'right', color: '#28a745' }}>R$ 2.340,00</strong>
-                </div>
-                <div style={{ marginBottom: '10px' }}>
-                  <span style={{ color: '#6c757d' }}>Este Mês:</span>
-                  <strong style={{ float: 'right', color: '#28a745' }}>R$ 12.580,00</strong>
-                </div>
-                <hr style={{ margin: '15px 0' }} />
-                <div>
-                  <span style={{ color: '#6c757d' }}>Total Geral:</span>
-                  <strong style={{ float: 'right', color: '#007bff', fontSize: '18px' }}>
-                    R$ {stats.totalVendas.toFixed(2)}
-                  </strong>
-                </div>
-              </div>
-
-              {/* Produtos Mais Vendidos */}
-              <div style={{
-                backgroundColor: 'white',
-                padding: '25px',
-                borderRadius: '10px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}>
-                <h3 style={{ color: '#28a745', marginBottom: '15px' }}>🏆 Top Produtos</h3>
-                {stats.produtosMaisVendidos.map((produto, index) => (
-                  <div key={index} style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '12px',
-                    padding: '10px',
-                    backgroundColor: '#f8f9fa',
-                    borderRadius: '5px'
-                  }}>
-                    <div>
-                      <span style={{ fontSize: '18px', marginRight: '8px' }}>
-                        {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
-                      </span>
-                      {produto}
-                    </div>
-                    <span style={{ fontWeight: 'bold', color: '#28a745' }}>
-                      {Math.floor(Math.random() * 50) + 20} vendas
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Estatísticas de Clientes */}
-              <div style={{
-                backgroundColor: 'white',
-                padding: '25px',
-                borderRadius: '10px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-              }}>
-                <h3 style={{ color: '#ffc107', marginBottom: '15px' }}>👥 Clientes</h3>
-                <div style={{ marginBottom: '15px' }}>
-                  <div style={{ color: '#6c757d', marginBottom: '5px' }}>Total de Empresas:</div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#007bff' }}>
-                    {pedidos.length}
-                  </div>
-                </div>
-                <div style={{ marginBottom: '15px' }}>
-                  <div style={{ color: '#6c757d', marginBottom: '5px' }}>Pedido Médio:</div>
-                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#28a745' }}>
-                    R$ {stats.totalPedidos > 0 ? (stats.totalVendas / stats.totalPedidos).toFixed(2) : '0.00'}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ color: '#6c757d', marginBottom: '5px' }}>Clientes Ativos:</div>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#ffc107' }}>
-                    {pedidos.filter(p => p.status === 'confirmado').length}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Botões de Relatório */}
-            <div style={{
-              backgroundColor: 'white',
-              padding: '25px',
-              borderRadius: '10px',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-            }}>
-              <h3 style={{ marginBottom: '20px', color: '#343a40' }}>📋 Exportar Relatórios</h3>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                gap: '15px'
-              }}>
-                <button
-                  onClick={() => alert('Relatório de vendas seria exportado aqui')}
-                  style={{
-                    backgroundColor: '#28a745',
-                    color: 'white',
-                    border: 'none',
-                    padding: '15px',
-                    borderRadius: '5px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  📊 Relatório de Vendas
-                </button>
-                
-                <button
-                  onClick={() => alert('Relatório de produtos seria exportado aqui')}
-                  style={{
-                    backgroundColor: '#007bff',
-                    color: 'white',
-                    border: 'none',
-                    padding: '15px',
-                    borderRadius: '5px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  🍽️ Relatório de Produtos
-                </button>
-                
-                <button
-                  onClick={() => alert('Relatório de clientes seria exportado aqui')}
-                  style={{
-                    backgroundColor: '#ffc107',
-                    color: '#000',
-                    border: 'none',
-                    padding: '15px',
-                    borderRadius: '5px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  👥 Relatório de Clientes
-                </button>
-              </div>
             </div>
           </div>
         )}

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { cnpjService } from '../services/cnpjService';
+import { authCnpjService } from '../services/authCnpjService';
 
 const HomePage = ({ onNavigate }) => {
   const [cnpj, setCnpj] = useState('');
+  const [senha, setSenha] = useState('');
   const [isMobile, setIsMobile] = useState(false);
-  const [consultandoCnpj, setConsultandoCnpj] = useState(false);
-  const [dadosEmpresa, setDadosEmpresa] = useState(null);
-  const [erroConsulta, setErroConsulta] = useState('');
+  const [fazendoLogin, setFazendoLogin] = useState(false);
+  const [modo, setModo] = useState('login'); // 'login' ou 'cadastro'
+  const [confirmarSenha, setConfirmarSenha] = useState('');
 
   // Detecta se é mobile
   useEffect(() => {
@@ -20,116 +21,130 @@ const HomePage = ({ onNavigate }) => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const handleCnpjChange = (e) => {
-    const maskedValue = cnpjService.aplicarMascaraCnpj(e.target.value);
-    setCnpj(maskedValue);
-    
-    // Limpa dados da empresa quando o CNPJ é alterado
-    if (dadosEmpresa) {
-      setDadosEmpresa(null);
-      setErroConsulta('');
+  // Verifica se já tem sessão ativa
+  useEffect(() => {
+    const sessaoAtiva = authCnpjService.verificarSessao();
+    if (sessaoAtiva) {
+      // Já está logado, vai direto para a área restrita
+      onNavigate('prosseguir');
     }
+  }, [onNavigate]);
+
+  // Função para aplicar máscara de CNPJ
+  const applyCnpjMask = (value) => {
+    const onlyNumbers = value.replace(/\D/g, '');
+    
+    return onlyNumbers
+      .replace(/^(\d{2})(\d)/, '$1.$2')
+      .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/\.(\d{3})(\d)/, '.$1/$2')
+      .replace(/(\d{4})(\d)/, '$1-$2')
+      .slice(0, 18);
   };
 
-  // Consulta CNPJ automaticamente quando completo
-  useEffect(() => {
-    const consultarCnpjAutomatico = async () => {
-      const cnpjLimpo = cnpj.replace(/\D/g, '');
-      
-      // Se o CNPJ está completo (14 dígitos)
-      if (cnpjLimpo.length === 14) {
-        // Primeiro verifica se é válido
-        if (!cnpjService.validarCnpj(cnpjLimpo)) {
-          setErroConsulta('CNPJ inválido');
-          setDadosEmpresa(null);
-          return;
-        }
+  const handleCnpjChange = (e) => {
+    const maskedValue = applyCnpjMask(e.target.value);
+    setCnpj(maskedValue);
+  };
 
-        // Verifica se já tem na base local
-        const empresaLocal = cnpjService.buscarEmpresaLocal(cnpjLimpo);
-        if (empresaLocal) {
-          setDadosEmpresa(empresaLocal);
-          setErroConsulta('');
-          return;
-        }
-
-        // Consulta na API
-        setConsultandoCnpj(true);
-        setErroConsulta('');
-        
-        try {
-          const resultado = await cnpjService.consultarCnpj(cnpjLimpo);
-          
-          if (resultado.success) {
-            setDadosEmpresa(resultado.data);
-            setErroConsulta('');
-            
-            // Salva na base local para próximas consultas
-            cnpjService.salvarEmpresaLocal(cnpjLimpo, resultado.data);
-          } else {
-            setErroConsulta(resultado.error);
-            setDadosEmpresa(null);
-          }
-        } catch (error) {
-          setErroConsulta('Erro ao consultar CNPJ. Tente novamente.');
-          setDadosEmpresa(null);
-        } finally {
-          setConsultandoCnpj(false);
-        }
-      }
-    };
-
-    // Delay para evitar muitas consultas durante a digitação
-    const timeoutId = setTimeout(consultarCnpjAutomatico, 500);
-    
-    return () => clearTimeout(timeoutId);
-  }, [cnpj]);
-
-  const validarCnpj = () => {
+  const handleLogin = async () => {
     if (!cnpj.trim()) {
       alert('Por favor, informe o CNPJ');
       return;
     }
     
-    if (!cnpjService.validarCnpj(cnpj)) {
-      alert('CNPJ inválido! Verifique os dados e tente novamente.');
+    if (!senha.trim()) {
+      alert('Por favor, informe a senha');
       return;
     }
-
-    if (erroConsulta) {
-      // Se houve erro na consulta, pergunta se quer continuar mesmo assim
-      const continuar = window.confirm(
-        `Erro ao consultar CNPJ: ${erroConsulta}\n\n` +
-        'Deseja continuar mesmo assim? O sistema funcionará normalmente, mas sem os dados da empresa.'
-      );
+    
+    setFazendoLogin(true);
+    
+    try {
+      const resultado = await new Promise(resolve => {
+        setTimeout(() => {
+          resolve(authCnpjService.autenticar(cnpj, senha));
+        }, 1000); // Simula delay de rede
+      });
       
-      if (!continuar) return;
+      if (resultado.success) {
+        alert(`Bem-vindo, ${resultado.empresa.razaoSocial}!`);
+        onNavigate('prosseguir');
+      } else {
+        alert(`Erro no login: ${resultado.error}`);
+      }
+    } catch (error) {
+      alert('Erro inesperado. Tente novamente.');
+    } finally {
+      setFazendoLogin(false);
+    }
+  };
+
+  const handleCadastro = async () => {
+    if (!cnpj.trim()) {
+      alert('Por favor, informe o CNPJ');
+      return;
     }
     
-    // Salva CNPJ e dados da empresa (se encontrados)
-    const cnpjLimpo = cnpj.replace(/\D/g, '');
-    const nomeEmpresa = dadosEmpresa ? 
-      (dadosEmpresa.nomeFantasia || dadosEmpresa.razaoSocial || `Empresa ${cnpj.substring(0, 8)}`) :
-      `Empresa ${cnpj.substring(0, 8)}`;
-    
-    sessionStorage.setItem('cnpj', cnpj);
-    sessionStorage.setItem('empresaInfo', nomeEmpresa);
-    
-    if (dadosEmpresa) {
-      sessionStorage.setItem('dadosEmpresa', JSON.stringify(dadosEmpresa));
+    if (!senha.trim()) {
+      alert('Por favor, informe a senha');
+      return;
     }
     
-    onNavigate('prosseguir');
+    if (senha.length < 4) {
+      alert('Senha deve ter pelo menos 4 caracteres');
+      return;
+    }
+    
+    if (senha !== confirmarSenha) {
+      alert('Senhas não conferem');
+      return;
+    }
+    
+    setFazendoLogin(true);
+    
+    try {
+      const resultado = await new Promise(resolve => {
+        setTimeout(() => {
+          resolve(authCnpjService.registrarCnpj(cnpj, senha, {
+            razaoSocial: `Empresa ${cnpj.substring(0, 8)}` // Nome temporário
+          }));
+        }, 1000); // Simula delay de rede
+      });
+      
+      if (resultado.success) {
+        alert('CNPJ cadastrado com sucesso! Agora você pode fazer login.');
+        setModo('login');
+        setSenha('');
+        setConfirmarSenha('');
+      } else {
+        alert(`Erro no cadastro: ${resultado.error}`);
+      }
+    } catch (error) {
+      alert('Erro inesperado. Tente novamente.');
+    } finally {
+      setFazendoLogin(false);
+    }
   };
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
-      validarCnpj();
+      if (modo === 'login') {
+        handleLogin();
+      } else {
+        handleCadastro();
+      }
     }
   };
 
   const handleMeusPedidos = () => {
-    validarCnpj();
+    // Se não está logado, pede para logar primeiro
+    const sessaoAtiva = authCnpjService.verificarSessao();
+    if (!sessaoAtiva) {
+      alert('Faça login para acessar seus pedidos');
+      return;
+    }
+    onNavigate('prosseguir');
   };
 
   // Função secreta para acessar admin (clique triplo no logo)
@@ -170,16 +185,21 @@ const HomePage = ({ onNavigate }) => {
         padding: isMobile ? '10px 15px' : '10px 20px',
         backgroundColor: 'white'
       }}>
-        <img 
+        <div 
           style={{ 
             height: isMobile ? '50px' : '60px',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            fontSize: isMobile ? '24px' : '32px',
+            fontWeight: 'bold',
+            color: '#009245'
           }}
-          src="/assets/logo.jpg" 
-          alt="Logo Fit In Box"
           onClick={handleLogoClick}
           title="Clique 3 vezes para acessar o admin"
-        />
+        >
+          🍽️ Fit In Box
+        </div>
         <button 
           onClick={handleMeusPedidos}
           style={{
@@ -221,143 +241,215 @@ const HomePage = ({ onNavigate }) => {
           fontSize: isMobile ? '1.1em' : '1.2em',
           margin: isMobile ? '10px 10px 0 10px' : '0'
         }}>
-          Informe seu CNPJ para ter acesso à sua área exclusiva
+          {modo === 'login' ? 'Faça login para acessar sua área exclusiva' : 'Cadastre-se para ter acesso completo'}
         </p>
 
+        {/* Form de Login/Cadastro */}
         <div style={{
           margin: '30px auto',
-          display: 'flex',
-          flexDirection: isMobile ? 'column' : 'row',
           width: isMobile ? '95%' : '80%',
-          maxWidth: '700px',
+          maxWidth: '500px',
           backgroundColor: 'white',
           borderRadius: '10px',
-          overflow: 'hidden'
+          padding: '30px',
+          color: '#333'
         }}>
-          <input 
-            type="text"
-            value={cnpj}
-            onChange={handleCnpjChange}
-            onKeyPress={handleKeyPress}
-            placeholder="INFORME O CNPJ"
-            maxLength="18"
+          {/* Toggle Login/Cadastro */}
+          <div style={{
+            display: 'flex',
+            marginBottom: '25px',
+            backgroundColor: '#f8f9fa',
+            borderRadius: '25px',
+            padding: '5px'
+          }}>
+            <button
+              onClick={() => setModo('login')}
+              style={{
+                flex: 1,
+                padding: '10px',
+                border: 'none',
+                borderRadius: '20px',
+                backgroundColor: modo === 'login' ? '#009245' : 'transparent',
+                color: modo === 'login' ? 'white' : '#666',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              LOGIN
+            </button>
+            <button
+              onClick={() => setModo('cadastro')}
+              style={{
+                flex: 1,
+                padding: '10px',
+                border: 'none',
+                borderRadius: '20px',
+                backgroundColor: modo === 'cadastro' ? '#009245' : 'transparent',
+                color: modo === 'cadastro' ? 'white' : '#666',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+            >
+              CADASTRO
+            </button>
+          </div>
+
+          {/* Campo CNPJ */}
+          <div style={{ marginBottom: '20px', textAlign: 'left' }}>
+            <label style={{ 
+              display: 'block', 
+              marginBottom: '8px', 
+              fontWeight: 'bold',
+              color: '#009245'
+            }}>
+              CNPJ da Empresa
+            </label>
+            <input 
+              type="text"
+              value={cnpj}
+              onChange={handleCnpjChange}
+              onKeyPress={handleKeyPress}
+              placeholder="00.000.000/0000-00"
+              maxLength="18"
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '2px solid #ddd',
+                borderRadius: '5px',
+                fontSize: '16px',
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          {/* Campo Senha */}
+          <div style={{ marginBottom: '20px', textAlign: 'left' }}>
+            <label style={{ 
+              display: 'block', 
+              marginBottom: '8px', 
+              fontWeight: 'bold',
+              color: '#009245'
+            }}>
+              Senha {modo === 'cadastro' && '(mínimo 4 caracteres)'}
+            </label>
+            <input 
+              type="password"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Digite sua senha"
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '2px solid #ddd',
+                borderRadius: '5px',
+                fontSize: '16px',
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          {/* Campo Confirmar Senha (só no cadastro) */}
+          {modo === 'cadastro' && (
+            <div style={{ marginBottom: '20px', textAlign: 'left' }}>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '8px', 
+                fontWeight: 'bold',
+                color: '#009245'
+              }}>
+                Confirmar Senha
+              </label>
+              <input 
+                type="password"
+                value={confirmarSenha}
+                onChange={(e) => setConfirmarSenha(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Confirme sua senha"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '2px solid #ddd',
+                  borderRadius: '5px',
+                  fontSize: '16px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+          )}
+
+          {/* Botão de Ação */}
+          <button 
+            onClick={modo === 'login' ? handleLogin : handleCadastro}
+            disabled={fazendoLogin}
             style={{
-              flex: 1,
+              backgroundColor: fazendoLogin ? '#ccc' : '#f38e3c',
+              color: 'white',
               border: 'none',
               padding: '15px',
-              fontSize: '1em',
-              outline: 'none',
-              color: '#000',
-              borderBottom: isMobile ? '1px solid #eee' : 'none'
-            }}
-          />
-          <button 
-            onClick={validarCnpj}
-            disabled={consultandoCnpj}
-            style={{
-              backgroundColor: consultandoCnpj ? '#ccc' : '#f38e3c',
-              border: 'none',
-              padding: isMobile ? '15px' : '15px 30px',
-              color: 'white',
-              fontSize: '1em',
+              width: '100%',
+              borderRadius: '5px',
+              fontSize: '18px',
               fontWeight: 'bold',
-              cursor: consultandoCnpj ? 'wait' : 'pointer',
-              opacity: consultandoCnpj ? 0.7 : 1
+              cursor: fazendoLogin ? 'wait' : 'pointer',
+              opacity: fazendoLogin ? 0.7 : 1
             }}
           >
-            {consultandoCnpj ? 'CONSULTANDO...' : 'ACESSAR'}
+            {fazendoLogin ? 
+              (modo === 'login' ? 'ENTRANDO...' : 'CADASTRANDO...') : 
+              (modo === 'login' ? 'ENTRAR' : 'CADASTRAR')
+            }
           </button>
+
+          {/* Link para alternar modo */}
+          <div style={{ 
+            marginTop: '20px', 
+            textAlign: 'center',
+            fontSize: '14px',
+            color: '#666'
+          }}>
+            {modo === 'login' ? (
+              <>
+                Não tem cadastro? 
+                <button 
+                  onClick={() => setModo('cadastro')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#009245',
+                    textDecoration: 'underline',
+                    cursor: 'pointer',
+                    marginLeft: '5px'
+                  }}
+                >
+                  Cadastre-se aqui
+                </button>
+              </>
+            ) : (
+              <>
+                Já tem cadastro? 
+                <button 
+                  onClick={() => setModo('login')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#009245',
+                    textDecoration: 'underline',
+                    cursor: 'pointer',
+                    marginLeft: '5px'
+                  }}
+                >
+                  Faça login
+                </button>
+              </>
+            )}
+          </div>
         </div>
-
-        {/* Status da Consulta CNPJ */}
-        {consultandoCnpj && (
-          <div style={{
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            padding: '15px',
-            borderRadius: '8px',
-            margin: '20px auto',
-            maxWidth: '600px',
-            fontSize: '14px'
-          }}>
-            🔍 <strong>Consultando CNPJ...</strong> Aguarde um momento.
-          </div>
-        )}
-
-        {/* Dados da Empresa Encontrados */}
-        {dadosEmpresa && !consultandoCnpj && (
-          <div style={{
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            color: '#333',
-            padding: '20px',
-            borderRadius: '8px',
-            margin: '20px auto',
-            maxWidth: '600px',
-            textAlign: 'left',
-            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              marginBottom: '15px',
-              color: '#28a745'
-            }}>
-              <span style={{ fontSize: '24px', marginRight: '10px' }}>✅</span>
-              <strong style={{ fontSize: '16px' }}>Empresa encontrada!</strong>
-            </div>
-            
-            <div style={{ fontSize: '14px', lineHeight: '1.6' }}>
-              <div style={{ marginBottom: '8px' }}>
-                <strong>Razão Social:</strong> {dadosEmpresa.razaoSocial}
-              </div>
-              
-              {dadosEmpresa.nomeFantasia && dadosEmpresa.nomeFantasia !== dadosEmpresa.razaoSocial && (
-                <div style={{ marginBottom: '8px' }}>
-                  <strong>Nome Fantasia:</strong> {dadosEmpresa.nomeFantasia}
-                </div>
-              )}
-              
-              <div style={{ marginBottom: '8px' }}>
-                <strong>CNPJ:</strong> {dadosEmpresa.cnpj || cnpj}
-              </div>
-              
-              {dadosEmpresa.situacao && (
-                <div style={{ marginBottom: '8px' }}>
-                  <strong>Situação:</strong> {dadosEmpresa.situacao}
-                </div>
-              )}
-              
-              {dadosEmpresa.atividade && (
-                <div style={{ marginBottom: '8px' }}>
-                  <strong>Atividade:</strong> {dadosEmpresa.atividade}
-                </div>
-              )}
-              
-              {dadosEmpresa.municipio && dadosEmpresa.uf && (
-                <div style={{ marginBottom: '8px' }}>
-                  <strong>Localização:</strong> {dadosEmpresa.municipio}/{dadosEmpresa.uf}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Erro na Consulta */}
-        {erroConsulta && !consultandoCnpj && (
-          <div style={{
-            backgroundColor: 'rgba(220, 53, 69, 0.9)',
-            padding: '15px',
-            borderRadius: '8px',
-            margin: '20px auto',
-            maxWidth: '600px',
-            fontSize: '14px'
-          }}>
-            ⚠️ <strong>Atenção:</strong> {erroConsulta}
-            <br />
-            <small style={{ opacity: 0.9 }}>
-              Você pode continuar mesmo assim. O sistema funcionará normalmente.
-            </small>
-          </div>
-        )}
 
         {/* Dica para teste */}
         <div style={{
@@ -368,7 +460,7 @@ const HomePage = ({ onNavigate }) => {
           maxWidth: '600px',
           fontSize: '14px'
         }}>
-          💡 <strong>Para teste:</strong> Use CNPJs reais (ex: 11.222.333/0001-81) ou qualquer CNPJ válido
+          💡 <strong>Para teste:</strong> Use qualquer CNPJ válido (ex: 11.222.333/0001-81) e cadastre uma senha
         </div>
       </section>
 
@@ -381,7 +473,7 @@ const HomePage = ({ onNavigate }) => {
           fontSize: isMobile ? '1.6em' : '1.8em',
           marginBottom: '30px'
         }}>
-          Informações
+          Como Funciona
         </h2>
         <div style={{
           display: 'flex',
@@ -396,28 +488,21 @@ const HomePage = ({ onNavigate }) => {
             maxWidth: isMobile ? '300px' : '250px',
             backgroundColor: '#2f6e4a',
             borderRadius: '15px',
-            padding: '15px',
-            textAlign: 'left',
+            padding: '20px',
+            textAlign: 'center',
             color: 'white'
           }}>
-            <img 
-              src="https://cdn-icons-png.freepik.com/256/7891/7891770.png?semt=ais_hybrid" 
-              alt="Individual"
-              style={{
-                width: '100%',
-                borderRadius: '10px'
-              }}
-            />
+            <div style={{ fontSize: '48px', marginBottom: '15px' }}>🏢</div>
             <h3 style={{
               marginTop: '10px',
               fontSize: '1.1em'
             }}>
-              Consulta Automática
+              1. Cadastre seu CNPJ
             </h3>
             <p style={{
               fontSize: '0.9em'
             }}>
-              Seus dados são consultados automaticamente via CNPJ
+              Registre seu CNPJ e crie uma senha de acesso
             </p>
           </div>
 
@@ -426,28 +511,21 @@ const HomePage = ({ onNavigate }) => {
             maxWidth: isMobile ? '300px' : '250px',
             backgroundColor: '#2f6e4a',
             borderRadius: '15px',
-            padding: '15px',
-            textAlign: 'left',
+            padding: '20px',
+            textAlign: 'center',
             color: 'white'
           }}>
-            <img 
-              src="https://png.pngtree.com/png-vector/20200417/ourmid/pngtree-shopping-on-mobile-png-image_2189444.jpg" 
-              alt="Empresarial"
-              style={{
-                width: '100%',
-                borderRadius: '10px'
-              }}
-            />
+            <div style={{ fontSize: '48px', marginBottom: '15px' }}>🔐</div>
             <h3 style={{
               marginTop: '10px',
               fontSize: '1.1em'
             }}>
-              Acesso Personalizado
+              2. Faça Login
             </h3>
             <p style={{
               fontSize: '0.9em'
             }}>
-              Visualize produtos disponíveis para sua empresa
+              Use seu CNPJ e senha para acessar sua área exclusiva
             </p>
           </div>
 
@@ -456,28 +534,21 @@ const HomePage = ({ onNavigate }) => {
             maxWidth: isMobile ? '300px' : '250px',
             backgroundColor: '#2f6e4a',
             borderRadius: '15px',
-            padding: '15px',
-            textAlign: 'left',
+            padding: '20px',
+            textAlign: 'center',
             color: 'white'
           }}>
-            <img 
-              src="https://img.lovepik.com/png/20231112/cheap-clipart-man-with-glasses-is-holding-a-grocery-shopping_566111_wh1200.png" 
-              alt="Fornecedores"
-              style={{
-                width: '100%',
-                borderRadius: '10px'
-              }}
-            />
+            <div style={{ fontSize: '48px', marginBottom: '15px' }}>🛒</div>
             <h3 style={{
               marginTop: '10px',
               fontSize: '1.1em'
             }}>
-              Faça seu Pedido
+              3. Faça seus Pedidos
             </h3>
             <p style={{
               fontSize: '0.9em'
             }}>
-              É Prático e Seguro
+              Acesse produtos exclusivos e faça pedidos facilmente
             </p>
           </div>
         </div>

@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { authCnpjService } from '../services/authCnpjService';
 
 const ProsseguirPage = ({ onNavigate }) => {
   const [selectedOption, setSelectedOption] = useState('fazerPedido');
-  const [cnpj, setCnpj] = useState('');
+  const [sessaoAtiva, setSessaoAtiva] = useState(null);
 
   useEffect(() => {
-    // Recupera informações do sessionStorage - APENAS CNPJ
-    const cnpjInfo = sessionStorage.getItem('cnpj') || '';
-    setCnpj(cnpjInfo);
+    // Verifica se tem sessão ativa
+    const sessao = authCnpjService.verificarSessao();
+    if (!sessao) {
+      // Não está logado, volta para home
+      alert('Sessão expirada. Faça login novamente.');
+      onNavigate('home');
+      return;
+    }
+    
+    setSessaoAtiva(sessao);
     
     // Intercepta o botão voltar do navegador
     const handlePopState = (event) => {
@@ -17,11 +25,8 @@ const ProsseguirPage = ({ onNavigate }) => {
       return false;
     };
     
-    // Remove qualquer listener anterior
     window.removeEventListener('popstate', handlePopState);
     window.addEventListener('popstate', handlePopState);
-    
-    // Adiciona uma entrada no histórico para interceptar o botão voltar
     window.history.pushState({ page: 'prosseguir' }, '', window.location.pathname);
     
     return () => {
@@ -41,9 +46,26 @@ const ProsseguirPage = ({ onNavigate }) => {
     }
   };
 
-  const handlePedidosClick = () => {
-    onNavigate('home');
+  const handleLogout = () => {
+    if (window.confirm('Tem certeza que deseja sair?')) {
+      authCnpjService.logout();
+      onNavigate('home');
+    }
   };
+
+  if (!sessaoAtiva) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        fontFamily: 'Arial, sans-serif'
+      }}>
+        Verificando sessão...
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -61,36 +83,43 @@ const ProsseguirPage = ({ onNavigate }) => {
         padding: '10px 40px',
         borderBottom: '1px solid #ccc'
       }}>
-        <img 
-          style={{ height: '60px' }}
-          src="/assets/logo.jpg" 
-          alt="Logo Fit In Box"
-        />
+        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#009245' }}>
+          🍽️ Fit In Box
+        </div>
         <div style={{
           display: 'flex',
           alignItems: 'center',
           gap: '20px'
         }}>
-          <span style={{
-            fontWeight: 'bold',
-            color: '#009245'
-          }}>
-            CNPJ: {cnpj}
-          </span>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{
+              fontWeight: 'bold',
+              color: '#009245',
+              fontSize: '14px'
+            }}>
+              {sessaoAtiva.razaoSocial}
+            </div>
+            <div style={{
+              fontSize: '12px',
+              color: '#666'
+            }}>
+              CNPJ: {sessaoAtiva.cnpj}
+            </div>
+          </div>
           <button 
-            onClick={handlePedidosClick}
+            onClick={handleLogout}
             style={{
-              padding: '10px 20px',
+              padding: '8px 16px',
               borderRadius: '5px',
               color: 'white',
               fontWeight: 'bold',
               cursor: 'pointer',
               border: 'none',
-              textDecoration: 'none',
-              backgroundColor: '#009245'
+              backgroundColor: '#dc3545',
+              fontSize: '14px'
             }}
           >
-            PEDIDOS
+            🚪 SAIR
           </button>
         </div>
       </div>
@@ -112,20 +141,39 @@ const ProsseguirPage = ({ onNavigate }) => {
           maxWidth: '600px',
           textAlign: 'center'
         }}>
-          <h2 style={{
+          {/* Boas-vindas */}
+          <div style={{
+            backgroundColor: '#e7f3ff',
+            padding: '20px',
+            borderRadius: '8px',
+            marginBottom: '30px',
+            border: '1px solid #b3d9ff'
+          }}>
+            <h2 style={{
+              color: '#0066cc',
+              fontSize: '24px',
+              margin: '0 0 10px 0'
+            }}>
+              🎉 Bem-vindo(a)!
+            </h2>
+            <p style={{
+              color: '#0066cc',
+              margin: 0,
+              fontSize: '16px'
+            }}>
+              <strong>{sessaoAtiva.razaoSocial}</strong>
+              <br />
+              Você está na área restrita exclusiva para seu CNPJ
+            </p>
+          </div>
+          
+          <h3 style={{
             color: '#757248',
-            fontSize: '24px',
+            fontSize: '20px',
             marginBottom: '20px'
           }}>
-            PROSSEGUIR
-          </h2>
-          
-          <p style={{
-            color: '#666',
-            marginBottom: '30px'
-          }}>
-            Você Está para Entrar em uma Área Restrita exclusiva para seu CNPJ. O que Gostaria de Fazer?
-          </p>
+            O que gostaria de fazer?
+          </h3>
           
           {/* Options Container */}
           <div style={{
@@ -136,8 +184,15 @@ const ProsseguirPage = ({ onNavigate }) => {
             <div style={{
               display: 'flex',
               alignItems: 'flex-start',
-              marginBottom: '15px'
-            }}>
+              marginBottom: '20px',
+              padding: '15px',
+              border: selectedOption === 'fazerPedido' ? '2px solid #009245' : '2px solid #eee',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              backgroundColor: selectedOption === 'fazerPedido' ? '#f0f9f0' : 'white'
+            }}
+            onClick={() => handleOptionChange('fazerPedido')}
+            >
               <input 
                 type="radio" 
                 id="fazerPedido"
@@ -145,7 +200,7 @@ const ProsseguirPage = ({ onNavigate }) => {
                 checked={selectedOption === 'fazerPedido'}
                 onChange={() => handleOptionChange('fazerPedido')}
                 style={{
-                  marginRight: '10px',
+                  marginRight: '15px',
                   marginTop: '3px'
                 }}
               />
@@ -158,17 +213,18 @@ const ProsseguirPage = ({ onNavigate }) => {
                   style={{
                     fontWeight: 'bold',
                     color: '#333',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    fontSize: '16px',
+                    marginBottom: '5px'
                   }}
-                  onClick={() => handleOptionChange('fazerPedido')}
                 >
-                  Quero realizar um pedido
+                  🛒 Quero realizar um pedido
                 </label>
                 <span style={{
                   color: '#666',
                   fontSize: '14px'
                 }}>
-                  Visualizar o que há de disponível para compras
+                  Visualizar produtos disponíveis e fazer pedidos
                 </span>
               </div>
             </div>
@@ -177,8 +233,15 @@ const ProsseguirPage = ({ onNavigate }) => {
             <div style={{
               display: 'flex',
               alignItems: 'flex-start',
-              marginBottom: '15px'
-            }}>
+              marginBottom: '20px',
+              padding: '15px',
+              border: selectedOption === 'consultarPedidos' ? '2px solid #009245' : '2px solid #eee',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              backgroundColor: selectedOption === 'consultarPedidos' ? '#f0f9f0' : 'white'
+            }}
+            onClick={() => handleOptionChange('consultarPedidos')}
+            >
               <input 
                 type="radio" 
                 id="consultarPedidos"
@@ -186,7 +249,7 @@ const ProsseguirPage = ({ onNavigate }) => {
                 checked={selectedOption === 'consultarPedidos'}
                 onChange={() => handleOptionChange('consultarPedidos')}
                 style={{
-                  marginRight: '10px',
+                  marginRight: '15px',
                   marginTop: '3px'
                 }}
               />
@@ -199,17 +262,18 @@ const ProsseguirPage = ({ onNavigate }) => {
                   style={{
                     fontWeight: 'bold',
                     color: '#333',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    fontSize: '16px',
+                    marginBottom: '5px'
                   }}
-                  onClick={() => handleOptionChange('consultarPedidos')}
                 >
-                  Consultar Pedidos Realizados
+                  📋 Consultar Pedidos Realizados
                 </label>
                 <span style={{
                   color: '#666',
                   fontSize: '14px'
                 }}>
-                  Visualize seu Histórico Completo de Pedidos
+                  Visualize seu histórico completo de pedidos
                 </span>
               </div>
             </div>
@@ -225,7 +289,7 @@ const ProsseguirPage = ({ onNavigate }) => {
               width: '100%',
               border: 'none',
               borderRadius: '5px',
-              fontSize: '16px',
+              fontSize: '18px',
               fontWeight: 'bold',
               cursor: 'pointer',
               marginTop: '20px'
@@ -233,6 +297,27 @@ const ProsseguirPage = ({ onNavigate }) => {
           >
             Continuar
           </button>
+
+          {/* Informações da Sessão */}
+          <div style={{
+            marginTop: '30px',
+            padding: '15px',
+            backgroundColor: '#f8f9fa',
+            borderRadius: '8px',
+            fontSize: '12px',
+            color: '#666',
+            textAlign: 'left'
+          }}>
+            <div style={{ marginBottom: '5px' }}>
+              <strong>Sessão ativa:</strong> {sessaoAtiva.razaoSocial}
+            </div>
+            <div style={{ marginBottom: '5px' }}>
+              <strong>CNPJ:</strong> {sessaoAtiva.cnpj}
+            </div>
+            <div>
+              <strong>Login realizado em:</strong> {new Date(sessaoAtiva.loginTime).toLocaleString('pt-BR')}
+            </div>
+          </div>
         </div>
       </div>
     </div>
