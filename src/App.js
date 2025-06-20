@@ -168,6 +168,9 @@ function AppContent() {
       case 'pedido-confirmado':
         return <PedidoConfirmado onNavigate={navigate} />;
 
+      case 'pedido-produtos':
+        return <PedidoProdutosPage {...props} />;
+
       case 'consultar-pedido':
         return (
           <div style={{ 

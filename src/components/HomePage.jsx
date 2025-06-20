@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { authCnpjService } from '../services/authCnpjService';
+import { authSupabaseService } from '../services/authSupabaseService';
 
 const HomePage = ({ onNavigate }) => {
   const [cnpj, setCnpj] = useState('');
@@ -23,7 +23,7 @@ const HomePage = ({ onNavigate }) => {
 
   // Verifica se já tem sessão ativa
   useEffect(() => {
-    const sessaoAtiva = authCnpjService.verificarSessao();
+    const sessaoAtiva = authSupabaseService.verificarSessao();
     if (sessaoAtiva) {
       // Já está logado, vai direto para a área restrita
       onNavigate('prosseguir');
@@ -61,14 +61,10 @@ const HomePage = ({ onNavigate }) => {
     setFazendoLogin(true);
     
     try {
-      const resultado = await new Promise(resolve => {
-        setTimeout(() => {
-          resolve(authCnpjService.autenticar(cnpj, senha));
-        }, 1000); // Simula delay de rede
-      });
+      const resultado = await authSupabaseService.autenticar(cnpj, senha);
       
       if (resultado.success) {
-        alert(`Bem-vindo, ${resultado.empresa.razaoSocial}!`);
+        alert(`Bem-vindo!`); // Não mostra mais o nome da empresa aqui
         onNavigate('prosseguir');
       } else {
         alert(`Erro no login: ${resultado.error}`);
@@ -91,8 +87,8 @@ const HomePage = ({ onNavigate }) => {
       return;
     }
     
-    if (senha.length < 4) {
-      alert('Senha deve ter pelo menos 4 caracteres');
+    if (senha.length < 6) {
+      alert('Senha deve ter pelo menos 6 caracteres');
       return;
     }
     
@@ -104,16 +100,10 @@ const HomePage = ({ onNavigate }) => {
     setFazendoLogin(true);
     
     try {
-      const resultado = await new Promise(resolve => {
-        setTimeout(() => {
-          resolve(authCnpjService.registrarCnpj(cnpj, senha, {
-            razaoSocial: `Empresa ${cnpj.substring(0, 8)}` // Nome temporário
-          }));
-        }, 1000); // Simula delay de rede
-      });
+      const resultado = await authSupabaseService.registrarEmpresa(cnpj, senha);
       
       if (resultado.success) {
-        alert('CNPJ cadastrado com sucesso! Agora você pode fazer login.');
+        alert('Cadastro realizado com sucesso! Agora você pode fazer login.');
         setModo('login');
         setSenha('');
         setConfirmarSenha('');
@@ -139,7 +129,7 @@ const HomePage = ({ onNavigate }) => {
 
   const handleMeusPedidos = () => {
     // Se não está logado, pede para logar primeiro
-    const sessaoAtiva = authCnpjService.verificarSessao();
+    const sessaoAtiva = authSupabaseService.verificarSessao();
     if (!sessaoAtiva) {
       alert('Faça login para acessar seus pedidos');
       return;
@@ -241,14 +231,14 @@ const HomePage = ({ onNavigate }) => {
           fontSize: isMobile ? '1.1em' : '1.2em',
           margin: isMobile ? '10px 10px 0 10px' : '0'
         }}>
-          {modo === 'login' ? 'Faça login para acessar sua área exclusiva' : 'Cadastre-se para ter acesso completo'}
+          {modo === 'login' ? 'Acesse sua conta' : 'Crie sua conta'}
         </p>
 
         {/* Form de Login/Cadastro */}
         <div style={{
           margin: '30px auto',
           width: isMobile ? '95%' : '80%',
-          maxWidth: '500px',
+          maxWidth: '450px',
           backgroundColor: 'white',
           borderRadius: '10px',
           padding: '30px',
@@ -276,7 +266,7 @@ const HomePage = ({ onNavigate }) => {
                 transition: 'all 0.3s ease'
               }}
             >
-              LOGIN
+              ENTRAR
             </button>
             <button
               onClick={() => setModo('cadastro')}
@@ -292,7 +282,7 @@ const HomePage = ({ onNavigate }) => {
                 transition: 'all 0.3s ease'
               }}
             >
-              CADASTRO
+              CADASTRAR
             </button>
           </div>
 
@@ -304,7 +294,7 @@ const HomePage = ({ onNavigate }) => {
               fontWeight: 'bold',
               color: '#009245'
             }}>
-              CNPJ da Empresa
+              CNPJ
             </label>
             <input 
               type="text"
@@ -333,7 +323,7 @@ const HomePage = ({ onNavigate }) => {
               fontWeight: 'bold',
               color: '#009245'
             }}>
-              Senha {modo === 'cadastro' && '(mínimo 4 caracteres)'}
+              Senha {modo === 'cadastro' && '(mínimo 6 caracteres)'}
             </label>
             <input 
               type="password"
@@ -415,7 +405,7 @@ const HomePage = ({ onNavigate }) => {
           }}>
             {modo === 'login' ? (
               <>
-                Não tem cadastro? 
+                Não tem conta? 
                 <button 
                   onClick={() => setModo('cadastro')}
                   style={{
@@ -427,12 +417,12 @@ const HomePage = ({ onNavigate }) => {
                     marginLeft: '5px'
                   }}
                 >
-                  Cadastre-se aqui
+                  Cadastre-se
                 </button>
               </>
             ) : (
               <>
-                Já tem cadastro? 
+                Já tem conta? 
                 <button 
                   onClick={() => setModo('login')}
                   style={{
@@ -444,23 +434,11 @@ const HomePage = ({ onNavigate }) => {
                     marginLeft: '5px'
                   }}
                 >
-                  Faça login
+                  Entrar
                 </button>
               </>
             )}
           </div>
-        </div>
-
-        {/* Dica para teste */}
-        <div style={{
-          backgroundColor: 'rgba(255, 255, 255, 0.1)',
-          padding: '15px',
-          borderRadius: '8px',
-          margin: '20px auto',
-          maxWidth: '600px',
-          fontSize: '14px'
-        }}>
-          💡 <strong>Para teste:</strong> Use qualquer CNPJ válido (ex: 11.222.333/0001-81) e cadastre uma senha
         </div>
       </section>
 
@@ -492,40 +470,17 @@ const HomePage = ({ onNavigate }) => {
             textAlign: 'center',
             color: 'white'
           }}>
-            <div style={{ fontSize: '48px', marginBottom: '15px' }}>🏢</div>
-            <h3 style={{
-              marginTop: '10px',
-              fontSize: '1.1em'
-            }}>
-              1. Cadastre seu CNPJ
-            </h3>
-            <p style={{
-              fontSize: '0.9em'
-            }}>
-              Registre seu CNPJ e crie uma senha de acesso
-            </p>
-          </div>
-
-          <div style={{
-            width: isMobile ? '100%' : '250px',
-            maxWidth: isMobile ? '300px' : '250px',
-            backgroundColor: '#2f6e4a',
-            borderRadius: '15px',
-            padding: '20px',
-            textAlign: 'center',
-            color: 'white'
-          }}>
             <div style={{ fontSize: '48px', marginBottom: '15px' }}>🔐</div>
             <h3 style={{
               marginTop: '10px',
               fontSize: '1.1em'
             }}>
-              2. Faça Login
+              1. Acesso Seguro
             </h3>
             <p style={{
               fontSize: '0.9em'
             }}>
-              Use seu CNPJ e senha para acessar sua área exclusiva
+              Faça login com segurança usando seu CNPJ
             </p>
           </div>
 
@@ -538,17 +493,40 @@ const HomePage = ({ onNavigate }) => {
             textAlign: 'center',
             color: 'white'
           }}>
-            <div style={{ fontSize: '48px', marginBottom: '15px' }}>🛒</div>
+            <div style={{ fontSize: '48px', marginBottom: '15px' }}>🍽️</div>
             <h3 style={{
               marginTop: '10px',
               fontSize: '1.1em'
             }}>
-              3. Faça seus Pedidos
+              2. Escolha Produtos
             </h3>
             <p style={{
               fontSize: '0.9em'
             }}>
-              Acesse produtos exclusivos e faça pedidos facilmente
+              Veja produtos disponíveis para sua empresa
+            </p>
+          </div>
+
+          <div style={{
+            width: isMobile ? '100%' : '250px',
+            maxWidth: isMobile ? '300px' : '250px',
+            backgroundColor: '#2f6e4a',
+            borderRadius: '15px',
+            padding: '20px',
+            textAlign: 'center',
+            color: 'white'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '15px' }}>🚚</div>
+            <h3 style={{
+              marginTop: '10px',
+              fontSize: '1.1em'
+            }}>
+              3. Receba em Casa
+            </h3>
+            <p style={{
+              fontSize: '0.9em'
+            }}>
+              Entrega rápida e segura no seu endereço
             </p>
           </div>
         </div>

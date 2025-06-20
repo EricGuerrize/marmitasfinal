@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { authCnpjService } from '../services/authCnpjService';
+import { authSupabaseService } from '../services/authSupabaseService';
 
 const ProsseguirPage = ({ onNavigate }) => {
   const [selectedOption, setSelectedOption] = useState('fazerPedido');
@@ -7,7 +7,7 @@ const ProsseguirPage = ({ onNavigate }) => {
 
   useEffect(() => {
     // Verifica se tem sessão ativa
-    const sessao = authCnpjService.verificarSessao();
+    const sessao = authSupabaseService.verificarSessao();
     if (!sessao) {
       // Não está logado, volta para home
       alert('Sessão expirada. Faça login novamente.');
@@ -48,7 +48,7 @@ const ProsseguirPage = ({ onNavigate }) => {
 
   const handleLogout = () => {
     if (window.confirm('Tem certeza que deseja sair?')) {
-      authCnpjService.logout();
+      authSupabaseService.logout();
       onNavigate('home');
     }
   };
@@ -97,13 +97,13 @@ const ProsseguirPage = ({ onNavigate }) => {
               color: '#009245',
               fontSize: '14px'
             }}>
-              {sessaoAtiva.razaoSocial}
+              Área Restrita
             </div>
             <div style={{
               fontSize: '12px',
               color: '#666'
             }}>
-              CNPJ: {sessaoAtiva.cnpj}
+              Acesso autorizado
             </div>
           </div>
           <button 
@@ -161,9 +161,9 @@ const ProsseguirPage = ({ onNavigate }) => {
               margin: 0,
               fontSize: '16px'
             }}>
-              <strong>{sessaoAtiva.razaoSocial}</strong>
+              Acesso autorizado com sucesso
               <br />
-              Você está na área restrita exclusiva para seu CNPJ
+              Escolha o que deseja fazer
             </p>
           </div>
           
@@ -298,7 +298,7 @@ const ProsseguirPage = ({ onNavigate }) => {
             Continuar
           </button>
 
-          {/* Informações da Sessão */}
+          {/* Informações da Sessão - removidas para não mostrar CNPJ */}
           <div style={{
             marginTop: '30px',
             padding: '15px',
@@ -306,16 +306,10 @@ const ProsseguirPage = ({ onNavigate }) => {
             borderRadius: '8px',
             fontSize: '12px',
             color: '#666',
-            textAlign: 'left'
+            textAlign: 'center'
           }}>
-            <div style={{ marginBottom: '5px' }}>
-              <strong>Sessão ativa:</strong> {sessaoAtiva.razaoSocial}
-            </div>
-            <div style={{ marginBottom: '5px' }}>
-              <strong>CNPJ:</strong> {sessaoAtiva.cnpj}
-            </div>
             <div>
-              <strong>Login realizado em:</strong> {new Date(sessaoAtiva.loginTime).toLocaleString('pt-BR')}
+              <strong>Sessão segura ativa</strong> • Login realizado em {new Date(sessaoAtiva.loginTime).toLocaleString('pt-BR')}
             </div>
           </div>
         </div>

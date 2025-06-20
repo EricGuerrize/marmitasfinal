@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { authCnpjService } from '../services/authCnpjService';
+import { authCnpjService } from '../services/authSupabaseService';
 import { cnpjService } from '../services/cnpjService';
 
 const AdminPage = ({ onNavigate }) => {
