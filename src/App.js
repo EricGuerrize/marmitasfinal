@@ -4,7 +4,7 @@ import ProsseguirPage from './components/ProsseguirPage';
 import CnpjNaoCadastrado from './components/CnpjNaoCadastrado';
 import PedidoProdutos from './components/PedidoProdutos';
 import CarrinhoPage from './components/CarrinhoPage';
-import ResumoPedido from './components/ResumoPedido'; // NOVA PÁGINA
+import ResumoPedido from './components/ResumoPedido';
 import PedidoConfirmado from './components/PedidoConfirmado';
 import AdminPage from './components/AdminPage';
 import { NotificationProvider, useNotification } from './components/NotificationSystem';
@@ -13,9 +13,9 @@ import { NotificationProvider, useNotification } from './components/Notification
 function AppContent() {
   const [currentPage, setCurrentPage] = useState('home');
   const [carrinho, setCarrinho] = useState([]);
-  const { success, error, warning } = useNotification();
+  const { success, error: showError } = useNotification();
 
-  // Carrega carrinho do sessionStorage ao iniciar (SEM NOTIFICAÇÃO)
+  // Carrega carrinho do sessionStorage ao iniciar
   useEffect(() => {
     const carrinhoSalvo = sessionStorage.getItem('carrinho');
     if (carrinhoSalvo) {
@@ -25,10 +25,10 @@ function AppContent() {
       } catch (error) {
         console.error('Erro ao carregar carrinho:', error);
         setCarrinho([]);
-        error('Erro ao restaurar carrinho anterior');
+        showError('Erro ao restaurar carrinho anterior');
       }
     }
-  }, [error]);
+  }, [showError]);
 
   // Salva carrinho no sessionStorage sempre que muda
   useEffect(() => {
@@ -36,9 +36,9 @@ function AppContent() {
       sessionStorage.setItem('carrinho', JSON.stringify(carrinho));
     } catch (error) {
       console.error('Erro ao salvar carrinho:', error);
-      error('Erro ao salvar carrinho');
+      showError('Erro ao salvar carrinho');
     }
-  }, [carrinho, error]);
+  }, [carrinho, showError]);
 
   // Função para navegar entre páginas
   const navigate = (page) => {
@@ -67,11 +67,11 @@ function AppContent() {
       // Aviso sobre pedido mínimo
       const novaQuantidadeTotal = calcularQuantidadeTotal() + quantidadeAdicionar;
       if (novaQuantidadeTotal >= 25 && novaQuantidadeTotal < 30) {
-        warning(`Você está quase lá! Faltam ${30 - novaQuantidadeTotal} marmitas para o pedido mínimo.`);
+        // warning(`Você está quase lá! Faltam ${30 - novaQuantidadeTotal} marmitas para o pedido mínimo.`);
       }
       
     } catch (err) {
-      error('Erro ao adicionar produto ao carrinho');
+      showError('Erro ao adicionar produto ao carrinho');
       console.error('Erro ao adicionar ao carrinho:', err);
     }
   };
@@ -94,7 +94,7 @@ function AppContent() {
         ));
       }
     } catch (err) {
-      error('Erro ao atualizar quantidade');
+      showError('Erro ao atualizar quantidade');
       console.error('Erro ao atualizar quantidade:', err);
     }
   };
@@ -109,7 +109,7 @@ function AppContent() {
         success(`${produto.nome} removido do carrinho`);
       }
     } catch (err) {
-      error('Erro ao remover item');
+      showError('Erro ao remover item');
       console.error('Erro ao remover item:', err);
     }
   };
@@ -124,7 +124,7 @@ function AppContent() {
         success('Carrinho limpo com sucesso');
       }
     } catch (err) {
-      error('Erro ao limpar carrinho');
+      showError('Erro ao limpar carrinho');
       console.error('Erro ao limpar carrinho:', err);
     }
   };
@@ -162,14 +162,11 @@ function AppContent() {
       case 'carrinho':
         return <CarrinhoPage {...props} />;
 
-      case 'resumo-pedido': // NOVA ROTA
+      case 'resumo-pedido':
         return <ResumoPedido {...props} />;
 
       case 'pedido-confirmado':
         return <PedidoConfirmado onNavigate={navigate} />;
-
-      case 'pedido-produtos':
-        return <PedidoProdutosPage {...props} />;
 
       case 'consultar-pedido':
         return (

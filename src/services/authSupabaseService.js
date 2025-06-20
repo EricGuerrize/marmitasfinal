@@ -79,7 +79,7 @@ export const authSupabaseService = {
     },
     
     /**
-     * Autentica empresa com CNPJ e senha
+     * Autentica empresa com CNPJ e senha usando função segura
      * @param {string} cnpj - CNPJ da empresa
      * @param {string} senha - Senha informada
      * @returns {Object} Resultado da autenticação
@@ -88,14 +88,31 @@ export const authSupabaseService = {
         try {
             const cnpjLimpo = cnpj.replace(/\D/g, '');
             
-            // Busca empresa no banco
+            // Valida entrada
+            if (!this.validarCnpj(cnpjLimpo)) {
+                throw new Error('CNPJ inválido');
+            }
+            
+            if (!senha || senha.length < 6) {
+                throw new Error('Senha deve ter pelo menos 6 caracteres');
+            }
+            
+            // Busca empresa no banco (sem senha)
             const { data: empresa, error } = await supabase
                 .from('empresas')
-                .select('*')
+                .select('id, cnpj, cnpj_formatado, razao_social, nome_fantasia, senha_hash, ativo, tentativas_login')
                 .eq('cnpj', cnpjLimpo)
                 .single();
                 
             if (error || !empresa) {
+                // Log da tentativa falhada
+                await supabase.rpc('log_tentativa_login', {
+                    p_cnpj: cnpjLimpo,
+                    p_ip_address: '0.0.0.0', // Cliente não tem acesso ao IP real
+                    p_sucesso: false,
+                    p_motivo_falha: 'CNPJ não encontrado'
+                });
+                
                 throw new Error('CNPJ não cadastrado no sistema');
             }
             
@@ -112,13 +129,21 @@ export const authSupabaseService = {
             const senhaValida = await this.verificarSenha(senha, empresa.senha_hash);
             
             if (!senhaValida) {
-                // Incrementa tentativas
+                // Incrementa tentativas no banco
                 await supabase
                     .from('empresas')
                     .update({ 
                         tentativas_login: empresa.tentativas_login + 1 
                     })
                     .eq('id', empresa.id);
+                
+                // Log da tentativa falhada
+                await supabase.rpc('log_tentativa_login', {
+                    p_cnpj: cnpjLimpo,
+                    p_ip_address: '0.0.0.0',
+                    p_sucesso: false,
+                    p_motivo_falha: 'Senha incorreta'
+                });
                 
                 throw new Error(`Senha incorreta. Tentativas restantes: ${5 - empresa.tentativas_login - 1}`);
             }
@@ -132,10 +157,28 @@ export const authSupabaseService = {
                 })
                 .eq('id', empresa.id);
             
-            // Gera token JWT personalizado (opcional)
+            // Registra sessão no banco
+            await supabase
+                .from('sessoes_login')
+                .insert({
+                    empresa_id: empresa.id,
+                    ip_address: '0.0.0.0', // Cliente não tem acesso ao IP real
+                    login_time: new Date().toISOString(),
+                    status: 'ativo'
+                });
+            
+            // Log de sucesso
+            await supabase.rpc('log_tentativa_login', {
+                p_cnpj: cnpjLimpo,
+                p_ip_address: '0.0.0.0',
+                p_sucesso: true,
+                p_motivo_falha: null
+            });
+            
+            // Gera token JWT personalizado
             const token = this.gerarToken(empresa);
             
-            // Salva sessão
+            // Salva sessão local
             this.salvarSessao({
                 id: empresa.id,
                 cnpj: empresa.cnpj_formatado,

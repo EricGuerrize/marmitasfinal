@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { authCnpjService } from '../services/authSupabaseService';
+import { authSupabaseService } from '../services/authSupabaseService';
 import { cnpjService } from '../services/cnpjService';
 
 const AdminPage = ({ onNavigate }) => {
@@ -50,9 +50,14 @@ const AdminPage = ({ onNavigate }) => {
     return () => clearInterval(intervalId);
   }, []);
 
-  const loadEmpresasCadastradas = () => {
-    const empresas = authCnpjService.listarEmpresasCadastradas();
-    setEmpresasCadastradas(empresas);
+  const loadEmpresasCadastradas = async () => {
+    try {
+      const empresas = await authSupabaseService.listarEmpresas();
+      setEmpresasCadastradas(empresas);
+    } catch (error) {
+      console.error('Erro ao carregar empresas:', error);
+      setEmpresasCadastradas([]);
+    }
   };
 
   const loadProducts = () => {
@@ -209,13 +214,18 @@ const AdminPage = ({ onNavigate }) => {
   };
 
   // Função para ativar/desativar empresa
-  const toggleEmpresaAtiva = (cnpj, ativo) => {
-    const resultado = authCnpjService.toggleAtivoCnpj(cnpj, !ativo);
-    if (resultado.success) {
-      alert(resultado.message);
-      loadEmpresasCadastradas();
-    } else {
-      alert(`Erro: ${resultado.error}`);
+  const toggleEmpresaAtiva = async (empresaId, ativo) => {
+    try {
+      const resultado = await authSupabaseService.toggleEmpresaAtiva(empresaId, !ativo);
+      if (resultado.success) {
+        alert(resultado.message);
+        loadEmpresasCadastradas();
+      } else {
+        alert(`Erro: ${resultado.error}`);
+      }
+    } catch (error) {
+      console.error('Erro ao alterar status da empresa:', error);
+      alert('Erro ao alterar status da empresa');
     }
   };
 
@@ -748,7 +758,7 @@ const AdminPage = ({ onNavigate }) => {
                         )}
                         
                         <button
-                          onClick={() => toggleEmpresaAtiva(empresa.cnpj, empresa.ativo)}
+                          onClick={() => toggleEmpresaAtiva(empresa.id, empresa.ativo)}
                           style={{
                             backgroundColor: empresa.ativo ? '#ffc107' : '#28a745',
                             color: empresa.ativo ? '#000' : 'white',
