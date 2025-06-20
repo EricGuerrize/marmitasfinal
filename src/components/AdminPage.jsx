@@ -37,6 +37,15 @@ const AdminPage = ({ onNavigate }) => {
     empresasCadastradas: 0
   });
 
+  // Status disponíveis para pedidos
+  const statusPedidos = [
+    { value: 'a_preparar', label: 'A Preparar', color: '#ffc107', icon: '⏳' },
+    { value: 'em_producao', label: 'Em Produção', color: '#007bff', icon: '👨‍🍳' },
+    { value: 'pronto_entrega', label: 'Pronto para Entrega', color: '#28a745', icon: '📦' },
+    { value: 'entregue', label: 'Entregue', color: '#6c757d', icon: '✅' },
+    { value: 'cancelado', label: 'Cancelado', color: '#dc3545', icon: '❌' }
+  ];
+
   useEffect(() => {
     loadProducts();
     loadPedidos();
@@ -84,7 +93,7 @@ const AdminPage = ({ onNavigate }) => {
         cliente: 'H Azevedo de Abreu',
         cnpj: '05.336.475/0001-77',
         total: 567.00,
-        status: 'confirmado',
+        status: 'em_producao',
         data: new Date().toISOString(),
         itens: [
           { nome: 'Marmita Fitness Frango', quantidade: 15, preco: 18.90 },
@@ -152,6 +161,30 @@ const AdminPage = ({ onNavigate }) => {
     });
   };
 
+  // Função para alterar status do pedido
+  const alterarStatusPedido = (pedidoId, novoStatus) => {
+    try {
+      const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
+      const pedidosAtualizados = pedidosAdmin.map(pedido => 
+        pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
+      );
+      
+      localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAtualizados));
+      loadPedidos(); // Recarrega a lista
+      
+      const statusInfo = statusPedidos.find(s => s.value === novoStatus);
+      alert(`Status alterado para: ${statusInfo.label}`);
+    } catch (error) {
+      console.error('Erro ao alterar status:', error);
+      alert('Erro ao alterar status do pedido');
+    }
+  };
+
+  // Função para obter informações do status
+  const getStatusInfo = (status) => {
+    return statusPedidos.find(s => s.value === status) || statusPedidos[0];
+  };
+
   // Função para consultar CNPJ na aba admin
   const handleCnpjConsultaChange = (e) => {
     const maskedValue = cnpjService.aplicarMascaraCnpj(e.target.value);
@@ -169,42 +202,21 @@ const AdminPage = ({ onNavigate }) => {
       return;
     }
 
-    if (!cnpjService.validarCep) {
-      // Se não tem o cnpjService completo, usa validação básica
-      if (cnpjConsulta.replace(/\D/g, '').length !== 14) {
-        alert('CNPJ deve ter 14 dígitos');
-        return;
-      }
-    }
-
     setConsultandoCnpj(true);
     setErroConsultaCnpj('');
     
     try {
-      // Se tiver o cnpjService disponível, usa ele
-      if (cnpjService.consultarCnpj) {
-        const resultado = await cnpjService.consultarCnpj(cnpjConsulta);
-        
-        if (resultado.success) {
-          setDadosEmpresaConsulta(resultado.data);
-          setErroConsultaCnpj('');
-        } else {
-          setErroConsultaCnpj(resultado.error);
-          setDadosEmpresaConsulta(null);
-        }
-      } else {
-        // Fallback: simula consulta
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        setDadosEmpresaConsulta({
-          cnpj: cnpjConsulta,
-          razaoSocial: `Empresa Consulta ${cnpjConsulta.substring(0, 8)}`,
-          nomeFantasia: `Fantasia ${cnpjConsulta.substring(0, 8)}`,
-          situacao: 'ATIVA',
-          atividade: 'Atividade comercial em geral',
-          municipio: 'São Paulo',
-          uf: 'SP'
-        });
-      }
+      // Simula consulta
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setDadosEmpresaConsulta({
+        cnpj: cnpjConsulta,
+        razaoSocial: `Empresa Consulta ${cnpjConsulta.substring(0, 8)}`,
+        nomeFantasia: `Fantasia ${cnpjConsulta.substring(0, 8)}`,
+        situacao: 'ATIVA',
+        atividade: 'Atividade comercial em geral',
+        municipio: 'São Paulo',
+        uf: 'SP'
+      });
     } catch (error) {
       setErroConsultaCnpj('Erro ao consultar CNPJ. Tente novamente.');
       setDadosEmpresaConsulta(null);
@@ -239,40 +251,6 @@ const AdminPage = ({ onNavigate }) => {
       console.error('Erro ao salvar produtos:', error);
       alert('Erro ao salvar produtos. Tente novamente.');
     }
-  };
-
-  const handleImageUpload = (file) => {
-    return new Promise((resolve, reject) => {
-      if (!file) {
-        reject('Nenhum arquivo selecionado');
-        return;
-      }
-
-      if (!file.type.startsWith('image/')) {
-        reject('Por favor, selecione apenas arquivos de imagem');
-        return;
-      }
-
-      if (file.size > 5 * 1024 * 1024) {
-        reject('Imagem deve ter menos de 5MB');
-        return;
-      }
-
-      setUploadingImage(true);
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setTimeout(() => {
-          setUploadingImage(false);
-          resolve(e.target.result);
-        }, 2000);
-      };
-      reader.onerror = () => {
-        setUploadingImage(false);
-        reject('Erro ao ler arquivo');
-      };
-      reader.readAsDataURL(file);
-    });
   };
 
   const handleProductSubmit = async (e) => {
@@ -521,7 +499,263 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Nova Aba: Consultar CNPJ */}
+        {/* Pedidos Tab - COM SISTEMA DE STATUS */}
+        {activeTab === 'pedidos' && (
+          <div>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '30px'
+            }}>
+              <h1 style={{ color: '#343a40', margin: 0 }}>📋 Gerenciar Pedidos</h1>
+              <div style={{
+                backgroundColor: '#28a745',
+                color: 'white',
+                padding: '8px 12px',
+                borderRadius: '15px',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}>
+                🔄 Atualização automática ativa
+              </div>
+            </div>
+            
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px'
+            }}>
+              {pedidos.length === 0 ? (
+                <div style={{
+                  backgroundColor: 'white',
+                  padding: '40px',
+                  borderRadius: '10px',
+                  textAlign: 'center',
+                  color: '#666'
+                }}>
+                  <div style={{ fontSize: '48px', marginBottom: '20px' }}>📋</div>
+                  <h3>Nenhum pedido encontrado</h3>
+                  <p>Os novos pedidos aparecerão aqui automaticamente.</p>
+                </div>
+              ) : (
+                pedidos.map(pedido => {
+                  const statusInfo = getStatusInfo(pedido.status);
+                  return (
+                    <div
+                      key={pedido.id}
+                      style={{
+                        backgroundColor: 'white',
+                        padding: '25px',
+                        borderRadius: '10px',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                      }}
+                    >
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        marginBottom: '20px'
+                      }}>
+                        <div>
+                          <h3 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
+                            Pedido #{pedido.numero}
+                          </h3>
+                          <p style={{ margin: 0, color: '#6c757d' }}>
+                            {pedido.cliente} - {pedido.cnpj}
+                          </p>
+                          <p style={{ margin: '5px 0 0 0', color: '#6c757d', fontSize: '14px' }}>
+                            {new Date(pedido.data).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        </div>
+                        
+                        <div style={{ textAlign: 'right' }}>
+                          {/* DROPDOWN DE STATUS */}
+                          <div style={{ marginBottom: '10px' }}>
+                            <select
+                              value={pedido.status}
+                              onChange={(e) => alterarStatusPedido(pedido.id, e.target.value)}
+                              style={{
+                                backgroundColor: statusInfo.color,
+                                color: 'white',
+                                border: 'none',
+                                padding: '8px 12px',
+                                borderRadius: '20px',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                outline: 'none'
+                              }}
+                            >
+                              {statusPedidos.map(status => (
+                                <option key={status.value} value={status.value}>
+                                  {status.icon} {status.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          
+                          <div style={{
+                            fontSize: '24px',
+                            fontWeight: 'bold',
+                            color: '#28a745'
+                          }}>
+                            R$ {pedido.total.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <h4 style={{ margin: '15px 0 10px 0', color: '#343a40' }}>Itens do Pedido:</h4>
+                        {pedido.itens.map((item, index) => (
+                          <div
+                            key={index}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              padding: '8px 0',
+                              borderBottom: index < pedido.itens.length - 1 ? '1px solid #eee' : 'none'
+                            }}
+                          >
+                            <span>{item.quantidade}x {item.nome}</span>
+                            <span style={{ fontWeight: 'bold' }}>
+                              R$ {(item.quantidade * item.preco).toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Empresas Tab */}
+        {activeTab === 'empresas' && (
+          <div>
+            <h1 style={{ color: '#343a40', marginBottom: '30px' }}>🏢 Empresas Cadastradas</h1>
+            
+            {empresasCadastradas.length === 0 ? (
+              <div style={{
+                backgroundColor: 'white',
+                padding: '40px',
+                borderRadius: '10px',
+                textAlign: 'center',
+                color: '#666'
+              }}>
+                <div style={{ fontSize: '48px', marginBottom: '20px' }}>🏢</div>
+                <h3>Nenhuma empresa cadastrada</h3>
+                <p>As empresas que se cadastrarem aparecerão aqui.</p>
+              </div>
+            ) : (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '15px'
+              }}>
+                {empresasCadastradas.map((empresa, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      backgroundColor: 'white',
+                      padding: '20px',
+                      borderRadius: '10px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      opacity: empresa.ativo ? 1 : 0.6
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      marginBottom: '15px'
+                    }}>
+                      <div>
+                        <h3 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
+                          {empresa.razao_social}
+                        </h3>
+                        {empresa.nome_fantasia && empresa.nome_fantasia !== empresa.razao_social && (
+                          <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
+                            <strong>Nome Fantasia:</strong> {empresa.nome_fantasia}
+                          </p>
+                        )}
+                        <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
+                          <strong>CNPJ:</strong> {empresa.cnpj_formatado}
+                        </p>
+                        <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
+                          <strong>Cadastro:</strong> {new Date(empresa.data_cadastro).toLocaleDateString('pt-BR')}
+                        </p>
+                        {empresa.ultimo_acesso && (
+                          <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
+                            <strong>Último acesso:</strong> {new Date(empresa.ultimo_acesso).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
+                        <span style={{
+                          backgroundColor: empresa.ativo ? '#28a745' : '#dc3545',
+                          color: 'white',
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 'bold'
+                        }}>
+                          {empresa.ativo ? 'ATIVO' : 'INATIVO'}
+                        </span>
+                        
+                        {empresa.tentativas_login > 0 && (
+                          <span style={{
+                            backgroundColor: '#ffc107',
+                            color: '#000',
+                            padding: '4px 8px',
+                            borderRadius: '12px',
+                            fontSize: '12px',
+                            fontWeight: 'bold'
+                          }}>
+                            {empresa.tentativas_login} tentativas inválidas
+                          </span>
+                        )}
+                        
+                        <button
+                          onClick={() => toggleEmpresaAtiva(empresa.id, empresa.ativo)}
+                          style={{
+                            backgroundColor: empresa.ativo ? '#ffc107' : '#28a745',
+                            color: empresa.ativo ? '#000' : 'white',
+                            border: 'none',
+                            padding: '6px 12px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {empresa.ativo ? '⏸️ Desativar' : '▶️ Ativar'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Consultar CNPJ Tab */}
         {activeTab === 'consulta-cnpj' && (
           <div>
             <h1 style={{ color: '#343a40', marginBottom: '30px' }}>🔍 Consultar CNPJ</h1>
@@ -664,124 +898,7 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Nova Aba: Empresas Cadastradas */}
-        {activeTab === 'empresas' && (
-          <div>
-            <h1 style={{ color: '#343a40', marginBottom: '30px' }}>🏢 Empresas Cadastradas</h1>
-            
-            {empresasCadastradas.length === 0 ? (
-              <div style={{
-                backgroundColor: 'white',
-                padding: '40px',
-                borderRadius: '10px',
-                textAlign: 'center',
-                color: '#666'
-              }}>
-                <div style={{ fontSize: '48px', marginBottom: '20px' }}>🏢</div>
-                <h3>Nenhuma empresa cadastrada</h3>
-                <p>As empresas que se cadastrarem aparecerão aqui.</p>
-              </div>
-            ) : (
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '15px'
-              }}>
-                {empresasCadastradas.map((empresa, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      backgroundColor: 'white',
-                      padding: '20px',
-                      borderRadius: '10px',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                      opacity: empresa.ativo ? 1 : 0.6
-                    }}
-                  >
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      marginBottom: '15px'
-                    }}>
-                      <div>
-                        <h3 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
-                          {empresa.razaoSocial}
-                        </h3>
-                        {empresa.nomeFantasia && empresa.nomeFantasia !== empresa.razaoSocial && (
-                          <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
-                            <strong>Nome Fantasia:</strong> {empresa.nomeFantasia}
-                          </p>
-                        )}
-                        <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
-                          <strong>CNPJ:</strong> {empresa.cnpj}
-                        </p>
-                        <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
-                          <strong>Cadastro:</strong> {new Date(empresa.dataCadastro).toLocaleDateString('pt-BR')}
-                        </p>
-                        {empresa.ultimoAcesso && (
-                          <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
-                            <strong>Último acesso:</strong> {new Date(empresa.ultimoAcesso).toLocaleDateString('pt-BR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </p>
-                        )}
-                      </div>
-                      
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
-                        <span style={{
-                          backgroundColor: empresa.ativo ? '#28a745' : '#dc3545',
-                          color: 'white',
-                          padding: '4px 8px',
-                          borderRadius: '12px',
-                          fontSize: '12px',
-                          fontWeight: 'bold'
-                        }}>
-                          {empresa.ativo ? 'ATIVO' : 'INATIVO'}
-                        </span>
-                        
-                        {empresa.tentativasLogin > 0 && (
-                          <span style={{
-                            backgroundColor: '#ffc107',
-                            color: '#000',
-                            padding: '4px 8px',
-                            borderRadius: '12px',
-                            fontSize: '12px',
-                            fontWeight: 'bold'
-                          }}>
-                            {empresa.tentativasLogin} tentativas inválidas
-                          </span>
-                        )}
-                        
-                        <button
-                          onClick={() => toggleEmpresaAtiva(empresa.id, empresa.ativo)}
-                          style={{
-                            backgroundColor: empresa.ativo ? '#ffc107' : '#28a745',
-                            color: empresa.ativo ? '#000' : 'white',
-                            border: 'none',
-                            padding: '6px 12px',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {empresa.ativo ? '⏸️ Desativar' : '▶️ Ativar'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Produtos Tab - mantido igual */}
+        {/* Produtos Tab - mantido original mas simplificado */}
         {activeTab === 'produtos' && (
           <div>
             <div style={{
@@ -819,211 +936,10 @@ const AdminPage = ({ onNavigate }) => {
               </button>
             </div>
 
-            {/* Form para adicionar/editar produto */}
-            {showAddProduct && (
-              <div style={{
-                backgroundColor: 'white',
-                padding: '25px',
-                borderRadius: '10px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                marginBottom: '30px'
-              }}>
-                <h3>{editingProduct ? 'Editar Produto' : 'Adicionar Novo Produto'}</h3>
-                <form onSubmit={handleProductSubmit}>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '15px',
-                    marginBottom: '15px'
-                  }}>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                        Nome do Produto
-                      </label>
-                      <input
-                        type="text"
-                        value={productForm.nome}
-                        onChange={(e) => setProductForm({...productForm, nome: e.target.value})}
-                        required
-                        style={{
-                          width: '100%',
-                          padding: '10px',
-                          border: '1px solid #ddd',
-                          borderRadius: '5px'
-                        }}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                        Preço (R$)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={productForm.preco}
-                        onChange={(e) => setProductForm({...productForm, preco: e.target.value})}
-                        required
-                        style={{
-                          width: '100%',
-                          padding: '10px',
-                          border: '1px solid #ddd',
-                          borderRadius: '5px'
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                      Descrição
-                    </label>
-                    <textarea
-                      value={productForm.descricao}
-                      onChange={(e) => setProductForm({...productForm, descricao: e.target.value})}
-                      required
-                      style={{
-                        width: '100%',
-                        padding: '10px',
-                        border: '1px solid #ddd',
-                        borderRadius: '5px',
-                        height: '80px',
-                        resize: 'vertical'
-                      }}
-                    />
-                  </div>
-
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr 1fr',
-                    gap: '15px',
-                    marginBottom: '15px'
-                  }}>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                        Categoria
-                      </label>
-                      <select
-                        value={productForm.categoria}
-                        onChange={(e) => setProductForm({...productForm, categoria: e.target.value})}
-                        style={{
-                          width: '100%',
-                          padding: '10px',
-                          border: '1px solid #ddd',
-                          borderRadius: '5px'
-                        }}
-                      >
-                        <option value="fitness">Fitness</option>
-                        <option value="vegana">Vegana</option>
-                        <option value="tradicional">Tradicional</option>
-                        <option value="gourmet">Gourmet</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                        Estoque
-                      </label>
-                      <input
-                        type="number"
-                        value={productForm.estoque}
-                        onChange={(e) => setProductForm({...productForm, estoque: e.target.value})}
-                        required
-                        style={{
-                          width: '100%',
-                          padding: '10px',
-                          border: '1px solid #ddd',
-                          borderRadius: '5px'
-                        }}
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingTop: '25px' }}>
-                      <input
-                        type="checkbox"
-                        checked={productForm.disponivel}
-                        onChange={(e) => setProductForm({...productForm, disponivel: e.target.checked})}
-                      />
-                      <label>Produto disponível</label>
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: '20px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                      URL da Imagem
-                    </label>
-                    <input
-                      type="url"
-                      value={productForm.imagem}
-                      onChange={(e) => setProductForm({...productForm, imagem: e.target.value})}
-                      placeholder="https://exemplo.com/imagem.jpg"
-                      style={{
-                        width: '100%',
-                        padding: '10px',
-                        border: '1px solid #ddd',
-                        borderRadius: '5px'
-                      }}
-                    />
-                    
-                    {productForm.imagem && (
-                      <div style={{ marginTop: '10px' }}>
-                        <img
-                          src={productForm.imagem}
-                          alt="Preview"
-                          style={{
-                            width: '100px',
-                            height: '80px',
-                            objectFit: 'cover',
-                            borderRadius: '5px',
-                            border: '1px solid #ddd'
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button
-                      type="submit"
-                      style={{
-                        backgroundColor: '#007bff',
-                        color: 'white',
-                        border: 'none',
-                        padding: '12px 20px',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        fontWeight: 'bold'
-                      }}
-                    >
-                      {editingProduct ? 'Atualizar' : 'Adicionar'} Produto
-                    </button>
-                    
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAddProduct(false);
-                        setEditingProduct(null);
-                      }}
-                      style={{
-                        backgroundColor: '#6c757d',
-                        color: 'white',
-                        border: 'none',
-                        padding: '12px 20px',
-                        borderRadius: '5px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            {/* Lista de produtos */}
+            {/* Lista de produtos - versão resumida */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
               gap: '20px'
             }}>
               {produtos.map(produto => (
@@ -1042,69 +958,49 @@ const AdminPage = ({ onNavigate }) => {
                     alt={produto.nome}
                     style={{
                       width: '100%',
-                      height: '150px',
+                      height: '120px',
                       objectFit: 'cover'
                     }}
                   />
                   
                   <div style={{ padding: '15px' }}>
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
+                    <h3 style={{
+                      margin: 0,
+                      color: '#343a40',
+                      fontSize: '16px',
                       marginBottom: '10px'
                     }}>
-                      <h3 style={{
-                        margin: 0,
-                        color: '#343a40',
-                        fontSize: '18px'
-                      }}>
-                        {produto.nome}
-                      </h3>
-                      <span style={{
-                        backgroundColor: produto.disponivel ? '#28a745' : '#dc3545',
-                        color: 'white',
-                        padding: '4px 8px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        fontWeight: 'bold'
-                      }}>
-                        {produto.disponivel ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </div>
-                    
-                    <p style={{
-                      color: '#6c757d',
-                      fontSize: '14px',
-                      marginBottom: '10px'
-                    }}>
-                      {produto.descricao}
-                    </p>
+                      {produto.nome}
+                    </h3>
                     
                     <div style={{
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      marginBottom: '15px'
+                      marginBottom: '10px'
                     }}>
                       <span style={{
-                        fontSize: '20px',
+                        fontSize: '18px',
                         fontWeight: 'bold',
                         color: '#28a745'
                       }}>
                         R$ {produto.preco.toFixed(2)}
                       </span>
                       <span style={{
-                        fontSize: '14px',
-                        color: '#6c757d'
+                        backgroundColor: produto.disponivel ? '#28a745' : '#dc3545',
+                        color: 'white',
+                        padding: '2px 6px',
+                        borderRadius: '8px',
+                        fontSize: '10px',
+                        fontWeight: 'bold'
                       }}>
-                        Estoque: {produto.estoque}
+                        {produto.disponivel ? 'ATIVO' : 'INATIVO'}
                       </span>
                     </div>
                     
                     <div style={{
                       display: 'flex',
-                      gap: '8px',
+                      gap: '5px',
                       flexWrap: 'wrap'
                     }}>
                       <button
@@ -1113,10 +1009,10 @@ const AdminPage = ({ onNavigate }) => {
                           backgroundColor: '#007bff',
                           color: 'white',
                           border: 'none',
-                          padding: '6px 12px',
-                          borderRadius: '4px',
+                          padding: '4px 8px',
+                          borderRadius: '3px',
                           cursor: 'pointer',
-                          fontSize: '12px'
+                          fontSize: '10px'
                         }}
                       >
                         ✏️ Editar
@@ -1128,13 +1024,13 @@ const AdminPage = ({ onNavigate }) => {
                           backgroundColor: produto.disponivel ? '#ffc107' : '#28a745',
                           color: produto.disponivel ? '#000' : 'white',
                           border: 'none',
-                          padding: '6px 12px',
-                          borderRadius: '4px',
+                          padding: '4px 8px',
+                          borderRadius: '3px',
                           cursor: 'pointer',
-                          fontSize: '12px'
+                          fontSize: '10px'
                         }}
                       >
-                        {produto.disponivel ? '⏸️ Desativar' : '▶️ Ativar'}
+                        {produto.disponivel ? '⏸️' : '▶️'}
                       </button>
                       
                       <button
@@ -1143,141 +1039,18 @@ const AdminPage = ({ onNavigate }) => {
                           backgroundColor: '#dc3545',
                           color: 'white',
                           border: 'none',
-                          padding: '6px 12px',
-                          borderRadius: '4px',
+                          padding: '4px 8px',
+                          borderRadius: '3px',
                           cursor: 'pointer',
-                          fontSize: '12px'
+                          fontSize: '10px'
                         }}
                       >
-                        🗑️ Excluir
+                        🗑️
                       </button>
                     </div>
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-        )}
-
-        {/* Pedidos Tab */}
-        {activeTab === 'pedidos' && (
-          <div>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '30px'
-            }}>
-              <h1 style={{ color: '#343a40', margin: 0 }}>📋 Gerenciar Pedidos</h1>
-              <div style={{
-                backgroundColor: '#28a745',
-                color: 'white',
-                padding: '8px 12px',
-                borderRadius: '15px',
-                fontSize: '12px',
-                fontWeight: 'bold'
-              }}>
-                🔄 Atualização automática ativa
-              </div>
-            </div>
-            
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '20px'
-            }}>
-              {pedidos.length === 0 ? (
-                <div style={{
-                  backgroundColor: 'white',
-                  padding: '40px',
-                  borderRadius: '10px',
-                  textAlign: 'center',
-                  color: '#666'
-                }}>
-                  <div style={{ fontSize: '48px', marginBottom: '20px' }}>📋</div>
-                  <h3>Nenhum pedido encontrado</h3>
-                  <p>Os novos pedidos aparecerão aqui automaticamente.</p>
-                </div>
-              ) : (
-                pedidos.map(pedido => (
-                  <div
-                    key={pedido.id}
-                    style={{
-                      backgroundColor: 'white',
-                      padding: '25px',
-                      borderRadius: '10px',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                    }}
-                  >
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      marginBottom: '15px'
-                    }}>
-                      <div>
-                        <h3 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
-                          Pedido #{pedido.numero}
-                        </h3>
-                        <p style={{ margin: 0, color: '#6c757d' }}>
-                          {pedido.cliente} - {pedido.cnpj}
-                        </p>
-                        <p style={{ margin: '5px 0 0 0', color: '#6c757d', fontSize: '14px' }}>
-                          {new Date(pedido.data).toLocaleDateString('pt-BR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      </div>
-                      
-                      <div style={{ textAlign: 'right' }}>
-                        <span style={{
-                          backgroundColor: pedido.status === 'confirmado' ? '#28a745' : '#ffc107',
-                          color: pedido.status === 'confirmado' ? 'white' : '#000',
-                          padding: '6px 12px',
-                          borderRadius: '15px',
-                          fontSize: '12px',
-                          fontWeight: 'bold',
-                          textTransform: 'uppercase'
-                        }}>
-                          {pedido.status}
-                        </span>
-                        <div style={{
-                          fontSize: '24px',
-                          fontWeight: 'bold',
-                          color: '#28a745',
-                          marginTop: '5px'
-                        }}>
-                          R$ {pedido.total.toFixed(2)}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <h4 style={{ margin: '15px 0 10px 0', color: '#343a40' }}>Itens do Pedido:</h4>
-                      {pedido.itens.map((item, index) => (
-                        <div
-                          key={index}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            padding: '8px 0',
-                            borderBottom: index < pedido.itens.length - 1 ? '1px solid #eee' : 'none'
-                          }}
-                        >
-                          <span>{item.quantidade}x {item.nome}</span>
-                          <span style={{ fontWeight: 'bold' }}>
-                            R$ {(item.quantidade * item.preco).toFixed(2)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))
-              )}
             </div>
           </div>
         )}

@@ -25,7 +25,7 @@ const HomePage = ({ onNavigate }) => {
   useEffect(() => {
     const sessaoAtiva = authSupabaseService.verificarSessao();
     if (sessaoAtiva) {
-      // Já está logado, vai direto para a área restrita
+      // Já está logado, vai direto para a área restrita (SEM POPUP)
       onNavigate('prosseguir');
     }
   }, [onNavigate]);
@@ -64,7 +64,7 @@ const HomePage = ({ onNavigate }) => {
       const resultado = await authSupabaseService.autenticar(cnpj, senha);
       
       if (resultado.success) {
-        alert(`Bem-vindo!`); // Não mostra mais o nome da empresa aqui
+        // Login sem popup - vai direto para área restrita
         onNavigate('prosseguir');
       } else {
         alert(`Erro no login: ${resultado.error}`);
@@ -137,24 +137,13 @@ const HomePage = ({ onNavigate }) => {
     onNavigate('prosseguir');
   };
 
-  // Função secreta para acessar admin (clique triplo no logo)
-  const [clickCount, setClickCount] = useState(0);
-  
-  const handleLogoClick = () => {
-    setClickCount(prev => prev + 1);
-    
-    // Reset após 2 segundos
-    setTimeout(() => setClickCount(0), 2000);
-    
-    // Se clicou 3 vezes, vai para admin
-    if (clickCount === 2) {
-      const senha = prompt('Digite a senha do administrador:');
-      if (senha === 'admin123') {
-        onNavigate('admin');
-      } else if (senha !== null) {
-        alert('Senha incorreta!');
-      }
-      setClickCount(0);
+  // Função para acessar admin (removido clique triplo secreto)
+  const handleAdminAccess = () => {
+    const senha = prompt('Digite a senha do administrador:');
+    if (senha === 'admin123') {
+      onNavigate('admin');
+    } else if (senha !== null) {
+      alert('Senha incorreta!');
     }
   };
 
@@ -178,15 +167,12 @@ const HomePage = ({ onNavigate }) => {
         <div 
           style={{ 
             height: isMobile ? '50px' : '60px',
-            cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             fontSize: isMobile ? '24px' : '32px',
             fontWeight: 'bold',
             color: '#009245'
           }}
-          onClick={handleLogoClick}
-          title="Clique 3 vezes para acessar o admin"
         >
           🍽️ Fit In Box
         </div>
@@ -538,14 +524,7 @@ const HomePage = ({ onNavigate }) => {
           justifyContent: 'center'
         }}>
           <button
-            onClick={() => {
-              const senha = prompt('Digite a senha do administrador:');
-              if (senha === 'admin123') {
-                onNavigate('admin');
-              } else if (senha !== null) {
-                alert('Senha incorreta!');
-              }
-            }}
+            onClick={handleAdminAccess}
             style={{
               backgroundColor: 'rgba(255, 255, 255, 0.1)',
               border: '1px solid rgba(255, 255, 255, 0.3)',

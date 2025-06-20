@@ -141,32 +141,6 @@ const ProsseguirPage = ({ onNavigate }) => {
           maxWidth: '600px',
           textAlign: 'center'
         }}>
-          {/* Boas-vindas */}
-          <div style={{
-            backgroundColor: '#e7f3ff',
-            padding: '20px',
-            borderRadius: '8px',
-            marginBottom: '30px',
-            border: '1px solid #b3d9ff'
-          }}>
-            <h2 style={{
-              color: '#0066cc',
-              fontSize: '24px',
-              margin: '0 0 10px 0'
-            }}>
-              🎉 Bem-vindo(a)!
-            </h2>
-            <p style={{
-              color: '#0066cc',
-              margin: 0,
-              fontSize: '16px'
-            }}>
-              Acesso autorizado com sucesso
-              <br />
-              Escolha o que deseja fazer
-            </p>
-          </div>
-          
           <h3 style={{
             color: '#757248',
             fontSize: '20px',
@@ -298,10 +272,10 @@ const ProsseguirPage = ({ onNavigate }) => {
             Continuar
           </button>
 
-          {/* Informações da Sessão - removidas para não mostrar CNPJ */}
+          {/* Informações da Sessão - versão simplificada */}
           <div style={{
             marginTop: '30px',
-            padding: '15px',
+            padding: '10px',
             backgroundColor: '#f8f9fa',
             borderRadius: '8px',
             fontSize: '12px',
@@ -309,7 +283,7 @@ const ProsseguirPage = ({ onNavigate }) => {
             textAlign: 'center'
           }}>
             <div>
-              <strong>Sessão segura ativa</strong> • Login realizado em {new Date(sessaoAtiva.loginTime).toLocaleString('pt-BR')}
+              Sessão ativa
             </div>
           </div>
         </div>
