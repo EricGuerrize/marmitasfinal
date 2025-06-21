@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { produtoService } from '../services/produtoService';
+import LogoComponent from './LogoComponent';
 
 const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQuantidadeTotal }) => {
   const [cnpj, setCnpj] = useState('');
@@ -264,10 +265,9 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
         zIndex: 100,
         flexWrap: isMobile ? 'wrap' : 'nowrap'
       }}>
-        <img 
-          style={{ height: isMobile ? '50px' : '60px' }}
-          src="/assets/logo.jpg" 
-          alt="Logo Fit In Box"
+        <LogoComponent 
+          size={isMobile ? 'small' : 'medium'}
+          showText={true}
         />
         <div style={{
           display: 'flex',

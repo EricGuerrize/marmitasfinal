@@ -7,6 +7,8 @@ import CarrinhoPage from './components/CarrinhoPage';
 import ResumoPedido from './components/ResumoPedido';
 import PedidoConfirmado from './components/PedidoConfirmado';
 import AdminPage from './components/AdminPage';
+import ForgotPasswordPage from './components/ForgotPasswordPage';
+import ConsultaPedidosPage from './components/ConsultaPedidosPage';
 import { NotificationProvider, useNotification } from './components/NotificationSystem';
 
 // Wrapper do App para usar o hook de notificações
@@ -168,49 +170,11 @@ function AppContent() {
       case 'pedido-confirmado':
         return <PedidoConfirmado onNavigate={navigate} />;
 
+      case 'forgot-password':
+        return <ForgotPasswordPage onNavigate={navigate} />;
+
       case 'consultar-pedido':
-        return (
-          <div style={{ 
-            padding: '50px', 
-            textAlign: 'center',
-            backgroundColor: '#f5f5f5',
-            minHeight: '100vh',
-            fontFamily: 'Arial, sans-serif'
-          }}>
-            <h1 style={{ color: '#009245' }}>📋 Consultar Pedidos</h1>
-            <div style={{
-              backgroundColor: 'white',
-              padding: '40px',
-              borderRadius: '10px',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-              maxWidth: '600px',
-              margin: '20px auto'
-            }}>
-              <div style={{ fontSize: '48px', marginBottom: '20px' }}>🚧</div>
-              <p style={{ fontSize: '18px', color: '#666', marginBottom: '30px' }}>
-                Página de consulta em construção...
-              </p>
-              <p style={{ fontSize: '14px', color: '#999', marginBottom: '30px' }}>
-                Em breve você poderá consultar todos os seus pedidos aqui.
-              </p>
-              <button 
-                onClick={() => navigate('prosseguir')}
-                style={{
-                  backgroundColor: '#009245',
-                  color: 'white',
-                  padding: '12px 24px',
-                  border: 'none',
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  fontWeight: 'bold'
-                }}
-              >
-                Voltar
-              </button>
-            </div>
-          </div>
-        );
+        return <ConsultaPedidosPage onNavigate={navigate} />;
       
       case 'admin':
         return <AdminPage onNavigate={navigate} />;

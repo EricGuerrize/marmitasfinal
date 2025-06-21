@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
+import LogoComponent from './LogoComponent';
 
 const HomePage = ({ onNavigate }) => {
   const [cnpj, setCnpj] = useState('');
@@ -164,18 +165,10 @@ const HomePage = ({ onNavigate }) => {
         padding: isMobile ? '10px 15px' : '10px 20px',
         backgroundColor: 'white'
       }}>
-        <div 
-          style={{ 
-            height: isMobile ? '50px' : '60px',
-            display: 'flex',
-            alignItems: 'center',
-            fontSize: isMobile ? '24px' : '32px',
-            fontWeight: 'bold',
-            color: '#009245'
-          }}
-        >
-          🍽️ Fit In Box
-        </div>
+        <LogoComponent 
+          size={isMobile ? 'small' : 'medium'}
+          showText={true}
+        />
         <button 
           onClick={handleMeusPedidos}
           style={{
@@ -382,13 +375,33 @@ const HomePage = ({ onNavigate }) => {
             }
           </button>
 
-          {/* Link para alternar modo */}
+          {/* Links para alternar modo e esqueci senha */}
           <div style={{ 
             marginTop: '20px', 
             textAlign: 'center',
             fontSize: '14px',
             color: '#666'
           }}>
+            {modo === 'login' && (
+              <>
+                <button 
+                  onClick={() => onNavigate('forgot-password')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#009245',
+                    textDecoration: 'underline',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    marginBottom: '10px'
+                  }}
+                >
+                  Esqueci minha senha
+                </button>
+                <br />
+              </>
+            )}
+            
             {modo === 'login' ? (
               <>
                 Não tem conta? 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useCep } from '../hooks/useCep';
 import { useNotification } from './NotificationSystem';
+import LogoComponent from './LogoComponent';
 
 const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, limparCarrinho, calcularQuantidadeTotal }) => {
   const [cnpj, setCnpj] = useState('');
@@ -149,27 +150,26 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: isMobile ? '15px' : '15px 40px', // PIXELS CORRIGIDOS
+          padding: isMobile ? '15px' : '15px 40px',
           borderBottom: '1px solid #ccc',
           flexWrap: isMobile ? 'wrap' : 'nowrap'
         }}>
-          <img 
-            style={{ height: isMobile ? '50px' : '60px' }}
-            src="/assets/logo.jpg" 
-            alt="Logo Fit In Box"
+          <LogoComponent 
+            size={isMobile ? 'small' : 'medium'}
+            showText={true}
           />
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: isMobile ? '15px' : '20px', // PIXELS CORRIGIDOS
+            gap: isMobile ? '15px' : '20px',
             flexDirection: isMobile ? 'column' : 'row',
-            marginTop: isMobile ? '15px' : '0', // PIXELS CORRIGIDOS
+            marginTop: isMobile ? '15px' : '0',
             width: isMobile ? '100%' : 'auto'
           }}>
             <span style={{
               fontWeight: 'bold',
               color: '#009245',
-              fontSize: isMobile ? '14px' : '14px', // PIXELS CORRIGIDOS
+              fontSize: isMobile ? '14px' : '14px',
               textAlign: 'center'
             }}>
               CNPJ: {cnpj}
@@ -177,7 +177,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             <button 
               onClick={continuarComprando}
               style={{
-                padding: isMobile ? '12px 20px' : '12px 20px', // PIXELS CORRIGIDOS
+                padding: isMobile ? '12px 20px' : '12px 20px',
                 borderRadius: '5px',
                 color: 'white',
                 fontWeight: 'bold',
@@ -199,27 +199,27 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           justifyContent: 'center',
           alignItems: 'center',
           minHeight: 'calc(100vh - 80px)',
-          padding: '25px' // PIXELS CORRIGIDOS
+          padding: '25px'
         }}>
           <div style={{
             backgroundColor: 'white',
-            padding: isMobile ? '40px 25px' : '60px', // PIXELS CORRIGIDOS
+            padding: isMobile ? '40px 25px' : '60px',
             borderRadius: '10px',
             boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
             textAlign: 'center',
             maxWidth: isMobile ? '100%' : '500px',
             width: '100%'
           }}>
-            <div style={{ fontSize: isMobile ? '60px' : '80px', marginBottom: '25px' }}>🛒</div> {/* PIXELS CORRIGIDOS */}
+            <div style={{ fontSize: isMobile ? '60px' : '80px', marginBottom: '25px' }}>🛒</div>
             <h2 style={{ 
               color: '#666', 
-              marginBottom: '25px', // PIXELS CORRIGIDOS
-              fontSize: isMobile ? '22px' : '26px' // PIXELS CORRIGIDOS
+              marginBottom: '25px',
+              fontSize: isMobile ? '22px' : '26px'
             }}>Seu carrinho está vazio</h2>
             <p style={{ 
               color: '#999', 
               marginBottom: '30px',
-              fontSize: isMobile ? '16px' : '18px' // PIXELS CORRIGIDOS
+              fontSize: isMobile ? '16px' : '18px'
             }}>
               Adicione alguns produtos deliciosos para continuar!
             </p>
@@ -229,9 +229,9 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 backgroundColor: '#009245',
                 color: 'white',
                 border: 'none',
-                padding: isMobile ? '15px 25px' : '18px 35px', // PIXELS CORRIGIDOS
+                padding: isMobile ? '15px 25px' : '18px 35px',
                 borderRadius: '5px',
-                fontSize: isMobile ? '16px' : '18px', // PIXELS CORRIGIDOS
+                fontSize: isMobile ? '16px' : '18px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
                 width: isMobile ? '100%' : 'auto'
@@ -258,27 +258,26 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: isMobile ? '15px' : '15px 40px', // PIXELS CORRIGIDOS
+        padding: isMobile ? '15px' : '15px 40px',
         borderBottom: '1px solid #ccc',
         flexWrap: isMobile ? 'wrap' : 'nowrap'
       }}>
-        <img 
-          style={{ height: isMobile ? '50px' : '60px' }}
-          src="/assets/logo.jpg" 
-          alt="Logo Fit In Box"
+        <LogoComponent 
+          size={isMobile ? 'small' : 'medium'}
+          showText={true}
         />
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: isMobile ? '15px' : '20px', // PIXELS CORRIGIDOS
+          gap: isMobile ? '15px' : '20px',
           flexDirection: isMobile ? 'column' : 'row',
-          marginTop: isMobile ? '15px' : '0', // PIXELS CORRIGIDOS
+          marginTop: isMobile ? '15px' : '0',
           width: isMobile ? '100%' : 'auto'
         }}>
           <span style={{
             fontWeight: 'bold',
             color: '#009245',
-            fontSize: isMobile ? '14px' : '14px', // PIXELS CORRIGIDOS
+            fontSize: isMobile ? '14px' : '14px',
             textAlign: 'center'
           }}>
             CNPJ: {cnpj}
@@ -286,7 +285,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           <button 
             onClick={continuarComprando}
             style={{
-              padding: isMobile ? '12px 20px' : '12px 20px', // PIXELS CORRIGIDOS
+              padding: isMobile ? '12px 20px' : '12px 20px',
               borderRadius: '5px',
               color: 'white',
               fontWeight: 'bold',
@@ -306,10 +305,10 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       <div style={{
         maxWidth: '1000px',
         margin: '0 auto',
-        padding: isMobile ? '15px' : '25px', // PIXELS CORRIGIDOS
+        padding: isMobile ? '15px' : '25px',
         display: 'grid',
         gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
-        gap: isMobile ? '25px' : '30px' // PIXELS CORRIGIDOS
+        gap: isMobile ? '25px' : '30px'
       }}>
         {/* Coluna Esquerda - Itens do Carrinho */}
         <div>
@@ -317,14 +316,14 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: '25px', // PIXELS CORRIGIDOS
+            marginBottom: '25px',
             flexDirection: isMobile ? 'column' : 'row',
             gap: isMobile ? '15px' : '0'
           }}>
             <h1 style={{ 
               color: '#009245', 
               margin: 0,
-              fontSize: isMobile ? '22px' : '26px', // PIXELS CORRIGIDOS
+              fontSize: isMobile ? '22px' : '26px',
               textAlign: isMobile ? 'center' : 'left'
             }}>
               🛒 Meu Carrinho ({calcularQuantidadeTotal()} marmitas)
@@ -335,7 +334,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 backgroundColor: '#dc3545',
                 color: 'white',
                 border: 'none',
-                padding: '10px 18px', // PIXELS CORRIGIDOS
+                padding: '10px 18px',
                 borderRadius: '5px',
                 fontSize: '14px',
                 cursor: 'pointer'
@@ -346,17 +345,17 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           </div>
 
           {/* Lista de Itens */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}> {/* PIXELS CORRIGIDOS */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             {carrinho.map(item => (
               <div
                 key={item.id}
                 style={{
                   backgroundColor: 'white',
-                  padding: isMobile ? '18px' : '22px', // PIXELS CORRIGIDOS
+                  padding: isMobile ? '18px' : '22px',
                   borderRadius: '10px',
                   boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                   display: 'flex',
-                  gap: '18px', // PIXELS CORRIGIDOS
+                  gap: '18px',
                   alignItems: 'center',
                   flexDirection: isMobile ? 'column' : 'row'
                 }}
@@ -365,8 +364,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   src={item.imagem}
                   alt={item.nome}
                   style={{
-                    width: isMobile ? '100%' : '85px', // PIXELS CORRIGIDOS
-                    height: isMobile ? '160px' : '85px', // PIXELS CORRIGIDOS
+                    width: isMobile ? '100%' : '85px',
+                    height: isMobile ? '160px' : '85px',
                     objectFit: 'cover',
                     borderRadius: '5px'
                   }}
@@ -378,18 +377,18 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 }}>
                   <h3 style={{ 
                     color: '#009245', 
-                    margin: '0 0 8px 0', // PIXELS CORRIGIDOS
-                    fontSize: isMobile ? '18px' : '20px' // PIXELS CORRIGIDOS
+                    margin: '0 0 8px 0',
+                    fontSize: isMobile ? '18px' : '20px'
                   }}>{item.nome}</h3>
                   <p style={{ 
                     color: '#666', 
                     fontSize: '14px', 
-                    margin: '0 0 12px 0' // PIXELS CORRIGIDOS
+                    margin: '0 0 12px 0'
                   }}>
                     {item.descricao}
                   </p>
                   <div style={{ 
-                    fontSize: isMobile ? '18px' : '20px', // PIXELS CORRIGIDOS
+                    fontSize: isMobile ? '18px' : '20px',
                     fontWeight: 'bold', 
                     color: '#009245' 
                   }}>
@@ -401,7 +400,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '12px', // PIXELS CORRIGIDOS
+                  gap: '12px',
                   flexDirection: isMobile ? 'row' : 'row'
                 }}>
                   <button
@@ -410,11 +409,11 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                       backgroundColor: '#dc3545',
                       color: 'white',
                       border: 'none',
-                      width: '35px', // PIXELS CORRIGIDOS
-                      height: '35px', // PIXELS CORRIGIDOS
+                      width: '35px',
+                      height: '35px',
                       borderRadius: '50%',
                       cursor: 'pointer',
-                      fontSize: '18px', // PIXELS CORRIGIDOS
+                      fontSize: '18px',
                       fontWeight: 'bold'
                     }}
                   >
@@ -429,8 +428,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                     value={item.quantidade}
                     onChange={(e) => handleQuantidadeInput(item.id, e.target.value)}
                     style={{
-                      width: '70px', // PIXELS CORRIGIDOS
-                      height: '35px', // PIXELS CORRIGIDOS
+                      width: '70px',
+                      height: '35px',
                       border: '2px solid #009245',
                       borderRadius: '5px',
                       textAlign: 'center',
@@ -447,11 +446,11 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                       backgroundColor: '#28a745',
                       color: 'white',
                       border: 'none',
-                      width: '35px', // PIXELS CORRIGIDOS
-                      height: '35px', // PIXELS CORRIGIDOS
+                      width: '35px',
+                      height: '35px',
                       borderRadius: '50%',
                       cursor: 'pointer',
-                      fontSize: '18px', // PIXELS CORRIGIDOS
+                      fontSize: '18px',
                       fontWeight: 'bold'
                     }}
                   >
@@ -460,10 +459,10 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 </div>
 
                 <div style={{
-                  fontSize: isMobile ? '20px' : '22px', // PIXELS CORRIGIDOS
+                  fontSize: isMobile ? '20px' : '22px',
                   fontWeight: 'bold',
                   color: '#009245',
-                  minWidth: isMobile ? 'auto' : '90px', // PIXELS CORRIGIDOS
+                  minWidth: isMobile ? 'auto' : '90px',
                   textAlign: 'right'
                 }}>
                   R$ {(item.preco * item.quantidade).toFixed(2)}
@@ -475,9 +474,9 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                     backgroundColor: 'transparent',
                     border: 'none',
                     color: '#dc3545',
-                    fontSize: '22px', // PIXELS CORRIGIDOS
+                    fontSize: '22px',
                     cursor: 'pointer',
-                    padding: '8px' // PIXELS CORRIGIDOS
+                    padding: '8px'
                   }}
                 >
                   🗑️
@@ -489,22 +488,22 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           {/* Endereço de Entrega */}
           <div style={{
             backgroundColor: 'white',
-            padding: isMobile ? '18px' : '22px', // PIXELS CORRIGIDOS
+            padding: isMobile ? '18px' : '22px',
             borderRadius: '10px',
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            marginTop: '25px' // PIXELS CORRIGIDOS
+            marginTop: '25px'
           }}>
             <h3 style={{ 
               color: '#009245', 
-              marginBottom: '18px', // PIXELS CORRIGIDOS
-              fontSize: isMobile ? '18px' : '20px' // PIXELS CORRIGIDOS
+              marginBottom: '18px',
+              fontSize: isMobile ? '18px' : '20px'
             }}>📍 Endereço de Entrega</h3>
             
             {/* CEP com busca automática */}
-            <div style={{ marginBottom: '18px' }}> {/* PIXELS CORRIGIDOS */}
+            <div style={{ marginBottom: '18px' }}>
               <label style={{ 
                 display: 'block', 
-                marginBottom: '8px', // PIXELS CORRIGIDOS
+                marginBottom: '8px',
                 fontWeight: 'bold', 
                 fontSize: '14px' 
               }}>
@@ -517,7 +516,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 placeholder="00000-000"
                 style={{
                   width: '100%',
-                  padding: '12px', // PIXELS CORRIGIDOS
+                  padding: '12px',
                   border: `1px solid ${erroCep ? '#dc3545' : '#ddd'}`,
                   borderRadius: '5px',
                   fontSize: '14px',
@@ -533,13 +532,13 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             <div style={{
               display: 'grid',
               gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
-              gap: '18px', // PIXELS CORRIGIDOS
-              marginBottom: '18px' // PIXELS CORRIGIDOS
+              gap: '18px',
+              marginBottom: '18px'
             }}>
               <div>
                 <label style={{ 
                   display: 'block', 
-                  marginBottom: '8px', // PIXELS CORRIGIDOS
+                  marginBottom: '8px',
                   fontWeight: 'bold', 
                   fontSize: '14px' 
                 }}>
@@ -552,7 +551,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   placeholder="Ex: Rua das Flores"
                   style={{
                     width: '100%',
-                    padding: '12px', // PIXELS CORRIGIDOS
+                    padding: '12px',
                     border: '1px solid #ddd',
                     borderRadius: '5px',
                     fontSize: '14px'
@@ -564,7 +563,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               <div>
                 <label style={{ 
                   display: 'block', 
-                  marginBottom: '8px', // PIXELS CORRIGIDOS
+                  marginBottom: '8px',
                   fontWeight: 'bold', 
                   fontSize: '14px' 
                 }}>
@@ -577,7 +576,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   placeholder="Ex: 123"
                   style={{
                     width: '100%',
-                    padding: '12px', // PIXELS CORRIGIDOS
+                    padding: '12px',
                     border: '1px solid #ddd',
                     borderRadius: '5px',
                     fontSize: '14px'
@@ -590,13 +589,13 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             <div style={{
               display: 'grid',
               gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-              gap: '18px', // PIXELS CORRIGIDOS
-              marginBottom: '18px' // PIXELS CORRIGIDOS
+              gap: '18px',
+              marginBottom: '18px'
             }}>
               <div>
                 <label style={{ 
                   display: 'block', 
-                  marginBottom: '8px', // PIXELS CORRIGIDOS
+                  marginBottom: '8px',
                   fontWeight: 'bold', 
                   fontSize: '14px' 
                 }}>
@@ -609,7 +608,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   placeholder="Ex: Centro"
                   style={{
                     width: '100%',
-                    padding: '12px', // PIXELS CORRIGIDOS
+                    padding: '12px',
                     border: '1px solid #ddd',
                     borderRadius: '5px',
                     fontSize: '14px'
@@ -621,7 +620,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               <div>
                 <label style={{ 
                   display: 'block', 
-                  marginBottom: '8px', // PIXELS CORRIGIDOS
+                  marginBottom: '8px',
                   fontWeight: 'bold', 
                   fontSize: '14px' 
                 }}>
@@ -634,7 +633,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   placeholder="Ex: São Paulo"
                   style={{
                     width: '100%',
-                    padding: '12px', // PIXELS CORRIGIDOS
+                    padding: '12px',
                     border: '1px solid #ddd',
                     borderRadius: '5px',
                     fontSize: '14px'
@@ -647,13 +646,13 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             <div style={{
               display: 'grid',
               gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
-              gap: '18px', // PIXELS CORRIGIDOS
-              marginBottom: '18px' // PIXELS CORRIGIDOS
+              gap: '18px',
+              marginBottom: '18px'
             }}>
               <div>
                 <label style={{ 
                   display: 'block', 
-                  marginBottom: '8px', // PIXELS CORRIGIDOS
+                  marginBottom: '8px',
                   fontWeight: 'bold', 
                   fontSize: '14px' 
                 }}>
@@ -666,7 +665,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   placeholder="Ex: Próximo ao shopping, portão azul..."
                   style={{
                     width: '100%',
-                    padding: '12px', // PIXELS CORRIGIDOS
+                    padding: '12px',
                     border: '1px solid #ddd',
                     borderRadius: '5px',
                     fontSize: '14px'
@@ -677,7 +676,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               <div>
                 <label style={{ 
                   display: 'block', 
-                  marginBottom: '8px', // PIXELS CORRIGIDOS
+                  marginBottom: '8px',
                   fontWeight: 'bold', 
                   fontSize: '14px' 
                 }}>
@@ -688,7 +687,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   onChange={(e) => atualizarCampo('estado', e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '12px', // PIXELS CORRIGIDOS
+                    padding: '12px',
                     border: '1px solid #ddd',
                     borderRadius: '5px',
                     fontSize: '14px'
@@ -729,15 +728,15 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           {/* Observações - CAMPO MENOR */}
           <div style={{
             backgroundColor: 'white',
-            padding: isMobile ? '18px' : '22px', // PIXELS CORRIGIDOS
+            padding: isMobile ? '18px' : '22px',
             borderRadius: '10px',
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            marginTop: '18px' // PIXELS CORRIGIDOS
+            marginTop: '18px'
           }}>
             <h3 style={{ 
               color: '#009245', 
-              marginBottom: '18px', // PIXELS CORRIGIDOS
-              fontSize: isMobile ? '18px' : '20px' // PIXELS CORRIGIDOS
+              marginBottom: '18px',
+              fontSize: isMobile ? '18px' : '20px'
             }}>💬 Observações (opcional)</h3>
             <textarea
               value={observacoes}
@@ -749,13 +748,13 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               placeholder="Ex: Sem cebola, entregar na portaria..."
               style={{
                 width: '100%',
-                height: '90px', // PIXELS CORRIGIDOS
-                padding: '12px', // PIXELS CORRIGIDOS
+                height: '90px',
+                padding: '12px',
                 border: '1px solid #ddd',
                 borderRadius: '5px',
                 fontSize: '14px',
                 resize: 'vertical',
-                maxHeight: '130px' // PIXELS CORRIGIDOS
+                maxHeight: '130px'
               }}
             />
             <small style={{ color: '#666', fontSize: '12px' }}>
@@ -768,26 +767,26 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         <div>
           <div style={{
             backgroundColor: 'white',
-            padding: isMobile ? '25px' : '30px', // PIXELS CORRIGIDOS
+            padding: isMobile ? '25px' : '30px',
             borderRadius: '10px',
             boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
             position: isMobile ? 'static' : 'sticky',
-            top: isMobile ? 'auto' : '25px' // PIXELS CORRIGIDOS
+            top: isMobile ? 'auto' : '25px'
           }}>
             <h2 style={{ 
               color: '#009245', 
-              marginBottom: '25px', // PIXELS CORRIGIDOS
-              fontSize: isMobile ? '20px' : '22px' // PIXELS CORRIGIDOS
+              marginBottom: '25px',
+              fontSize: isMobile ? '20px' : '22px'
             }}>📊 Resumo do Pedido</h2>
             
             {/* Aviso pedido mínimo */}
             <div style={{
               backgroundColor: calcularQuantidadeTotal() < 30 ? '#fff3cd' : '#d4edda',
-              padding: '18px', // PIXELS CORRIGIDOS
+              padding: '18px',
               borderRadius: '5px',
               fontSize: '14px',
               color: calcularQuantidadeTotal() < 30 ? '#856404' : '#155724',
-              marginBottom: '25px', // PIXELS CORRIGIDOS
+              marginBottom: '25px',
               border: `1px solid ${calcularQuantidadeTotal() < 30 ? '#ffeaa7' : '#c3e6cb'}`
             }}>
               <strong>
@@ -806,7 +805,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
-              marginBottom: '12px', // PIXELS CORRIGIDOS
+              marginBottom: '12px',
               fontSize: '16px'
             }}>
               <span>Subtotal:</span>
@@ -816,7 +815,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
-              marginBottom: '18px', // PIXELS CORRIGIDOS
+              marginBottom: '18px',
               fontSize: '16px'
             }}>
               <span>Taxa de entrega:</span>
@@ -828,25 +827,25 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             {calcularSubtotal() < 50 && (
               <div style={{
                 backgroundColor: '#fff3cd',
-                padding: '12px', // PIXELS CORRIGIDOS
+                padding: '12px',
                 borderRadius: '5px',
                 fontSize: '14px',
                 color: '#856404',
-                marginBottom: '18px' // PIXELS CORRIGIDOS
+                marginBottom: '18px'
               }}>
                 💡 Frete grátis em pedidos acima de R$ 50,00
               </div>
             )}
             
-            <hr style={{ margin: '18px 0', border: '1px solid #eee' }} /> {/* PIXELS CORRIGIDOS */}
+            <hr style={{ margin: '18px 0', border: '1px solid #eee' }} />
             
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
-              fontSize: isMobile ? '20px' : '22px', // PIXELS CORRIGIDOS
+              fontSize: isMobile ? '20px' : '22px',
               fontWeight: 'bold',
               color: '#009245',
-              marginBottom: '30px' // PIXELS CORRIGIDOS
+              marginBottom: '30px'
             }}>
               <span>Total:</span>
               <span>R$ {calcularTotal().toFixed(2)}</span>
@@ -859,13 +858,13 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 backgroundColor: calcularQuantidadeTotal() < 30 ? '#ccc' : '#f38e3c',
                 color: 'white',
                 border: 'none',
-                padding: '18px', // PIXELS CORRIGIDOS
+                padding: '18px',
                 width: '100%',
                 borderRadius: '5px',
                 fontSize: isMobile ? '16px' : '18px',
                 fontWeight: 'bold',
                 cursor: calcularQuantidadeTotal() < 30 ? 'not-allowed' : 'pointer',
-                marginBottom: '15px', // PIXELS CORRIGIDOS
+                marginBottom: '15px',
                 opacity: calcularQuantidadeTotal() < 30 ? 0.6 : 1
               }}
             >
@@ -878,7 +877,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 backgroundColor: 'transparent',
                 color: '#009245',
                 border: '2px solid #009245',
-                padding: '15px', // PIXELS CORRIGIDOS
+                padding: '15px',
                 width: '100%',
                 borderRadius: '5px',
                 fontSize: '16px',
