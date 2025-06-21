@@ -4,14 +4,15 @@ import { supabase } from '../lib/supabase';
 /**
  * Serviço de autenticação usando Supabase (RECOMENDADO PARA PRODUÇÃO)
  * Armazena senhas com hash seguro no banco de dados
+ * ATUALIZADO: Com suporte a telefone obrigatório
  */
 export const authSupabaseService = {
     
     /**
-     * Registra nova empresa com CNPJ e senha
+     * Registra nova empresa com CNPJ, senha e telefone obrigatório
      * @param {string} cnpj - CNPJ da empresa
      * @param {string} senha - Senha escolhida
-     * @param {Object} dadosEmpresa - Dados opcionais da empresa
+     * @param {Object} dadosEmpresa - Dados obrigatórios da empresa (telefone)
      * @returns {Object} Resultado da operação
      */
     async registrarEmpresa(cnpj, senha, dadosEmpresa = {}) {
@@ -27,6 +28,16 @@ export const authSupabaseService = {
             if (!senha || senha.length < 6) {
                 throw new Error('Senha deve ter pelo menos 6 caracteres');
             }
+
+            // NOVA VALIDAÇÃO: Telefone obrigatório
+            if (!dadosEmpresa.telefone || dadosEmpresa.telefone.trim() === '') {
+                throw new Error('Telefone é obrigatório para o cadastro');
+            }
+
+            const telefoneNumeros = dadosEmpresa.telefone.replace(/\D/g, '');
+            if (telefoneNumeros.length < 10 || telefoneNumeros.length > 11) {
+                throw new Error('Telefone deve ter 10 ou 11 dígitos');
+            }
             
             // Verifica se CNPJ já está cadastrado
             const { data: empresaExistente } = await supabase
@@ -38,21 +49,32 @@ export const authSupabaseService = {
             if (empresaExistente) {
                 throw new Error('CNPJ já cadastrado no sistema');
             }
+
+            // NOVA VERIFICAÇÃO: Telefone único por empresa
+            const { data: telefoneExistente } = await supabase
+                .from('empresas')
+                .select('id')
+                .eq('telefone', dadosEmpresa.telefone.trim())
+                .single();
+                
+            if (telefoneExistente) {
+                throw new Error('Este telefone já está cadastrado em outra empresa');
+            }
             
-            // Cria registro da empresa
+            // Cria registro da empresa COM TELEFONE
             const { data, error } = await supabase
                 .from('empresas')
                 .insert([{
                     cnpj: cnpjLimpo,
                     cnpj_formatado: this.formatarCnpj(cnpjLimpo),
                     senha_hash: await this.hashSenha(senha),
+                    telefone: dadosEmpresa.telefone.trim(), // CAMPO OBRIGATÓRIO
                     razao_social: dadosEmpresa.razaoSocial || `Empresa ${this.formatarCnpj(cnpjLimpo)}`,
                     nome_fantasia: dadosEmpresa.nomeFantasia,
                     situacao: dadosEmpresa.situacao || 'ATIVA',
                     atividade: dadosEmpresa.atividade,
                     municipio: dadosEmpresa.municipio,
                     uf: dadosEmpresa.uf,
-                    telefone: dadosEmpresa.telefone,
                     email: dadosEmpresa.email,
                     ativo: true,
                     tentativas_login: 0,
@@ -65,7 +87,7 @@ export const authSupabaseService = {
             
             return {
                 success: true,
-                message: 'Empresa cadastrada com sucesso!',
+                message: 'Empresa cadastrada com sucesso! Telefone vinculado para recuperação de senha.',
                 empresa: data
             };
             
@@ -97,22 +119,16 @@ export const authSupabaseService = {
                 throw new Error('Senha deve ter pelo menos 6 caracteres');
             }
             
-            // Busca empresa no banco (sem senha)
+            // Busca empresa no banco (COM TELEFONE para sessão)
             const { data: empresa, error } = await supabase
                 .from('empresas')
-                .select('id, cnpj, cnpj_formatado, razao_social, nome_fantasia, senha_hash, ativo, tentativas_login')
+                .select('id, cnpj, cnpj_formatado, razao_social, nome_fantasia, telefone, senha_hash, ativo, tentativas_login')
                 .eq('cnpj', cnpjLimpo)
                 .single();
                 
             if (error || !empresa) {
                 // Log da tentativa falhada
-                await supabase.rpc('log_tentativa_login', {
-                    p_cnpj: cnpjLimpo,
-                    p_ip_address: '0.0.0.0', // Cliente não tem acesso ao IP real
-                    p_sucesso: false,
-                    p_motivo_falha: 'CNPJ não encontrado'
-                });
-                
+                await this.logTentativaLogin(cnpjLimpo, false, 'CNPJ não encontrado');
                 throw new Error('CNPJ não cadastrado no sistema');
             }
             
@@ -138,13 +154,7 @@ export const authSupabaseService = {
                     .eq('id', empresa.id);
                 
                 // Log da tentativa falhada
-                await supabase.rpc('log_tentativa_login', {
-                    p_cnpj: cnpjLimpo,
-                    p_ip_address: '0.0.0.0',
-                    p_sucesso: false,
-                    p_motivo_falha: 'Senha incorreta'
-                });
-                
+                await this.logTentativaLogin(cnpjLimpo, false, 'Senha incorreta');
                 throw new Error(`Senha incorreta. Tentativas restantes: ${5 - empresa.tentativas_login - 1}`);
             }
             
@@ -157,33 +167,19 @@ export const authSupabaseService = {
                 })
                 .eq('id', empresa.id);
             
-            // Registra sessão no banco
-            await supabase
-                .from('sessoes_login')
-                .insert({
-                    empresa_id: empresa.id,
-                    ip_address: '0.0.0.0', // Cliente não tem acesso ao IP real
-                    login_time: new Date().toISOString(),
-                    status: 'ativo'
-                });
-            
             // Log de sucesso
-            await supabase.rpc('log_tentativa_login', {
-                p_cnpj: cnpjLimpo,
-                p_ip_address: '0.0.0.0',
-                p_sucesso: true,
-                p_motivo_falha: null
-            });
+            await this.logTentativaLogin(cnpjLimpo, true, null);
             
             // Gera token JWT personalizado
             const token = this.gerarToken(empresa);
             
-            // Salva sessão local
+            // Salva sessão local COM TELEFONE
             this.salvarSessao({
                 id: empresa.id,
                 cnpj: empresa.cnpj_formatado,
                 razaoSocial: empresa.razao_social,
                 nomeFantasia: empresa.nome_fantasia,
+                telefone: empresa.telefone, // INCLUI TELEFONE NA SESSÃO
                 token
             });
             
@@ -194,6 +190,7 @@ export const authSupabaseService = {
                     cnpj: empresa.cnpj_formatado,
                     razaoSocial: empresa.razao_social,
                     nomeFantasia: empresa.nome_fantasia,
+                    telefone: empresa.telefone,
                     ultimoAcesso: empresa.ultimo_acesso
                 },
                 token
@@ -201,6 +198,96 @@ export const authSupabaseService = {
             
         } catch (error) {
             console.error('Erro na autenticação:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    },
+
+    /**
+     * Busca empresa por telefone (para recuperação de senha)
+     * @param {string} telefone - Telefone a ser buscado
+     * @returns {Object} Dados da empresa ou erro
+     */
+    async buscarEmpresaPorTelefone(telefone) {
+        try {
+            const telefoneNumeros = telefone.replace(/\D/g, '');
+            
+            // Busca tanto por telefone formatado quanto por números
+            const { data, error } = await supabase
+                .from('empresas')
+                .select('id, cnpj_formatado, razao_social, telefone, ativo')
+                .or(`telefone.eq.${telefone},telefone.like.*${telefoneNumeros}*`)
+                .eq('ativo', true)
+                .single();
+                
+            if (error || !data) {
+                return {
+                    success: false,
+                    error: 'Telefone não encontrado ou empresa inativa'
+                };
+            }
+            
+            return {
+                success: true,
+                empresa: data
+            };
+            
+        } catch (error) {
+            console.error('Erro ao buscar empresa por telefone:', error);
+            return {
+                success: false,
+                error: 'Erro ao consultar telefone'
+            };
+        }
+    },
+
+    /**
+     * Atualiza telefone da empresa
+     * @param {string} cnpj - CNPJ da empresa
+     * @param {string} novoTelefone - Novo telefone
+     * @returns {Object} Resultado da operação
+     */
+    async atualizarTelefone(cnpj, novoTelefone) {
+        try {
+            const cnpjLimpo = cnpj.replace(/\D/g, '');
+            const telefoneNumeros = novoTelefone.replace(/\D/g, '');
+            
+            if (telefoneNumeros.length < 10 || telefoneNumeros.length > 11) {
+                throw new Error('Telefone deve ter 10 ou 11 dígitos');
+            }
+            
+            // Verifica se telefone já está em uso
+            const { data: telefoneExistente } = await supabase
+                .from('empresas')
+                .select('id, cnpj')
+                .eq('telefone', novoTelefone.trim())
+                .neq('cnpj', cnpjLimpo)
+                .single();
+                
+            if (telefoneExistente) {
+                throw new Error('Este telefone já está cadastrado em outra empresa');
+            }
+            
+            // Atualiza telefone
+            const { error } = await supabase
+                .from('empresas')
+                .update({ 
+                    telefone: novoTelefone.trim(),
+                    data_atualizacao: new Date().toISOString()
+                })
+                .eq('cnpj', cnpjLimpo);
+                
+            if (error) throw error;
+            
+            return {
+                success: true,
+                message: 'Telefone atualizado com sucesso!'
+            };
+            
+        } catch (error) {
+            console.error('Erro ao atualizar telefone:', error);
             return {
                 success: false,
                 error: error.message
@@ -282,7 +369,8 @@ export const authSupabaseService = {
                 .from('empresas')
                 .update({ 
                     senha_hash: novoHash,
-                    data_alteracao_senha: new Date().toISOString()
+                    data_alteracao_senha: new Date().toISOString(),
+                    tentativas_login: 0 // Reset tentativas ao alterar senha
                 })
                 .eq('id', empresa.id);
                 
@@ -303,7 +391,7 @@ export const authSupabaseService = {
     },
     
     /**
-     * Lista empresas cadastradas (para admin)
+     * Lista empresas cadastradas (para admin) - INCLUI TELEFONE
      * @returns {Array} Lista de empresas
      */
     async listarEmpresas() {
@@ -315,6 +403,7 @@ export const authSupabaseService = {
                     cnpj_formatado,
                     razao_social,
                     nome_fantasia,
+                    telefone,
                     ativo,
                     tentativas_login,
                     data_cadastro,
@@ -367,6 +456,23 @@ export const authSupabaseService = {
     // === MÉTODOS AUXILIARES ===
     
     /**
+     * Log de tentativas de login (função auxiliar)
+     */
+    async logTentativaLogin(cnpj, sucesso, motivo) {
+        try {
+            // Chama função RPC do Supabase se disponível
+            await supabase.rpc('log_tentativa_login', {
+                p_cnpj: cnpj,
+                p_ip_address: '0.0.0.0',
+                p_sucesso: sucesso,
+                p_motivo_falha: motivo
+            });
+        } catch (error) {
+            console.warn('Erro ao logar tentativa:', error);
+        }
+    },
+    
+    /**
      * Cria hash seguro da senha usando Web Crypto API
      */
     async hashSenha(senha) {
@@ -414,7 +520,7 @@ export const authSupabaseService = {
     },
     
     /**
-     * Salva sessão no sessionStorage
+     * Salva sessão no sessionStorage COM TELEFONE
      */
     salvarSessao(dadosEmpresa) {
         const sessao = {
@@ -425,6 +531,11 @@ export const authSupabaseService = {
         sessionStorage.setItem('sessaoEmpresa', JSON.stringify(sessao));
         sessionStorage.setItem('cnpj', dadosEmpresa.cnpj);
         sessionStorage.setItem('empresaInfo', dadosEmpresa.razaoSocial);
+        
+        // SALVA TELEFONE PARA RESET DE SENHA
+        if (dadosEmpresa.telefone) {
+            sessionStorage.setItem('empresaTelefone', dadosEmpresa.telefone);
+        }
     },
     
     /**
@@ -467,5 +578,27 @@ export const authSupabaseService = {
      */
     formatarCnpj(cnpj) {
         return cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+    },
+
+    /**
+     * Valida formato de telefone brasileiro
+     */
+    validarTelefone(telefone) {
+        const numeros = telefone.replace(/\D/g, '');
+        // Aceita 10 dígitos (fixo) ou 11 dígitos (celular)
+        return numeros.length >= 10 && numeros.length <= 11;
+    },
+
+    /**
+     * Formata telefone brasileiro
+     */
+    formatarTelefone(telefone) {
+        const numeros = telefone.replace(/\D/g, '');
+        if (numeros.length === 11) {
+            return numeros.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+        } else if (numeros.length === 10) {
+            return numeros.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+        }
+        return telefone;
     }
 };

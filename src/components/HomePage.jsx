@@ -5,6 +5,7 @@ import LogoComponent from './LogoComponent';
 const HomePage = ({ onNavigate }) => {
   const [cnpj, setCnpj] = useState('');
   const [senha, setSenha] = useState('');
+  const [telefone, setTelefone] = useState(''); // NOVO CAMPO
   const [isMobile, setIsMobile] = useState(false);
   const [fazendoLogin, setFazendoLogin] = useState(false);
   const [modo, setModo] = useState('login'); // 'login' ou 'cadastro'
@@ -43,9 +44,24 @@ const HomePage = ({ onNavigate }) => {
       .slice(0, 18);
   };
 
+  // Função para aplicar máscara de telefone
+  const applyPhoneMask = (value) => {
+    const onlyNumbers = value.replace(/\D/g, '');
+    
+    return onlyNumbers
+      .replace(/^(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{5})(\d)/, '$1-$2')
+      .slice(0, 15); // (11) 99999-9999
+  };
+
   const handleCnpjChange = (e) => {
     const maskedValue = applyCnpjMask(e.target.value);
     setCnpj(maskedValue);
+  };
+
+  const handleTelefoneChange = (e) => {
+    const maskedValue = applyPhoneMask(e.target.value);
+    setTelefone(maskedValue);
   };
 
   const handleLogin = async () => {
@@ -97,17 +113,35 @@ const HomePage = ({ onNavigate }) => {
       alert('Senhas não conferem');
       return;
     }
+
+    // VALIDAÇÃO DE TELEFONE OBRIGATÓRIA
+    if (!telefone.trim()) {
+      alert('Por favor, informe o telefone da empresa');
+      return;
+    }
+
+    const telefoneNumeros = telefone.replace(/\D/g, '');
+    if (telefoneNumeros.length < 10 || telefoneNumeros.length > 11) {
+      alert('Telefone deve ter 10 ou 11 dígitos');
+      return;
+    }
     
     setFazendoLogin(true);
     
     try {
-      const resultado = await authSupabaseService.registrarEmpresa(cnpj, senha);
+      // Passa telefone como dado adicional
+      const dadosEmpresa = {
+        telefone: telefone
+      };
+
+      const resultado = await authSupabaseService.registrarEmpresa(cnpj, senha, dadosEmpresa);
       
       if (resultado.success) {
         alert('Cadastro realizado com sucesso! Agora você pode fazer login.');
         setModo('login');
         setSenha('');
         setConfirmarSenha('');
+        setTelefone('');
       } else {
         alert(`Erro no cadastro: ${resultado.error}`);
       }
@@ -294,6 +328,40 @@ const HomePage = ({ onNavigate }) => {
             />
           </div>
 
+          {/* Campo Telefone (APENAS NO CADASTRO) */}
+          {modo === 'cadastro' && (
+            <div style={{ marginBottom: '20px', textAlign: 'left' }}>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '8px', 
+                fontWeight: 'bold',
+                color: '#009245'
+              }}>
+                Telefone da Empresa *
+              </label>
+              <input 
+                type="text"
+                value={telefone}
+                onChange={handleTelefoneChange}
+                onKeyPress={handleKeyPress}
+                placeholder="(11) 99999-9999"
+                maxLength="15"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '2px solid #ddd',
+                  borderRadius: '5px',
+                  fontSize: '16px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <small style={{ color: '#666', fontSize: '12px' }}>
+                Necessário para recuperação de senha e contato para entrega
+              </small>
+            </div>
+          )}
+
           {/* Campo Senha */}
           <div style={{ marginBottom: '20px', textAlign: 'left' }}>
             <label style={{ 
@@ -349,6 +417,27 @@ const HomePage = ({ onNavigate }) => {
                   boxSizing: 'border-box'
                 }}
               />
+            </div>
+          )}
+
+          {/* Aviso sobre telefone (só no cadastro) */}
+          {modo === 'cadastro' && (
+            <div style={{
+              backgroundColor: '#e7f3ff',
+              padding: '12px',
+              borderRadius: '5px',
+              marginBottom: '20px',
+              fontSize: '13px',
+              color: '#0066cc',
+              border: '1px solid #b3d9ff'
+            }}>
+              <strong>📱 Por que precisamos do telefone?</strong>
+              <br />
+              • Para confirmar pedidos e coordenar entregas
+              <br />
+              • Para recuperação de senha por SMS
+              <br />
+              • Para contato em caso de problemas
             </div>
           )}
 

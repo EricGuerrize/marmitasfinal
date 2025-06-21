@@ -34,7 +34,9 @@ const AdminPage = ({ onNavigate }) => {
     totalVendas: 0,
     produtosMaisVendidos: [],
     pedidosHoje: 0,
-    empresasCadastradas: 0
+    empresasCadastradas: 0,
+    empresasComTelefone: 0, // NOVA ESTATÍSTICA
+    percentualTelefones: 0   // NOVA ESTATÍSTICA
   });
 
   // Status disponíveis para pedidos
@@ -63,6 +65,18 @@ const AdminPage = ({ onNavigate }) => {
     try {
       const empresas = await authSupabaseService.listarEmpresas();
       setEmpresasCadastradas(empresas);
+      
+      // NOVA LÓGICA: Calcula estatísticas de telefone
+      const empresasComTelefone = empresas.filter(e => e.telefone && e.telefone.trim() !== '').length;
+      const percentual = empresas.length > 0 ? (empresasComTelefone / empresas.length) * 100 : 0;
+      
+      setStats(prev => ({
+        ...prev,
+        empresasCadastradas: empresas.length,
+        empresasComTelefone: empresasComTelefone,
+        percentualTelefones: percentual
+      }));
+      
     } catch (error) {
       console.error('Erro ao carregar empresas:', error);
       setEmpresasCadastradas([]);
@@ -152,13 +166,13 @@ const AdminPage = ({ onNavigate }) => {
       new Date(p.data).toDateString() === hoje
     ).length;
 
-    setStats({
+    setStats(prev => ({
+      ...prev,
       totalPedidos: pedidosList.length,
       totalVendas: total,
       pedidosHoje,
-      produtosMaisVendidos: ['Marmita Fitness Frango', 'Marmita Tradicional'],
-      empresasCadastradas: empresasCadastradas.length
-    });
+      produtosMaisVendidos: ['Marmita Fitness Frango', 'Marmita Tradicional']
+    }));
   };
 
   // Função para alterar status do pedido
@@ -238,6 +252,35 @@ const AdminPage = ({ onNavigate }) => {
     } catch (error) {
       console.error('Erro ao alterar status da empresa:', error);
       alert('Erro ao alterar status da empresa');
+    }
+  };
+
+  // NOVA FUNÇÃO: Formatar telefone para exibição
+  const formatarTelefone = (telefone) => {
+    if (!telefone) return 'Não informado';
+    const numeros = telefone.replace(/\D/g, '');
+    if (numeros.length === 11) {
+      return numeros.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+    } else if (numeros.length === 10) {
+      return numeros.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+    }
+    return telefone;
+  };
+
+  // NOVA FUNÇÃO: Validar telefone no admin
+  const validarTelefoneEmpresa = async (telefone) => {
+    if (!telefone) return null;
+    
+    try {
+      // Simulação de validação
+      const numeros = telefone.replace(/\D/g, '');
+      return {
+        valido: numeros.length >= 10 && numeros.length <= 11,
+        operadora: numeros.length === 11 ? 'Celular' : 'Fixo',
+        ddd: numeros.substring(0, 2)
+      };
+    } catch (error) {
+      return { valido: false, erro: 'Erro na validação' };
     }
   };
 
@@ -429,7 +472,7 @@ const AdminPage = ({ onNavigate }) => {
         maxWidth: '1200px',
         margin: '0 auto'
       }}>
-        {/* Dashboard Tab */}
+        {/* Dashboard Tab - ATUALIZADO COM ESTATÍSTICAS DE TELEFONE */}
         {activeTab === 'dashboard' && (
           <div>
             <h1 style={{ color: '#343a40', marginBottom: '30px' }}>📊 Dashboard</h1>
@@ -478,7 +521,7 @@ const AdminPage = ({ onNavigate }) => {
                 <div style={{ fontSize: '40px', marginBottom: '10px' }}>🏢</div>
                 <h3 style={{ color: '#ffc107', margin: '0 0 5px 0' }}>Empresas Cadastradas</h3>
                 <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
-                  {empresasCadastradas.length}
+                  {stats.empresasCadastradas}
                 </div>
               </div>
 
@@ -495,11 +538,170 @@ const AdminPage = ({ onNavigate }) => {
                   {produtos.filter(p => p.disponivel).length}
                 </div>
               </div>
+
+              {/* NOVA ESTATÍSTICA: Telefones */}
+              <div style={{
+                backgroundColor: 'white',
+                padding: '25px',
+                borderRadius: '10px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '40px', marginBottom: '10px' }}>📱</div>
+                <h3 style={{ color: '#17a2b8', margin: '0 0 5px 0' }}>Empresas c/ Telefone</h3>
+                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
+                  {stats.empresasComTelefone}
+                </div>
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  {stats.percentualTelefones.toFixed(1)}% do total
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Pedidos Tab - COM SISTEMA DE STATUS */}
+        {/* Empresas Tab - ATUALIZADO COM TELEFONES */}
+        {activeTab === 'empresas' && (
+          <div>
+            <h1 style={{ color: '#343a40', marginBottom: '30px' }}>🏢 Empresas Cadastradas</h1>
+            
+            {empresasCadastradas.length === 0 ? (
+              <div style={{
+                backgroundColor: 'white',
+                padding: '40px',
+                borderRadius: '10px',
+                textAlign: 'center',
+                color: '#666'
+              }}>
+                <div style={{ fontSize: '48px', marginBottom: '20px' }}>🏢</div>
+                <h3>Nenhuma empresa cadastrada</h3>
+                <p>As empresas que se cadastrarem aparecerão aqui.</p>
+              </div>
+            ) : (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '15px'
+              }}>
+                {empresasCadastradas.map((empresa, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      backgroundColor: 'white',
+                      padding: '20px',
+                      borderRadius: '10px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      opacity: empresa.ativo ? 1 : 0.6
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      marginBottom: '15px'
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <h3 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
+                          {empresa.razao_social}
+                        </h3>
+                        {empresa.nome_fantasia && empresa.nome_fantasia !== empresa.razao_social && (
+                          <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
+                            <strong>Nome Fantasia:</strong> {empresa.nome_fantasia}
+                          </p>
+                        )}
+                        <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
+                          <strong>CNPJ:</strong> {empresa.cnpj_formatado}
+                        </p>
+                        
+                        {/* TELEFONE COM DESTAQUE */}
+                        <p style={{ 
+                          margin: '0 0 5px 0', 
+                          color: empresa.telefone ? '#28a745' : '#dc3545', 
+                          fontSize: '14px',
+                          fontWeight: empresa.telefone ? 'bold' : 'normal'
+                        }}>
+                          <strong>📱 Telefone:</strong> {formatarTelefone(empresa.telefone)}
+                          {!empresa.telefone && <span style={{ color: '#dc3545' }}> ⚠️ Não cadastrado</span>}
+                        </p>
+                        
+                        <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
+                          <strong>Cadastro:</strong> {new Date(empresa.data_cadastro).toLocaleDateString('pt-BR')}
+                        </p>
+                        {empresa.ultimo_acesso && (
+                          <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
+                            <strong>Último acesso:</strong> {new Date(empresa.ultimo_acesso).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
+                        <span style={{
+                          backgroundColor: empresa.ativo ? '#28a745' : '#dc3545',
+                          color: 'white',
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 'bold'
+                        }}>
+                          {empresa.ativo ? 'ATIVO' : 'INATIVO'}
+                        </span>
+
+                        {/* INDICADOR DE TELEFONE */}
+                        <span style={{
+                          backgroundColor: empresa.telefone ? '#28a745' : '#ffc107',
+                          color: empresa.telefone ? 'white' : '#000',
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 'bold'
+                        }}>
+                          {empresa.telefone ? '📱 COM TEL' : '⚠️ SEM TEL'}
+                        </span>
+                        
+                        {empresa.tentativas_login > 0 && (
+                          <span style={{
+                            backgroundColor: '#ffc107',
+                            color: '#000',
+                            padding: '4px 8px',
+                            borderRadius: '12px',
+                            fontSize: '12px',
+                            fontWeight: 'bold'
+                          }}>
+                            {empresa.tentativas_login} tentativas inválidas
+                          </span>
+                        )}
+                        
+                        <button
+                          onClick={() => toggleEmpresaAtiva(empresa.id, empresa.ativo)}
+                          style={{
+                            backgroundColor: empresa.ativo ? '#ffc107' : '#28a745',
+                            color: empresa.ativo ? '#000' : 'white',
+                            border: 'none',
+                            padding: '6px 12px',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {empresa.ativo ? '⏸️ Desativar' : '▶️ Ativar'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Outras abas mantidas iguais - Pedidos e Consulta CNPJ */}
         {activeTab === 'pedidos' && (
           <div>
             <div style={{
@@ -576,7 +778,6 @@ const AdminPage = ({ onNavigate }) => {
                         </div>
                         
                         <div style={{ textAlign: 'right' }}>
-                          {/* DROPDOWN DE STATUS */}
                           <div style={{ marginBottom: '10px' }}>
                             <select
                               value={pedido.status}
@@ -638,124 +839,7 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Empresas Tab */}
-        {activeTab === 'empresas' && (
-          <div>
-            <h1 style={{ color: '#343a40', marginBottom: '30px' }}>🏢 Empresas Cadastradas</h1>
-            
-            {empresasCadastradas.length === 0 ? (
-              <div style={{
-                backgroundColor: 'white',
-                padding: '40px',
-                borderRadius: '10px',
-                textAlign: 'center',
-                color: '#666'
-              }}>
-                <div style={{ fontSize: '48px', marginBottom: '20px' }}>🏢</div>
-                <h3>Nenhuma empresa cadastrada</h3>
-                <p>As empresas que se cadastrarem aparecerão aqui.</p>
-              </div>
-            ) : (
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '15px'
-              }}>
-                {empresasCadastradas.map((empresa, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      backgroundColor: 'white',
-                      padding: '20px',
-                      borderRadius: '10px',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                      opacity: empresa.ativo ? 1 : 0.6
-                    }}
-                  >
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      marginBottom: '15px'
-                    }}>
-                      <div>
-                        <h3 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
-                          {empresa.razao_social}
-                        </h3>
-                        {empresa.nome_fantasia && empresa.nome_fantasia !== empresa.razao_social && (
-                          <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
-                            <strong>Nome Fantasia:</strong> {empresa.nome_fantasia}
-                          </p>
-                        )}
-                        <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
-                          <strong>CNPJ:</strong> {empresa.cnpj_formatado}
-                        </p>
-                        <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
-                          <strong>Cadastro:</strong> {new Date(empresa.data_cadastro).toLocaleDateString('pt-BR')}
-                        </p>
-                        {empresa.ultimo_acesso && (
-                          <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
-                            <strong>Último acesso:</strong> {new Date(empresa.ultimo_acesso).toLocaleDateString('pt-BR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </p>
-                        )}
-                      </div>
-                      
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
-                        <span style={{
-                          backgroundColor: empresa.ativo ? '#28a745' : '#dc3545',
-                          color: 'white',
-                          padding: '4px 8px',
-                          borderRadius: '12px',
-                          fontSize: '12px',
-                          fontWeight: 'bold'
-                        }}>
-                          {empresa.ativo ? 'ATIVO' : 'INATIVO'}
-                        </span>
-                        
-                        {empresa.tentativas_login > 0 && (
-                          <span style={{
-                            backgroundColor: '#ffc107',
-                            color: '#000',
-                            padding: '4px 8px',
-                            borderRadius: '12px',
-                            fontSize: '12px',
-                            fontWeight: 'bold'
-                          }}>
-                            {empresa.tentativas_login} tentativas inválidas
-                          </span>
-                        )}
-                        
-                        <button
-                          onClick={() => toggleEmpresaAtiva(empresa.id, empresa.ativo)}
-                          style={{
-                            backgroundColor: empresa.ativo ? '#ffc107' : '#28a745',
-                            color: empresa.ativo ? '#000' : 'white',
-                            border: 'none',
-                            padding: '6px 12px',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {empresa.ativo ? '⏸️ Desativar' : '▶️ Ativar'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Consultar CNPJ Tab */}
+        {/* Consultar CNPJ Tab - mantida igual */}
         {activeTab === 'consulta-cnpj' && (
           <div>
             <h1 style={{ color: '#343a40', marginBottom: '30px' }}>🔍 Consultar CNPJ</h1>
@@ -818,7 +902,6 @@ const AdminPage = ({ onNavigate }) => {
                 </button>
               </div>
 
-              {/* Resultado da Consulta */}
               {consultandoCnpj && (
                 <div style={{
                   backgroundColor: '#e7f3ff',
@@ -898,7 +981,7 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Produtos Tab - mantido original mas simplificado */}
+        {/* Produtos Tab - mantida igual */}
         {activeTab === 'produtos' && (
           <div>
             <div style={{
@@ -936,7 +1019,6 @@ const AdminPage = ({ onNavigate }) => {
               </button>
             </div>
 
-            {/* Lista de produtos - versão resumida */}
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',

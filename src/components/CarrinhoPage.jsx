@@ -115,7 +115,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
 
     sessionStorage.setItem('pedidoAtual', JSON.stringify(pedido));
     success('Pedido preparado! Redirecionando...');
-    setTimeout(() => onNavigate('resumo-pedido'), 1000); // MUDANÇA AQUI
+    setTimeout(() => onNavigate('resumo-pedido'), 1000);
   };
 
   const continuarComprando = () => {
@@ -436,7 +436,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                       fontSize: '16px',
                       fontWeight: 'bold',
                       color: '#009245',
-                      backgroundColor: 'white'
+                      backgroundColor: 'white',
+                      boxSizing: 'border-box'
                     }}
                   />
                   
@@ -520,7 +521,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   border: `1px solid ${erroCep ? '#dc3545' : '#ddd'}`,
                   borderRadius: '5px',
                   fontSize: '14px',
-                  backgroundColor: buscandoCep ? '#f8f9fa' : 'white'
+                  backgroundColor: buscandoCep ? '#f8f9fa' : 'white',
+                  boxSizing: 'border-box'
                 }}
                 required
               />
@@ -554,7 +556,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                     padding: '12px',
                     border: '1px solid #ddd',
                     borderRadius: '5px',
-                    fontSize: '14px'
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
                   }}
                   required
                 />
@@ -579,7 +582,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                     padding: '12px',
                     border: '1px solid #ddd',
                     borderRadius: '5px',
-                    fontSize: '14px'
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
                   }}
                   required
                 />
@@ -611,7 +615,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                     padding: '12px',
                     border: '1px solid #ddd',
                     borderRadius: '5px',
-                    fontSize: '14px'
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
                   }}
                   required
                 />
@@ -636,7 +641,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                     padding: '12px',
                     border: '1px solid #ddd',
                     borderRadius: '5px',
-                    fontSize: '14px'
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
                   }}
                   required
                 />
@@ -668,7 +674,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                     padding: '12px',
                     border: '1px solid #ddd',
                     borderRadius: '5px',
-                    fontSize: '14px'
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
                   }}
                 />
               </div>
@@ -690,7 +697,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                     padding: '12px',
                     border: '1px solid #ddd',
                     borderRadius: '5px',
-                    fontSize: '14px'
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
                   }}
                 >
                   <option value="SP">SP</option>
@@ -754,7 +762,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 borderRadius: '5px',
                 fontSize: '14px',
                 resize: 'vertical',
-                maxHeight: '130px'
+                maxHeight: '130px',
+                boxSizing: 'border-box'
               }}
             />
             <small style={{ color: '#666', fontSize: '12px' }}>
