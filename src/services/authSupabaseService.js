@@ -2,17 +2,16 @@
 import { supabase } from '../lib/supabase';
 
 /**
- * Serviço de autenticação usando Supabase (RECOMENDADO PARA PRODUÇÃO)
- * Armazena senhas com hash seguro no banco de dados
- * ATUALIZADO: Com suporte a telefone obrigatório
+ * Serviço de autenticação usando Supabase - VERSÃO SIMPLIFICADA
+ * MUDANÇAS: Email opcional em vez de telefone obrigatório
  */
 export const authSupabaseService = {
     
     /**
-     * Registra nova empresa com CNPJ, senha e telefone obrigatório
+     * Registra nova empresa com CNPJ, senha e email opcional
      * @param {string} cnpj - CNPJ da empresa
      * @param {string} senha - Senha escolhida
-     * @param {Object} dadosEmpresa - Dados obrigatórios da empresa (telefone)
+     * @param {Object} dadosEmpresa - Dados da empresa (email opcional)
      * @returns {Object} Resultado da operação
      */
     async registrarEmpresa(cnpj, senha, dadosEmpresa = {}) {
@@ -29,14 +28,9 @@ export const authSupabaseService = {
                 throw new Error('Senha deve ter pelo menos 6 caracteres');
             }
 
-            // NOVA VALIDAÇÃO: Telefone obrigatório
-            if (!dadosEmpresa.telefone || dadosEmpresa.telefone.trim() === '') {
-                throw new Error('Telefone é obrigatório para o cadastro');
-            }
-
-            const telefoneNumeros = dadosEmpresa.telefone.replace(/\D/g, '');
-            if (telefoneNumeros.length < 10 || telefoneNumeros.length > 11) {
-                throw new Error('Telefone deve ter 10 ou 11 dígitos');
+            // Email opcional - só valida se foi fornecido
+            if (dadosEmpresa.email && !this.validarEmail(dadosEmpresa.email)) {
+                throw new Error('Email inválido');
             }
             
             // Verifica se CNPJ já está cadastrado
@@ -50,32 +44,34 @@ export const authSupabaseService = {
                 throw new Error('CNPJ já cadastrado no sistema');
             }
 
-            // NOVA VERIFICAÇÃO: Telefone único por empresa
-            const { data: telefoneExistente } = await supabase
-                .from('empresas')
-                .select('id')
-                .eq('telefone', dadosEmpresa.telefone.trim())
-                .single();
-                
-            if (telefoneExistente) {
-                throw new Error('Este telefone já está cadastrado em outra empresa');
+            // Se email foi fornecido, verifica se já existe
+            if (dadosEmpresa.email) {
+                const { data: emailExistente } = await supabase
+                    .from('empresas')
+                    .select('id')
+                    .eq('email', dadosEmpresa.email.trim())
+                    .single();
+                    
+                if (emailExistente) {
+                    throw new Error('Este email já está cadastrado em outra empresa');
+                }
             }
             
-            // Cria registro da empresa COM TELEFONE
+            // Cria registro da empresa
             const { data, error } = await supabase
                 .from('empresas')
                 .insert([{
                     cnpj: cnpjLimpo,
                     cnpj_formatado: this.formatarCnpj(cnpjLimpo),
                     senha_hash: await this.hashSenha(senha),
-                    telefone: dadosEmpresa.telefone.trim(), // CAMPO OBRIGATÓRIO
+                    email: dadosEmpresa.email ? dadosEmpresa.email.trim() : null, // EMAIL OPCIONAL
                     razao_social: dadosEmpresa.razaoSocial || `Empresa ${this.formatarCnpj(cnpjLimpo)}`,
                     nome_fantasia: dadosEmpresa.nomeFantasia,
                     situacao: dadosEmpresa.situacao || 'ATIVA',
                     atividade: dadosEmpresa.atividade,
                     municipio: dadosEmpresa.municipio,
                     uf: dadosEmpresa.uf,
-                    email: dadosEmpresa.email,
+                    telefone: dadosEmpresa.telefone || null, // Telefone opcional também
                     ativo: true,
                     tentativas_login: 0,
                     data_cadastro: new Date().toISOString()
@@ -87,7 +83,7 @@ export const authSupabaseService = {
             
             return {
                 success: true,
-                message: 'Empresa cadastrada com sucesso! Telefone vinculado para recuperação de senha.',
+                message: 'Empresa cadastrada com sucesso!',
                 empresa: data
             };
             
@@ -101,7 +97,7 @@ export const authSupabaseService = {
     },
     
     /**
-     * Autentica empresa com CNPJ e senha usando função segura
+     * Autentica empresa com CNPJ e senha
      * @param {string} cnpj - CNPJ da empresa
      * @param {string} senha - Senha informada
      * @returns {Object} Resultado da autenticação
@@ -119,15 +115,14 @@ export const authSupabaseService = {
                 throw new Error('Senha deve ter pelo menos 6 caracteres');
             }
             
-            // Busca empresa no banco (COM TELEFONE para sessão)
+            // Busca empresa no banco
             const { data: empresa, error } = await supabase
                 .from('empresas')
-                .select('id, cnpj, cnpj_formatado, razao_social, nome_fantasia, telefone, senha_hash, ativo, tentativas_login')
+                .select('id, cnpj, cnpj_formatado, razao_social, nome_fantasia, email, senha_hash, ativo, tentativas_login')
                 .eq('cnpj', cnpjLimpo)
                 .single();
                 
             if (error || !empresa) {
-                // Log da tentativa falhada
                 await this.logTentativaLogin(cnpjLimpo, false, 'CNPJ não encontrado');
                 throw new Error('CNPJ não cadastrado no sistema');
             }
@@ -153,7 +148,6 @@ export const authSupabaseService = {
                     })
                     .eq('id', empresa.id);
                 
-                // Log da tentativa falhada
                 await this.logTentativaLogin(cnpjLimpo, false, 'Senha incorreta');
                 throw new Error(`Senha incorreta. Tentativas restantes: ${5 - empresa.tentativas_login - 1}`);
             }
@@ -167,19 +161,18 @@ export const authSupabaseService = {
                 })
                 .eq('id', empresa.id);
             
-            // Log de sucesso
             await this.logTentativaLogin(cnpjLimpo, true, null);
             
             // Gera token JWT personalizado
             const token = this.gerarToken(empresa);
             
-            // Salva sessão local COM TELEFONE
+            // Salva sessão local
             this.salvarSessao({
                 id: empresa.id,
                 cnpj: empresa.cnpj_formatado,
                 razaoSocial: empresa.razao_social,
                 nomeFantasia: empresa.nome_fantasia,
-                telefone: empresa.telefone, // INCLUI TELEFONE NA SESSÃO
+                email: empresa.email,
                 token
             });
             
@@ -190,7 +183,7 @@ export const authSupabaseService = {
                     cnpj: empresa.cnpj_formatado,
                     razaoSocial: empresa.razao_social,
                     nomeFantasia: empresa.nome_fantasia,
-                    telefone: empresa.telefone,
+                    email: empresa.email,
                     ultimoAcesso: empresa.ultimo_acesso
                 },
                 token
@@ -206,26 +199,30 @@ export const authSupabaseService = {
     },
 
     /**
-     * Busca empresa por telefone (para recuperação de senha)
-     * @param {string} telefone - Telefone a ser buscado
+     * Busca empresa por email (para recuperação de senha)
+     * @param {string} email - Email a ser buscado
      * @returns {Object} Dados da empresa ou erro
      */
-    async buscarEmpresaPorTelefone(telefone) {
+    async buscarEmpresaPorEmail(email) {
         try {
-            const telefoneNumeros = telefone.replace(/\D/g, '');
+            if (!email || !this.validarEmail(email)) {
+                return {
+                    success: false,
+                    error: 'Email inválido'
+                };
+            }
             
-            // Busca tanto por telefone formatado quanto por números
             const { data, error } = await supabase
                 .from('empresas')
-                .select('id, cnpj_formatado, razao_social, telefone, ativo')
-                .or(`telefone.eq.${telefone},telefone.like.*${telefoneNumeros}*`)
+                .select('id, cnpj_formatado, razao_social, email, ativo')
+                .eq('email', email.trim())
                 .eq('ativo', true)
                 .single();
                 
             if (error || !data) {
                 return {
                     success: false,
-                    error: 'Telefone não encontrado ou empresa inativa'
+                    error: 'Email não encontrado ou empresa inativa'
                 };
             }
             
@@ -235,59 +232,116 @@ export const authSupabaseService = {
             };
             
         } catch (error) {
-            console.error('Erro ao buscar empresa por telefone:', error);
+            console.error('Erro ao buscar empresa por email:', error);
             return {
                 success: false,
-                error: 'Erro ao consultar telefone'
+                error: 'Erro ao consultar email'
             };
         }
     },
 
     /**
-     * Atualiza telefone da empresa
-     * @param {string} cnpj - CNPJ da empresa
-     * @param {string} novoTelefone - Novo telefone
+     * Envia código de recuperação por email (simulado)
+     * @param {string} email - Email da empresa
      * @returns {Object} Resultado da operação
      */
-    async atualizarTelefone(cnpj, novoTelefone) {
+    async enviarCodigoRecuperacao(email) {
         try {
-            const cnpjLimpo = cnpj.replace(/\D/g, '');
-            const telefoneNumeros = novoTelefone.replace(/\D/g, '');
-            
-            if (telefoneNumeros.length < 10 || telefoneNumeros.length > 11) {
-                throw new Error('Telefone deve ter 10 ou 11 dígitos');
+            const resultado = await this.buscarEmpresaPorEmail(email);
+            if (!resultado.success) {
+                throw new Error(resultado.error);
             }
             
-            // Verifica se telefone já está em uso
-            const { data: telefoneExistente } = await supabase
-                .from('empresas')
-                .select('id, cnpj')
-                .eq('telefone', novoTelefone.trim())
-                .neq('cnpj', cnpjLimpo)
-                .single();
-                
-            if (telefoneExistente) {
-                throw new Error('Este telefone já está cadastrado em outra empresa');
-            }
+            // Gera código de 6 dígitos
+            const codigo = Math.floor(100000 + Math.random() * 900000);
             
-            // Atualiza telefone
-            const { error } = await supabase
-                .from('empresas')
-                .update({ 
-                    telefone: novoTelefone.trim(),
-                    data_atualizacao: new Date().toISOString()
-                })
-                .eq('cnpj', cnpjLimpo);
-                
-            if (error) throw error;
+            // Em produção, aqui você enviaria um email real
+            // Por enquanto, vamos simular e mostrar o código
+            console.log(`CÓDIGO DE RECUPERAÇÃO: ${codigo}`);
+            
+            // Salva código temporariamente (em produção seria no banco)
+            const codigoData = {
+                email: email,
+                codigo: codigo.toString(),
+                expira: new Date(Date.now() + 10 * 60 * 1000), // 10 minutos
+                empresa: resultado.empresa
+            };
+            
+            sessionStorage.setItem('codigoRecuperacao', JSON.stringify(codigoData));
             
             return {
                 success: true,
-                message: 'Telefone atualizado com sucesso!'
+                message: `Código enviado para ${this.mascarEmail(email)}`,
+                codigo: codigo // REMOVER EM PRODUÇÃO
             };
             
         } catch (error) {
-            console.error('Erro ao atualizar telefone:', error);
+            console.error('Erro ao enviar código:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    },
+
+    /**
+     * Confirma código e altera senha
+     * @param {string} email - Email da empresa
+     * @param {string} codigo - Código recebido
+     * @param {string} novaSenha - Nova senha
+     * @returns {Object} Resultado da operação
+     */
+    async confirmarCodigoEAlterarSenha(email, codigo, novaSenha) {
+        try {
+            // Recupera código salvo
+            const codigoSalvo = JSON.parse(sessionStorage.getItem('codigoRecuperacao') || 'null');
+            
+            if (!codigoSalvo) {
+                throw new Error('Nenhum código de recuperação encontrado. Solicite um novo código.');
+            }
+            
+            if (new Date() > new Date(codigoSalvo.expira)) {
+                sessionStorage.removeItem('codigoRecuperacao');
+                throw new Error('Código expirado. Solicite um novo código.');
+            }
+            
+            if (codigoSalvo.email !== email || codigoSalvo.codigo !== codigo) {
+                throw new Error('Código inválido');
+            }
+            
+            if (!novaSenha || novaSenha.length < 6) {
+                throw new Error('Nova senha deve ter pelo menos 6 caracteres');
+            }
+            
+            // Busca empresa para obter ID
+            const empresaResult = await this.buscarEmpresaPorEmail(email);
+            if (!empresaResult.success) {
+                throw new Error('Empresa não encontrada');
+            }
+            
+            // Atualiza senha
+            const novoHash = await this.hashSenha(novaSenha);
+            const { error } = await supabase
+                .from('empresas')
+                .update({ 
+                    senha_hash: novoHash,
+                    tentativas_login: 0,
+                    data_alteracao_senha: new Date().toISOString()
+                })
+                .eq('id', empresaResult.empresa.id);
+                
+            if (error) throw error;
+            
+            // Remove código usado
+            sessionStorage.removeItem('codigoRecuperacao');
+            
+            return {
+                success: true,
+                message: 'Senha alterada com sucesso!'
+            };
+            
+        } catch (error) {
+            console.error('Erro ao confirmar código:', error);
             return {
                 success: false,
                 error: error.message
@@ -328,70 +382,11 @@ export const authSupabaseService = {
         sessionStorage.removeItem('cnpj');
         sessionStorage.removeItem('empresaInfo');
         sessionStorage.removeItem('dadosEmpresa');
+        sessionStorage.removeItem('codigoRecuperacao');
     },
     
     /**
-     * Altera senha da empresa
-     * @param {string} cnpj - CNPJ da empresa
-     * @param {string} senhaAtual - Senha atual
-     * @param {string} novaSenha - Nova senha
-     * @returns {Object} Resultado da operação
-     */
-    async alterarSenha(cnpj, senhaAtual, novaSenha) {
-        try {
-            const cnpjLimpo = cnpj.replace(/\D/g, '');
-            
-            // Busca empresa
-            const { data: empresa, error } = await supabase
-                .from('empresas')
-                .select('*')
-                .eq('cnpj', cnpjLimpo)
-                .single();
-                
-            if (error || !empresa) {
-                throw new Error('Empresa não encontrada');
-            }
-            
-            // Verifica senha atual
-            const senhaAtualValida = await this.verificarSenha(senhaAtual, empresa.senha_hash);
-            if (!senhaAtualValida) {
-                throw new Error('Senha atual incorreta');
-            }
-            
-            // Valida nova senha
-            if (novaSenha.length < 6) {
-                throw new Error('Nova senha deve ter pelo menos 6 caracteres');
-            }
-            
-            // Atualiza senha
-            const novoHash = await this.hashSenha(novaSenha);
-            const { error: updateError } = await supabase
-                .from('empresas')
-                .update({ 
-                    senha_hash: novoHash,
-                    data_alteracao_senha: new Date().toISOString(),
-                    tentativas_login: 0 // Reset tentativas ao alterar senha
-                })
-                .eq('id', empresa.id);
-                
-            if (updateError) throw updateError;
-            
-            return {
-                success: true,
-                message: 'Senha alterada com sucesso!'
-            };
-            
-        } catch (error) {
-            console.error('Erro ao alterar senha:', error);
-            return {
-                success: false,
-                error: error.message
-            };
-        }
-    },
-    
-    /**
-     * Lista empresas cadastradas (para admin) - INCLUI TELEFONE
+     * Lista empresas cadastradas (para admin)
      * @returns {Array} Lista de empresas
      */
     async listarEmpresas() {
@@ -403,6 +398,7 @@ export const authSupabaseService = {
                     cnpj_formatado,
                     razao_social,
                     nome_fantasia,
+                    email,
                     telefone,
                     ativo,
                     tentativas_login,
@@ -456,11 +452,10 @@ export const authSupabaseService = {
     // === MÉTODOS AUXILIARES ===
     
     /**
-     * Log de tentativas de login (função auxiliar)
+     * Log de tentativas de login
      */
     async logTentativaLogin(cnpj, sucesso, motivo) {
         try {
-            // Chama função RPC do Supabase se disponível
             await supabase.rpc('log_tentativa_login', {
                 p_cnpj: cnpj,
                 p_ip_address: '0.0.0.0',
@@ -473,7 +468,7 @@ export const authSupabaseService = {
     },
     
     /**
-     * Cria hash seguro da senha usando Web Crypto API
+     * Cria hash seguro da senha
      */
     async hashSenha(senha) {
         const encoder = new TextEncoder();
@@ -492,7 +487,7 @@ export const authSupabaseService = {
     },
     
     /**
-     * Gera token JWT simples (em produção, use biblioteca como jose)
+     * Gera token JWT simples
      */
     gerarToken(empresa) {
         const payload = {
@@ -502,7 +497,6 @@ export const authSupabaseService = {
             exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 horas
         };
         
-        // Em produção, use uma biblioteca JWT real
         return btoa(JSON.stringify(payload));
     },
     
@@ -520,7 +514,7 @@ export const authSupabaseService = {
     },
     
     /**
-     * Salva sessão no sessionStorage COM TELEFONE
+     * Salva sessão no sessionStorage
      */
     salvarSessao(dadosEmpresa) {
         const sessao = {
@@ -531,11 +525,6 @@ export const authSupabaseService = {
         sessionStorage.setItem('sessaoEmpresa', JSON.stringify(sessao));
         sessionStorage.setItem('cnpj', dadosEmpresa.cnpj);
         sessionStorage.setItem('empresaInfo', dadosEmpresa.razaoSocial);
-        
-        // SALVA TELEFONE PARA RESET DE SENHA
-        if (dadosEmpresa.telefone) {
-            sessionStorage.setItem('empresaTelefone', dadosEmpresa.telefone);
-        }
     },
     
     /**
@@ -581,24 +570,18 @@ export const authSupabaseService = {
     },
 
     /**
-     * Valida formato de telefone brasileiro
+     * Valida email
      */
-    validarTelefone(telefone) {
-        const numeros = telefone.replace(/\D/g, '');
-        // Aceita 10 dígitos (fixo) ou 11 dígitos (celular)
-        return numeros.length >= 10 && numeros.length <= 11;
+    validarEmail(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     },
 
     /**
-     * Formata telefone brasileiro
+     * Mascara email para exibição
      */
-    formatarTelefone(telefone) {
-        const numeros = telefone.replace(/\D/g, '');
-        if (numeros.length === 11) {
-            return numeros.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
-        } else if (numeros.length === 10) {
-            return numeros.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
-        }
-        return telefone;
+    mascarEmail(email) {
+        const [usuario, dominio] = email.split('@');
+        const usuarioMascarado = usuario.slice(0, 2) + '*'.repeat(usuario.length - 2);
+        return `${usuarioMascarado}@${dominio}`;
     }
 };

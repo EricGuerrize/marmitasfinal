@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
-import { cnpjService } from '../services/cnpjService';
 
 const AdminPage = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -10,12 +9,6 @@ const AdminPage = ({ onNavigate }) => {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
-  
-  // Estados para consulta de CNPJ
-  const [cnpjConsulta, setCnpjConsulta] = useState('');
-  const [consultandoCnpj, setConsultandoCnpj] = useState(false);
-  const [dadosEmpresaConsulta, setDadosEmpresaConsulta] = useState(null);
-  const [erroConsultaCnpj, setErroConsultaCnpj] = useState('');
   
   // Form states para adicionar/editar produto
   const [productForm, setProductForm] = useState({
@@ -35,8 +28,8 @@ const AdminPage = ({ onNavigate }) => {
     produtosMaisVendidos: [],
     pedidosHoje: 0,
     empresasCadastradas: 0,
-    empresasComTelefone: 0, // NOVA ESTATÍSTICA
-    percentualTelefones: 0   // NOVA ESTATÍSTICA
+    empresasComEmail: 0,
+    percentualEmails: 0
   });
 
   // Status disponíveis para pedidos
@@ -66,15 +59,15 @@ const AdminPage = ({ onNavigate }) => {
       const empresas = await authSupabaseService.listarEmpresas();
       setEmpresasCadastradas(empresas);
       
-      // NOVA LÓGICA: Calcula estatísticas de telefone
-      const empresasComTelefone = empresas.filter(e => e.telefone && e.telefone.trim() !== '').length;
-      const percentual = empresas.length > 0 ? (empresasComTelefone / empresas.length) * 100 : 0;
+      // Calcula estatísticas de email
+      const empresasComEmail = empresas.filter(e => e.email && e.email.trim() !== '').length;
+      const percentual = empresas.length > 0 ? (empresasComEmail / empresas.length) * 100 : 0;
       
       setStats(prev => ({
         ...prev,
         empresasCadastradas: empresas.length,
-        empresasComTelefone: empresasComTelefone,
-        percentualTelefones: percentual
+        empresasComEmail: empresasComEmail,
+        percentualEmails: percentual
       }));
       
     } catch (error) {
@@ -84,16 +77,16 @@ const AdminPage = ({ onNavigate }) => {
   };
 
   const loadProducts = () => {
-    const produtosSalvos = localStorage.getItem('adminProdutos');
-    if (produtosSalvos) {
-      try {
+    try {
+      const produtosSalvos = localStorage.getItem('adminProdutos');
+      if (produtosSalvos) {
         const produtosParsed = JSON.parse(produtosSalvos);
         setProdutos(produtosParsed);
-      } catch (error) {
-        console.error('Erro ao fazer parse dos produtos salvos:', error);
+      } else {
         initializeDefaultProducts();
       }
-    } else {
+    } catch (error) {
+      console.error('Erro ao carregar produtos:', error);
       initializeDefaultProducts();
     }
   };
@@ -155,8 +148,7 @@ const AdminPage = ({ onNavigate }) => {
       }
     ];
     
-    setProdutos(produtosIniciais);
-    localStorage.setItem('adminProdutos', JSON.stringify(produtosIniciais));
+    saveProducts(produtosIniciais);
   };
 
   const calcularEstatisticas = (pedidosList) => {
@@ -175,161 +167,88 @@ const AdminPage = ({ onNavigate }) => {
     }));
   };
 
-  // Função para alterar status do pedido
-  const alterarStatusPedido = (pedidoId, novoStatus) => {
-    try {
-      const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
-      const pedidosAtualizados = pedidosAdmin.map(pedido => 
-        pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
-      );
-      
-      localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAtualizados));
-      loadPedidos(); // Recarrega a lista
-      
-      const statusInfo = statusPedidos.find(s => s.value === novoStatus);
-      alert(`Status alterado para: ${statusInfo.label}`);
-    } catch (error) {
-      console.error('Erro ao alterar status:', error);
-      alert('Erro ao alterar status do pedido');
-    }
-  };
-
-  // Função para obter informações do status
-  const getStatusInfo = (status) => {
-    return statusPedidos.find(s => s.value === status) || statusPedidos[0];
-  };
-
-  // Função para consultar CNPJ na aba admin
-  const handleCnpjConsultaChange = (e) => {
-    const maskedValue = cnpjService.aplicarMascaraCnpj(e.target.value);
-    setCnpjConsulta(maskedValue);
-    
-    if (dadosEmpresaConsulta) {
-      setDadosEmpresaConsulta(null);
-      setErroConsultaCnpj('');
-    }
-  };
-
-  const consultarCnpjAdmin = async () => {
-    if (!cnpjConsulta.trim()) {
-      alert('Por favor, informe o CNPJ');
-      return;
-    }
-
-    setConsultandoCnpj(true);
-    setErroConsultaCnpj('');
-    
-    try {
-      // Simula consulta
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setDadosEmpresaConsulta({
-        cnpj: cnpjConsulta,
-        razaoSocial: `Empresa Consulta ${cnpjConsulta.substring(0, 8)}`,
-        nomeFantasia: `Fantasia ${cnpjConsulta.substring(0, 8)}`,
-        situacao: 'ATIVA',
-        atividade: 'Atividade comercial em geral',
-        municipio: 'São Paulo',
-        uf: 'SP'
-      });
-    } catch (error) {
-      setErroConsultaCnpj('Erro ao consultar CNPJ. Tente novamente.');
-      setDadosEmpresaConsulta(null);
-    } finally {
-      setConsultandoCnpj(false);
-    }
-  };
-
-  // Função para ativar/desativar empresa
-  const toggleEmpresaAtiva = async (empresaId, ativo) => {
-    try {
-      const resultado = await authSupabaseService.toggleEmpresaAtiva(empresaId, !ativo);
-      if (resultado.success) {
-        alert(resultado.message);
-        loadEmpresasCadastradas();
-      } else {
-        alert(`Erro: ${resultado.error}`);
-      }
-    } catch (error) {
-      console.error('Erro ao alterar status da empresa:', error);
-      alert('Erro ao alterar status da empresa');
-    }
-  };
-
-  // NOVA FUNÇÃO: Formatar telefone para exibição
-  const formatarTelefone = (telefone) => {
-    if (!telefone) return 'Não informado';
-    const numeros = telefone.replace(/\D/g, '');
-    if (numeros.length === 11) {
-      return numeros.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
-    } else if (numeros.length === 10) {
-      return numeros.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
-    }
-    return telefone;
-  };
-
-  // NOVA FUNÇÃO: Validar telefone no admin
-  const validarTelefoneEmpresa = async (telefone) => {
-    if (!telefone) return null;
-    
-    try {
-      // Simulação de validação
-      const numeros = telefone.replace(/\D/g, '');
-      return {
-        valido: numeros.length >= 10 && numeros.length <= 11,
-        operadora: numeros.length === 11 ? 'Celular' : 'Fixo',
-        ddd: numeros.substring(0, 2)
-      };
-    } catch (error) {
-      return { valido: false, erro: 'Erro na validação' };
-    }
-  };
-
-  // Resto das funções de produto (mantidas iguais)
+  // FUNÇÃO CORRIGIDA PARA SALVAR PRODUTOS
   const saveProducts = (newProducts) => {
     try {
-      setProdutos(newProducts);
       localStorage.setItem('adminProdutos', JSON.stringify(newProducts));
-      setTimeout(() => loadProducts(), 100);
+      setProdutos(newProducts);
+      console.log('Produtos salvos com sucesso:', newProducts);
     } catch (error) {
       console.error('Erro ao salvar produtos:', error);
       alert('Erro ao salvar produtos. Tente novamente.');
     }
   };
 
+  // FUNÇÃO CORRIGIDA PARA ADICIONAR/EDITAR PRODUTO
   const handleProductSubmit = async (e) => {
     e.preventDefault();
     
     try {
+      // Validações básicas
+      if (!productForm.nome.trim()) {
+        alert('Nome do produto é obrigatório');
+        return;
+      }
+      
+      if (!productForm.descricao.trim()) {
+        alert('Descrição do produto é obrigatória');
+        return;
+      }
+      
+      if (!productForm.preco || parseFloat(productForm.preco) <= 0) {
+        alert('Preço deve ser maior que zero');
+        return;
+      }
+
+      if (!productForm.imagem.trim()) {
+        alert('URL da imagem é obrigatória');
+        return;
+      }
+      
       let produtosAtualizados;
       
       if (editingProduct) {
+        // Editando produto existente
         const novoProduto = {
           ...editingProduct,
-          ...productForm,
+          nome: productForm.nome.trim(),
+          descricao: productForm.descricao.trim(),
           preco: parseFloat(productForm.preco),
-          estoque: parseInt(productForm.estoque)
+          categoria: productForm.categoria,
+          imagem: productForm.imagem.trim(),
+          disponivel: productForm.disponivel,
+          estoque: parseInt(productForm.estoque) || 100
         };
         
         produtosAtualizados = produtos.map(p => 
           p.id === editingProduct.id ? novoProduto : p
         );
         
-        setEditingProduct(null);
         alert('Produto atualizado com sucesso!');
+        setEditingProduct(null);
       } else {
+        // Adicionando novo produto
+        const novoId = produtos.length > 0 ? Math.max(...produtos.map(p => p.id)) + 1 : 1;
+        
         const novoProduto = {
-          id: Math.max(...produtos.map(p => p.id), 0) + 1,
-          ...productForm,
+          id: novoId,
+          nome: productForm.nome.trim(),
+          descricao: productForm.descricao.trim(),
           preco: parseFloat(productForm.preco),
-          estoque: parseInt(productForm.estoque)
+          categoria: productForm.categoria,
+          imagem: productForm.imagem.trim(),
+          disponivel: productForm.disponivel,
+          estoque: parseInt(productForm.estoque) || 100
         };
         
         produtosAtualizados = [...produtos, novoProduto];
         alert('Produto adicionado com sucesso!');
       }
       
+      // Salva produtos atualizados
       saveProducts(produtosAtualizados);
       
+      // Limpa o formulário
       setProductForm({
         nome: '',
         descricao: '',
@@ -339,7 +258,9 @@ const AdminPage = ({ onNavigate }) => {
         disponivel: true,
         estoque: 100
       });
+      
       setShowAddProduct(false);
+      
     } catch (error) {
       console.error('Erro ao processar produto:', error);
       alert('Erro ao processar produto. Verifique os dados e tente novamente.');
@@ -386,6 +307,49 @@ const AdminPage = ({ onNavigate }) => {
       console.error('Erro ao alterar disponibilidade:', error);
       alert('Erro ao alterar disponibilidade. Tente novamente.');
     }
+  };
+
+  // Função para alterar status do pedido
+  const alterarStatusPedido = (pedidoId, novoStatus) => {
+    try {
+      const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
+      const pedidosAtualizados = pedidosAdmin.map(pedido => 
+        pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
+      );
+      
+      localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAtualizados));
+      loadPedidos();
+      
+      const statusInfo = statusPedidos.find(s => s.value === novoStatus);
+      alert(`Status alterado para: ${statusInfo.label}`);
+    } catch (error) {
+      console.error('Erro ao alterar status:', error);
+      alert('Erro ao alterar status do pedido');
+    }
+  };
+
+  const getStatusInfo = (status) => {
+    return statusPedidos.find(s => s.value === status) || statusPedidos[0];
+  };
+
+  const toggleEmpresaAtiva = async (empresaId, ativo) => {
+    try {
+      const resultado = await authSupabaseService.toggleEmpresaAtiva(empresaId, !ativo);
+      if (resultado.success) {
+        alert(resultado.message);
+        loadEmpresasCadastradas();
+      } else {
+        alert(`Erro: ${resultado.error}`);
+      }
+    } catch (error) {
+      console.error('Erro ao alterar status da empresa:', error);
+      alert('Erro ao alterar status da empresa');
+    }
+  };
+
+  const formatarEmail = (email) => {
+    if (!email) return 'Não informado';
+    return email;
   };
 
   const logout = () => {
@@ -443,8 +407,7 @@ const AdminPage = ({ onNavigate }) => {
             { id: 'dashboard', label: '📊 Dashboard' },
             { id: 'produtos', label: '🍽️ Produtos' },
             { id: 'pedidos', label: '📋 Pedidos' },
-            { id: 'empresas', label: '🏢 Empresas' },
-            { id: 'consulta-cnpj', label: '🔍 Consultar CNPJ' }
+            { id: 'empresas', label: '🏢 Empresas' }
           ].map(tab => (
             <button
               key={tab.id}
@@ -472,7 +435,7 @@ const AdminPage = ({ onNavigate }) => {
         maxWidth: '1200px',
         margin: '0 auto'
       }}>
-        {/* Dashboard Tab - ATUALIZADO COM ESTATÍSTICAS DE TELEFONE */}
+        {/* Dashboard Tab */}
         {activeTab === 'dashboard' && (
           <div>
             <h1 style={{ color: '#343a40', marginBottom: '30px' }}>📊 Dashboard</h1>
@@ -539,7 +502,6 @@ const AdminPage = ({ onNavigate }) => {
                 </div>
               </div>
 
-              {/* NOVA ESTATÍSTICA: Telefones */}
               <div style={{
                 backgroundColor: 'white',
                 padding: '25px',
@@ -547,20 +509,439 @@ const AdminPage = ({ onNavigate }) => {
                 boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                 textAlign: 'center'
               }}>
-                <div style={{ fontSize: '40px', marginBottom: '10px' }}>📱</div>
-                <h3 style={{ color: '#17a2b8', margin: '0 0 5px 0' }}>Empresas c/ Telefone</h3>
+                <div style={{ fontSize: '40px', marginBottom: '10px' }}>📧</div>
+                <h3 style={{ color: '#17a2b8', margin: '0 0 5px 0' }}>Empresas c/ Email</h3>
                 <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
-                  {stats.empresasComTelefone}
+                  {stats.empresasComEmail}
                 </div>
                 <div style={{ fontSize: '12px', color: '#666' }}>
-                  {stats.percentualTelefones.toFixed(1)}% do total
+                  {stats.percentualEmails.toFixed(1)}% do total
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Empresas Tab - ATUALIZADO COM TELEFONES */}
+        {/* Produtos Tab */}
+        {activeTab === 'produtos' && (
+          <div>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '30px'
+            }}>
+              <h1 style={{ color: '#343a40', margin: 0 }}>🍽️ Gerenciar Produtos</h1>
+              <button
+                onClick={() => {
+                  setShowAddProduct(true);
+                  setEditingProduct(null);
+                  setProductForm({
+                    nome: '',
+                    descricao: '',
+                    preco: '',
+                    categoria: 'fitness',
+                    imagem: '',
+                    disponivel: true,
+                    estoque: 100
+                  });
+                }}
+                style={{
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px 20px',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                ➕ Adicionar Produto
+              </button>
+            </div>
+
+            {/* Formulário de Produto */}
+            {showAddProduct && (
+              <div style={{
+                backgroundColor: 'white',
+                padding: '30px',
+                borderRadius: '10px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                marginBottom: '30px'
+              }}>
+                <h3 style={{ color: '#343a40', marginBottom: '20px' }}>
+                  {editingProduct ? 'Editar Produto' : 'Adicionar Novo Produto'}
+                </h3>
+                
+                <form onSubmit={handleProductSubmit}>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '20px',
+                    marginBottom: '20px'
+                  }}>
+                    <div>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '8px', 
+                        fontWeight: 'bold' 
+                      }}>
+                        Nome do Produto *
+                      </label>
+                      <input
+                        type="text"
+                        value={productForm.nome}
+                        onChange={(e) => setProductForm({...productForm, nome: e.target.value})}
+                        placeholder="Ex: Marmita Fitness"
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          border: '1px solid #ddd',
+                          borderRadius: '5px',
+                          fontSize: '16px',
+                          boxSizing: 'border-box'
+                        }}
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '8px', 
+                        fontWeight: 'bold' 
+                      }}>
+                        Preço (R$) *
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={productForm.preco}
+                        onChange={(e) => setProductForm({...productForm, preco: e.target.value})}
+                        placeholder="Ex: 18.90"
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          border: '1px solid #ddd',
+                          borderRadius: '5px',
+                          fontSize: '16px',
+                          boxSizing: 'border-box'
+                        }}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{ 
+                      display: 'block', 
+                      marginBottom: '8px', 
+                      fontWeight: 'bold' 
+                    }}>
+                      Descrição *
+                    </label>
+                    <textarea
+                      value={productForm.descricao}
+                      onChange={(e) => setProductForm({...productForm, descricao: e.target.value})}
+                      placeholder="Descreva o produto..."
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        border: '1px solid #ddd',
+                        borderRadius: '5px',
+                        fontSize: '16px',
+                        resize: 'vertical',
+                        height: '100px',
+                        boxSizing: 'border-box'
+                      }}
+                      required
+                    />
+                  </div>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: '20px',
+                    marginBottom: '20px'
+                  }}>
+                    <div>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '8px', 
+                        fontWeight: 'bold' 
+                      }}>
+                        Categoria
+                      </label>
+                      <select
+                        value={productForm.categoria}
+                        onChange={(e) => setProductForm({...productForm, categoria: e.target.value})}
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          border: '1px solid #ddd',
+                          borderRadius: '5px',
+                          fontSize: '16px',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        <option value="fitness">Fitness</option>
+                        <option value="vegana">Vegana</option>
+                        <option value="tradicional">Tradicional</option>
+                        <option value="gourmet">Gourmet</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '8px', 
+                        fontWeight: 'bold' 
+                      }}>
+                        Estoque
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={productForm.estoque}
+                        onChange={(e) => setProductForm({...productForm, estoque: e.target.value})}
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          border: '1px solid #ddd',
+                          borderRadius: '5px',
+                          fontSize: '16px',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label style={{ 
+                        display: 'block', 
+                        marginBottom: '8px', 
+                        fontWeight: 'bold' 
+                      }}>
+                        Status
+                      </label>
+                      <select
+                        value={productForm.disponivel}
+                        onChange={(e) => setProductForm({...productForm, disponivel: e.target.value === 'true'})}
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          border: '1px solid #ddd',
+                          borderRadius: '5px',
+                          fontSize: '16px',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        <option value="true">Disponível</option>
+                        <option value="false">Indisponível</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '25px' }}>
+                    <label style={{ 
+                      display: 'block', 
+                      marginBottom: '8px', 
+                      fontWeight: 'bold' 
+                    }}>
+                      URL da Imagem *
+                    </label>
+                    <input
+                      type="url"
+                      value={productForm.imagem}
+                      onChange={(e) => setProductForm({...productForm, imagem: e.target.value})}
+                      placeholder="https://exemplo.com/imagem.jpg"
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        border: '1px solid #ddd',
+                        borderRadius: '5px',
+                        fontSize: '16px',
+                        boxSizing: 'border-box'
+                      }}
+                      required
+                    />
+                    {productForm.imagem && (
+                      <img
+                        src={productForm.imagem}
+                        alt="Preview"
+                        style={{
+                          width: '100px',
+                          height: '60px',
+                          objectFit: 'cover',
+                          marginTop: '10px',
+                          borderRadius: '5px',
+                          border: '1px solid #ddd'
+                        }}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="submit"
+                      style={{
+                        backgroundColor: '#28a745',
+                        color: 'white',
+                        border: 'none',
+                        padding: '12px 20px',
+                        borderRadius: '5px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      {editingProduct ? 'Atualizar Produto' : 'Adicionar Produto'}
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddProduct(false);
+                        setEditingProduct(null);
+                      }}
+                      style={{
+                        backgroundColor: '#6c757d',
+                        color: 'white',
+                        border: 'none',
+                        padding: '12px 20px',
+                        borderRadius: '5px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+              gap: '20px'
+            }}>
+              {produtos.map(produto => (
+                <div
+                  key={produto.id}
+                  style={{
+                    backgroundColor: 'white',
+                    borderRadius: '10px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    overflow: 'hidden',
+                    opacity: produto.disponivel ? 1 : 0.6
+                  }}
+                >
+                  <img
+                    src={produto.imagem}
+                    alt={produto.nome}
+                    style={{
+                      width: '100%',
+                      height: '120px',
+                      objectFit: 'cover'
+                    }}
+                  />
+                  
+                  <div style={{ padding: '15px' }}>
+                    <h3 style={{
+                      margin: 0,
+                      color: '#343a40',
+                      fontSize: '16px',
+                      marginBottom: '10px'
+                    }}>
+                      {produto.nome}
+                    </h3>
+                    
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '10px'
+                    }}>
+                      <span style={{
+                        fontSize: '18px',
+                        fontWeight: 'bold',
+                        color: '#28a745'
+                      }}>
+                        R$ {produto.preco.toFixed(2)}
+                      </span>
+                      <span style={{
+                        backgroundColor: produto.disponivel ? '#28a745' : '#dc3545',
+                        color: 'white',
+                        padding: '2px 6px',
+                        borderRadius: '8px',
+                        fontSize: '10px',
+                        fontWeight: 'bold'
+                      }}>
+                        {produto.disponivel ? 'ATIVO' : 'INATIVO'}
+                      </span>
+                    </div>
+                    
+                    <div style={{
+                      display: 'flex',
+                      gap: '5px',
+                      flexWrap: 'wrap'
+                    }}>
+                      <button
+                        onClick={() => editProduct(produto)}
+                        style={{
+                          backgroundColor: '#007bff',
+                          color: 'white',
+                          border: 'none',
+                          padding: '4px 8px',
+                          borderRadius: '3px',
+                          cursor: 'pointer',
+                          fontSize: '10px'
+                        }}
+                      >
+                        ✏️ Editar
+                      </button>
+                      
+                      <button
+                        onClick={() => toggleProductAvailability(produto.id)}
+                        style={{
+                          backgroundColor: produto.disponivel ? '#ffc107' : '#28a745',
+                          color: produto.disponivel ? '#000' : 'white',
+                          border: 'none',
+                          padding: '4px 8px',
+                          borderRadius: '3px',
+                          cursor: 'pointer',
+                          fontSize: '10px'
+                        }}
+                      >
+                        {produto.disponivel ? '⏸️' : '▶️'}
+                      </button>
+                      
+                      <button
+                        onClick={() => deleteProduct(produto.id)}
+                        style={{
+                          backgroundColor: '#dc3545',
+                          color: 'white',
+                          border: 'none',
+                          padding: '4px 8px',
+                          borderRadius: '3px',
+                          cursor: 'pointer',
+                          fontSize: '10px'
+                        }}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Empresas Tab - ATUALIZADO COM EMAILS */}
         {activeTab === 'empresas' && (
           <div>
             <h1 style={{ color: '#343a40', marginBottom: '30px' }}>🏢 Empresas Cadastradas</h1>
@@ -613,16 +994,22 @@ const AdminPage = ({ onNavigate }) => {
                           <strong>CNPJ:</strong> {empresa.cnpj_formatado}
                         </p>
                         
-                        {/* TELEFONE COM DESTAQUE */}
+                        {/* EMAIL COM DESTAQUE */}
                         <p style={{ 
                           margin: '0 0 5px 0', 
-                          color: empresa.telefone ? '#28a745' : '#dc3545', 
+                          color: empresa.email ? '#28a745' : '#dc3545', 
                           fontSize: '14px',
-                          fontWeight: empresa.telefone ? 'bold' : 'normal'
+                          fontWeight: empresa.email ? 'bold' : 'normal'
                         }}>
-                          <strong>📱 Telefone:</strong> {formatarTelefone(empresa.telefone)}
-                          {!empresa.telefone && <span style={{ color: '#dc3545' }}> ⚠️ Não cadastrado</span>}
+                          <strong>📧 Email:</strong> {formatarEmail(empresa.email)}
+                          {!empresa.email && <span style={{ color: '#dc3545' }}> ⚠️ Não cadastrado</span>}
                         </p>
+
+                        {empresa.telefone && (
+                          <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
+                            <strong>📱 Telefone:</strong> {empresa.telefone}
+                          </p>
+                        )}
                         
                         <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
                           <strong>Cadastro:</strong> {new Date(empresa.data_cadastro).toLocaleDateString('pt-BR')}
@@ -652,16 +1039,16 @@ const AdminPage = ({ onNavigate }) => {
                           {empresa.ativo ? 'ATIVO' : 'INATIVO'}
                         </span>
 
-                        {/* INDICADOR DE TELEFONE */}
+                        {/* INDICADOR DE EMAIL */}
                         <span style={{
-                          backgroundColor: empresa.telefone ? '#28a745' : '#ffc107',
-                          color: empresa.telefone ? 'white' : '#000',
+                          backgroundColor: empresa.email ? '#28a745' : '#ffc107',
+                          color: empresa.email ? 'white' : '#000',
                           padding: '4px 8px',
                           borderRadius: '12px',
                           fontSize: '12px',
                           fontWeight: 'bold'
                         }}>
-                          {empresa.telefone ? '📱 COM TEL' : '⚠️ SEM TEL'}
+                          {empresa.email ? '📧 COM EMAIL' : '⚠️ SEM EMAIL'}
                         </span>
                         
                         {empresa.tentativas_login > 0 && (
@@ -701,7 +1088,7 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Outras abas mantidas iguais - Pedidos e Consulta CNPJ */}
+        {/* Pedidos Tab - mantida igual */}
         {activeTab === 'pedidos' && (
           <div>
             <div style={{
@@ -835,304 +1222,6 @@ const AdminPage = ({ onNavigate }) => {
                   );
                 })
               )}
-            </div>
-          </div>
-        )}
-
-        {/* Consultar CNPJ Tab - mantida igual */}
-        {activeTab === 'consulta-cnpj' && (
-          <div>
-            <h1 style={{ color: '#343a40', marginBottom: '30px' }}>🔍 Consultar CNPJ</h1>
-            
-            <div style={{
-              backgroundColor: 'white',
-              padding: '30px',
-              borderRadius: '10px',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              marginBottom: '30px'
-            }}>
-              <h3 style={{ color: '#007bff', marginBottom: '20px' }}>Consulta na Receita Federal</h3>
-              
-              <div style={{
-                display: 'flex',
-                gap: '15px',
-                marginBottom: '20px',
-                alignItems: 'flex-end'
-              }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ 
-                    display: 'block', 
-                    marginBottom: '8px', 
-                    fontWeight: 'bold' 
-                  }}>
-                    CNPJ da Empresa
-                  </label>
-                  <input
-                    type="text"
-                    value={cnpjConsulta}
-                    onChange={handleCnpjConsultaChange}
-                    placeholder="00.000.000/0000-00"
-                    maxLength="18"
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      border: '1px solid #ddd',
-                      borderRadius: '5px',
-                      fontSize: '16px'
-                    }}
-                  />
-                </div>
-                
-                <button
-                  onClick={consultarCnpjAdmin}
-                  disabled={consultandoCnpj}
-                  style={{
-                    backgroundColor: consultandoCnpj ? '#ccc' : '#007bff',
-                    color: 'white',
-                    border: 'none',
-                    padding: '12px 20px',
-                    borderRadius: '5px',
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    cursor: consultandoCnpj ? 'wait' : 'pointer',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  {consultandoCnpj ? '🔍 Consultando...' : '🔍 Consultar'}
-                </button>
-              </div>
-
-              {consultandoCnpj && (
-                <div style={{
-                  backgroundColor: '#e7f3ff',
-                  padding: '15px',
-                  borderRadius: '5px',
-                  textAlign: 'center',
-                  color: '#0066cc'
-                }}>
-                  🔄 Consultando CNPJ na Receita Federal, aguarde...
-                </div>
-              )}
-
-              {dadosEmpresaConsulta && !consultandoCnpj && (
-                <div style={{
-                  backgroundColor: '#d4edda',
-                  padding: '20px',
-                  borderRadius: '8px',
-                  border: '1px solid #c3e6cb'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginBottom: '15px',
-                    color: '#155724'
-                  }}>
-                    <span style={{ fontSize: '24px', marginRight: '10px' }}>✅</span>
-                    <strong style={{ fontSize: '18px' }}>Empresa encontrada na Receita Federal!</strong>
-                  </div>
-                  
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-                    gap: '15px',
-                    fontSize: '14px',
-                    color: '#155724'
-                  }}>
-                    <div>
-                      <strong>CNPJ:</strong> {dadosEmpresaConsulta.cnpj}
-                    </div>
-                    <div>
-                      <strong>Razão Social:</strong> {dadosEmpresaConsulta.razaoSocial}
-                    </div>
-                    {dadosEmpresaConsulta.nomeFantasia && (
-                      <div>
-                        <strong>Nome Fantasia:</strong> {dadosEmpresaConsulta.nomeFantasia}
-                      </div>
-                    )}
-                    <div>
-                      <strong>Situação:</strong> {dadosEmpresaConsulta.situacao}
-                    </div>
-                    {dadosEmpresaConsulta.atividade && (
-                      <div>
-                        <strong>Atividade Principal:</strong> {dadosEmpresaConsulta.atividade}
-                      </div>
-                    )}
-                    {dadosEmpresaConsulta.municipio && dadosEmpresaConsulta.uf && (
-                      <div>
-                        <strong>Localização:</strong> {dadosEmpresaConsulta.municipio}/{dadosEmpresaConsulta.uf}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {erroConsultaCnpj && !consultandoCnpj && (
-                <div style={{
-                  backgroundColor: '#f8d7da',
-                  padding: '15px',
-                  borderRadius: '5px',
-                  color: '#721c24',
-                  border: '1px solid #f5c6cb'
-                }}>
-                  <strong>❌ Erro na consulta:</strong> {erroConsultaCnpj}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Produtos Tab - mantida igual */}
-        {activeTab === 'produtos' && (
-          <div>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '30px'
-            }}>
-              <h1 style={{ color: '#343a40', margin: 0 }}>🍽️ Gerenciar Produtos</h1>
-              <button
-                onClick={() => {
-                  setShowAddProduct(true);
-                  setEditingProduct(null);
-                  setProductForm({
-                    nome: '',
-                    descricao: '',
-                    preco: '',
-                    categoria: 'fitness',
-                    imagem: '',
-                    disponivel: true,
-                    estoque: 100
-                  });
-                }}
-                style={{
-                  backgroundColor: '#28a745',
-                  color: 'white',
-                  border: 'none',
-                  padding: '12px 20px',
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold'
-                }}
-              >
-                ➕ Adicionar Produto
-              </button>
-            </div>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-              gap: '20px'
-            }}>
-              {produtos.map(produto => (
-                <div
-                  key={produto.id}
-                  style={{
-                    backgroundColor: 'white',
-                    borderRadius: '10px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                    overflow: 'hidden',
-                    opacity: produto.disponivel ? 1 : 0.6
-                  }}
-                >
-                  <img
-                    src={produto.imagem}
-                    alt={produto.nome}
-                    style={{
-                      width: '100%',
-                      height: '120px',
-                      objectFit: 'cover'
-                    }}
-                  />
-                  
-                  <div style={{ padding: '15px' }}>
-                    <h3 style={{
-                      margin: 0,
-                      color: '#343a40',
-                      fontSize: '16px',
-                      marginBottom: '10px'
-                    }}>
-                      {produto.nome}
-                    </h3>
-                    
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: '10px'
-                    }}>
-                      <span style={{
-                        fontSize: '18px',
-                        fontWeight: 'bold',
-                        color: '#28a745'
-                      }}>
-                        R$ {produto.preco.toFixed(2)}
-                      </span>
-                      <span style={{
-                        backgroundColor: produto.disponivel ? '#28a745' : '#dc3545',
-                        color: 'white',
-                        padding: '2px 6px',
-                        borderRadius: '8px',
-                        fontSize: '10px',
-                        fontWeight: 'bold'
-                      }}>
-                        {produto.disponivel ? 'ATIVO' : 'INATIVO'}
-                      </span>
-                    </div>
-                    
-                    <div style={{
-                      display: 'flex',
-                      gap: '5px',
-                      flexWrap: 'wrap'
-                    }}>
-                      <button
-                        onClick={() => editProduct(produto)}
-                        style={{
-                          backgroundColor: '#007bff',
-                          color: 'white',
-                          border: 'none',
-                          padding: '4px 8px',
-                          borderRadius: '3px',
-                          cursor: 'pointer',
-                          fontSize: '10px'
-                        }}
-                      >
-                        ✏️ Editar
-                      </button>
-                      
-                      <button
-                        onClick={() => toggleProductAvailability(produto.id)}
-                        style={{
-                          backgroundColor: produto.disponivel ? '#ffc107' : '#28a745',
-                          color: produto.disponivel ? '#000' : 'white',
-                          border: 'none',
-                          padding: '4px 8px',
-                          borderRadius: '3px',
-                          cursor: 'pointer',
-                          fontSize: '10px'
-                        }}
-                      >
-                        {produto.disponivel ? '⏸️' : '▶️'}
-                      </button>
-                      
-                      <button
-                        onClick={() => deleteProduct(produto.id)}
-                        style={{
-                          backgroundColor: '#dc3545',
-                          color: 'white',
-                          border: 'none',
-                          padding: '4px 8px',
-                          borderRadius: '3px',
-                          cursor: 'pointer',
-                          fontSize: '10px'
-                        }}
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         )}

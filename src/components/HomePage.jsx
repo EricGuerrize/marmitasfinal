@@ -5,7 +5,7 @@ import LogoComponent from './LogoComponent';
 const HomePage = ({ onNavigate }) => {
   const [cnpj, setCnpj] = useState('');
   const [senha, setSenha] = useState('');
-  const [telefone, setTelefone] = useState(''); // NOVO CAMPO
+  const [email, setEmail] = useState(''); // NOVO CAMPO EMAIL
   const [isMobile, setIsMobile] = useState(false);
   const [fazendoLogin, setFazendoLogin] = useState(false);
   const [modo, setModo] = useState('login'); // 'login' ou 'cadastro'
@@ -27,7 +27,6 @@ const HomePage = ({ onNavigate }) => {
   useEffect(() => {
     const sessaoAtiva = authSupabaseService.verificarSessao();
     if (sessaoAtiva) {
-      // Já está logado, vai direto para a área restrita (SEM POPUP)
       onNavigate('prosseguir');
     }
   }, [onNavigate]);
@@ -44,24 +43,9 @@ const HomePage = ({ onNavigate }) => {
       .slice(0, 18);
   };
 
-  // Função para aplicar máscara de telefone
-  const applyPhoneMask = (value) => {
-    const onlyNumbers = value.replace(/\D/g, '');
-    
-    return onlyNumbers
-      .replace(/^(\d{2})(\d)/, '($1) $2')
-      .replace(/(\d{5})(\d)/, '$1-$2')
-      .slice(0, 15); // (11) 99999-9999
-  };
-
   const handleCnpjChange = (e) => {
     const maskedValue = applyCnpjMask(e.target.value);
     setCnpj(maskedValue);
-  };
-
-  const handleTelefoneChange = (e) => {
-    const maskedValue = applyPhoneMask(e.target.value);
-    setTelefone(maskedValue);
   };
 
   const handleLogin = async () => {
@@ -81,7 +65,6 @@ const HomePage = ({ onNavigate }) => {
       const resultado = await authSupabaseService.autenticar(cnpj, senha);
       
       if (resultado.success) {
-        // Login sem popup - vai direto para área restrita
         onNavigate('prosseguir');
       } else {
         alert(`Erro no login: ${resultado.error}`);
@@ -114,24 +97,18 @@ const HomePage = ({ onNavigate }) => {
       return;
     }
 
-    // VALIDAÇÃO DE TELEFONE OBRIGATÓRIA
-    if (!telefone.trim()) {
-      alert('Por favor, informe o telefone da empresa');
-      return;
-    }
-
-    const telefoneNumeros = telefone.replace(/\D/g, '');
-    if (telefoneNumeros.length < 10 || telefoneNumeros.length > 11) {
-      alert('Telefone deve ter 10 ou 11 dígitos');
+    // EMAIL OPCIONAL - não obrigatório mais
+    if (email && !isValidEmail(email)) {
+      alert('Email inválido');
       return;
     }
     
     setFazendoLogin(true);
     
     try {
-      // Passa telefone como dado adicional
+      // Dados da empresa com email opcional
       const dadosEmpresa = {
-        telefone: telefone
+        email: email.trim() || null // Email opcional
       };
 
       const resultado = await authSupabaseService.registrarEmpresa(cnpj, senha, dadosEmpresa);
@@ -141,7 +118,7 @@ const HomePage = ({ onNavigate }) => {
         setModo('login');
         setSenha('');
         setConfirmarSenha('');
-        setTelefone('');
+        setEmail('');
       } else {
         alert(`Erro no cadastro: ${resultado.error}`);
       }
@@ -150,6 +127,10 @@ const HomePage = ({ onNavigate }) => {
     } finally {
       setFazendoLogin(false);
     }
+  };
+
+  const isValidEmail = (email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
   const handleKeyPress = (e) => {
@@ -163,7 +144,6 @@ const HomePage = ({ onNavigate }) => {
   };
 
   const handleMeusPedidos = () => {
-    // Se não está logado, pede para logar primeiro
     const sessaoAtiva = authSupabaseService.verificarSessao();
     if (!sessaoAtiva) {
       alert('Faça login para acessar seus pedidos');
@@ -172,7 +152,6 @@ const HomePage = ({ onNavigate }) => {
     onNavigate('prosseguir');
   };
 
-  // Função para acessar admin (removido clique triplo secreto)
   const handleAdminAccess = () => {
     const senha = prompt('Digite a senha do administrador:');
     if (senha === 'admin123') {
@@ -328,7 +307,7 @@ const HomePage = ({ onNavigate }) => {
             />
           </div>
 
-          {/* Campo Telefone (APENAS NO CADASTRO) */}
+          {/* Campo Email (APENAS NO CADASTRO - OPCIONAL) */}
           {modo === 'cadastro' && (
             <div style={{ marginBottom: '20px', textAlign: 'left' }}>
               <label style={{ 
@@ -337,15 +316,14 @@ const HomePage = ({ onNavigate }) => {
                 fontWeight: 'bold',
                 color: '#009245'
               }}>
-                Telefone da Empresa *
+                Email (opcional)
               </label>
               <input 
-                type="text"
-                value={telefone}
-                onChange={handleTelefoneChange}
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="(11) 99999-9999"
-                maxLength="15"
+                placeholder="empresa@exemplo.com"
                 style={{
                   width: '100%',
                   padding: '12px',
@@ -357,7 +335,7 @@ const HomePage = ({ onNavigate }) => {
                 }}
               />
               <small style={{ color: '#666', fontSize: '12px' }}>
-                Necessário para recuperação de senha e contato para entrega
+                Email para recuperação de senha e comunicações importantes
               </small>
             </div>
           )}
@@ -420,7 +398,7 @@ const HomePage = ({ onNavigate }) => {
             </div>
           )}
 
-          {/* Aviso sobre telefone (só no cadastro) */}
+          {/* Aviso sobre email (só no cadastro) */}
           {modo === 'cadastro' && (
             <div style={{
               backgroundColor: '#e7f3ff',
@@ -431,13 +409,15 @@ const HomePage = ({ onNavigate }) => {
               color: '#0066cc',
               border: '1px solid #b3d9ff'
             }}>
-              <strong>📱 Por que precisamos do telefone?</strong>
+              <strong>📧 Por que o email é útil?</strong>
               <br />
-              • Para confirmar pedidos e coordenar entregas
+              • Para recuperação de senha
               <br />
-              • Para recuperação de senha por SMS
+              • Para receber atualizações de pedidos
               <br />
-              • Para contato em caso de problemas
+              • Para comunicações importantes
+              <br />
+              <em>(Campo opcional - você pode cadastrar sem email)</em>
             </div>
           )}
 

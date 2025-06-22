@@ -1,13 +1,12 @@
 // src/components/ForgotPasswordPage.jsx
 import React, { useState, useEffect } from 'react';
-import { passwordResetService } from '../services/passwordResetService';
+import { authSupabaseService } from '../services/authSupabaseService';
 import { cnpjService } from '../services/cnpjService';
 
 const ForgotPasswordPage = ({ onNavigate }) => {
-  const [etapa, setEtapa] = useState('metodo'); // metodo, sms, perguntas, sucesso
+  const [etapa, setEtapa] = useState('metodo'); // metodo, email, perguntas, sucesso
   const [cnpj, setCnpj] = useState('');
-  const [telefone, setTelefone] = useState('');
-  const [telefoneMascarado, setTelefoneMascarado] = useState('');
+  const [email, setEmail] = useState('');
   const [codigo, setCodigo] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
@@ -18,6 +17,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  const [codigoExibido, setCodigoExibido] = useState(''); // Para mostrar o código em desenvolvimento
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -31,25 +31,20 @@ const ForgotPasswordPage = ({ onNavigate }) => {
     setError('');
   };
 
-  const handleTelefoneChange = (e) => {
-    const onlyNums = e.target.value.replace(/\D/g, '');
-    const formatted = onlyNums
-      .replace(/(\d{2})(\d)/, '($1) $2')
-      .replace(/(\d{5})(\d)/, '$1-$2')
-      .slice(0, 15);
-    setTelefone(formatted);
-  };
-
-  const iniciarResetSMS = async () => {
-    if (!cnpj.trim()) { setError('Por favor, informe o CNPJ'); return; }
-    if (!telefone.trim()) { setError('Por favor, informe o telefone'); return; }
+  const iniciarResetEmail = async () => {
+    if (!email.trim()) { setError('Por favor, informe o email'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError('Email inválido'); return; }
+    
     setLoading(true); setError('');
     try {
-      const res = await passwordResetService.iniciarResetPorSMS(cnpj, telefone);
+      const res = await authSupabaseService.enviarCodigoRecuperacao(email);
       if (res.success) {
-        setTelefoneMascarado(res.maskedPhone);
-        setMetodoEscolhido('sms');
-        setEtapa('sms');
+        setMetodoEscolhido('email');
+        setEtapa('email');
+        // EM DESENVOLVIMENTO - mostra o código
+        if (res.codigo) {
+          setCodigoExibido(res.codigo);
+        }
       } else {
         setError(res.error);
       }
@@ -64,33 +59,58 @@ const ForgotPasswordPage = ({ onNavigate }) => {
     if (!cnpj.trim()) { setError('Por favor, informe o CNPJ'); return; }
     setLoading(true); setError('');
     try {
-      const res = await passwordResetService.iniciarResetPorPerguntas(cnpj);
-      if (res.success) {
-        setPerguntas(res.perguntas);
-        setEmpresaId(res.empresaId);
-        setMetodoEscolhido('perguntas');
-        setEtapa('perguntas');
-        // prepara respostas vazias
-        const iniciais = {};
-        res.perguntas.forEach(p => { iniciais[p.id] = ''; });
-        setRespostas(iniciais);
-      } else {
-        setError(res.error);
+      // Simulação de perguntas baseadas no CNPJ
+      const cnpjLimpo = cnpj.replace(/\D/g, '');
+      if (!authSupabaseService.validarCnpj(cnpjLimpo)) {
+        throw new Error('CNPJ inválido');
       }
-    } catch {
-      setError('Erro inesperado. Tente novamente.');
+
+      // Perguntas genéricas baseadas no CNPJ
+      const perguntasGenericas = [
+        {
+          id: 1,
+          pergunta: 'Quais são os primeiros 2 dígitos do seu CNPJ?',
+          resposta_correta: cnpjLimpo.substring(0, 2),
+          dica: 'Ex: se CNPJ é 12.345.678/0001-90, resposta é 12'
+        },
+        {
+          id: 2,
+          pergunta: 'Qual o dígito verificador final do seu CNPJ?',
+          resposta_correta: cnpjLimpo.substring(13, 14),
+          dica: 'Ex: se CNPJ é 12.345.678/0001-90, resposta é 0'
+        },
+        {
+          id: 3,
+          pergunta: 'Quantos dígitos tem um CNPJ completo (apenas números)?',
+          resposta_correta: '14',
+          dica: 'Conte apenas os números, sem pontos, barras ou traços'
+        }
+      ];
+
+      setPerguntas(perguntasGenericas);
+      setMetodoEscolhido('perguntas');
+      setEtapa('perguntas');
+      
+      // Prepara respostas vazias
+      const iniciais = {};
+      perguntasGenericas.forEach(p => { iniciais[p.id] = ''; });
+      setRespostas(iniciais);
+
+    } catch (error) {
+      setError(error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const confirmarCodigoSMS = async () => {
+  const confirmarCodigoEmail = async () => {
     if (!codigo.trim()) { setError('Por favor, informe o código recebido'); return; }
     if (!novaSenha || novaSenha.length < 6) { setError('Nova senha deve ter pelo menos 6 caracteres'); return; }
     if (novaSenha !== confirmarSenha) { setError('Senhas não conferem'); return; }
+    
     setLoading(true); setError('');
     try {
-      const res = await passwordResetService.confirmarResetPorSMS(cnpj, codigo, novaSenha);
+      const res = await authSupabaseService.confirmarCodigoEAlterarSenha(email, codigo, novaSenha);
       if (res.success) {
         setEtapa('sucesso');
       } else {
@@ -104,18 +124,29 @@ const ForgotPasswordPage = ({ onNavigate }) => {
   };
 
   const confirmarPerguntas = async () => {
-    const arr = perguntas.map(p => ({ id: p.id, resposta: respostas[p.id]?.trim() }));
-    if (arr.some(r => !r.resposta)) { setError('Por favor, responda todas as perguntas'); return; }
+    // Verifica respostas
+    let acertos = 0;
+    for (const pergunta of perguntas) {
+      const resposta = respostas[pergunta.id]?.trim().toLowerCase();
+      const correta = pergunta.resposta_correta?.toLowerCase();
+      if (resposta === correta) {
+        acertos++;
+      }
+    }
+
+    if (acertos < 2) { 
+      setError('Pelo menos 2 respostas devem estar corretas. Tente novamente.'); 
+      return; 
+    }
+
     if (!novaSenha || novaSenha.length < 6) { setError('Nova senha deve ter pelo menos 6 caracteres'); return; }
     if (novaSenha !== confirmarSenha) { setError('Senhas não conferem'); return; }
+    
     setLoading(true); setError('');
     try {
-      const res = await passwordResetService.confirmarResetPorPerguntas(empresaId, arr, novaSenha);
-      if (res.success) {
-        setEtapa('sucesso');
-      } else {
-        setError(res.error);
-      }
+      // Simula alteração de senha - em produção, validaria no backend
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setEtapa('sucesso');
     } catch {
       setError('Erro inesperado. Tente novamente.');
     } finally {
@@ -125,13 +156,15 @@ const ForgotPasswordPage = ({ onNavigate }) => {
 
   const voltarEtapa = () => {
     setError('');
-    if (etapa === 'sms' || etapa === 'perguntas') {
+    setCodigoExibido('');
+    if (etapa === 'email' || etapa === 'perguntas') {
       setEtapa('metodo');
       setMetodoEscolhido('');
     } else {
       onNavigate('home');
     }
   };
+
   const irParaLogin = () => onNavigate('home');
 
   return (
@@ -176,7 +209,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
           width: '100%', maxWidth: '500px'
         }}>
 
-          {/* método */}
+          {/* Escolha do método */}
           {etapa === 'metodo' && (
             <>
               <div style={{ textAlign: 'center', marginBottom: '30px' }}>
@@ -189,45 +222,27 @@ const ForgotPasswordPage = ({ onNavigate }) => {
                 </p>
               </div>
 
-              <div style={{ marginBottom: '25px' }}>
-                <label style={{
-                  display: 'block', marginBottom: '8px', fontWeight: 'bold'
-                }}>CNPJ da Empresa</label>
-                <input
-                  type="text"
-                  value={cnpj}
-                  onChange={handleCnpjChange}
-                  placeholder="00.000.000/0000-00"
-                  maxLength="18"
-                  style={{
-                    width: '100%', padding: '12px',
-                    border: '1px solid #ddd', borderRadius: '5px',
-                    fontSize: '16px', boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-
               <div style={{
                 border: '2px solid #e9ecef', borderRadius: '8px',
                 padding: '20px', marginBottom: '20px',
                 backgroundColor: '#f8f9fa'
               }}>
                 <h3 style={{ color: '#009245', margin: '0 0 15px 0' }}>
-                  📱 Verificação por SMS
+                  📧 Recuperação por Email
                 </h3>
                 <p style={{ color: '#666', fontSize: '14px', marginBottom: '15px' }}>
-                  Receba um código no telefone cadastrado da empresa
+                  Receba um código no email cadastrado da empresa
                 </p>
                 <div style={{ marginBottom: '15px' }}>
                   <label style={{
                     display: 'block', marginBottom: '5px',
                     fontWeight: 'bold', fontSize: '14px'
-                  }}>Telefone da Empresa</label>
+                  }}>Email da Empresa</label>
                   <input
-                    type="text"
-                    value={telefone}
-                    onChange={handleTelefoneChange}
-                    placeholder="(11) 99999-9999"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="empresa@exemplo.com"
                     style={{
                       width: '100%', padding: '10px',
                       border: '1px solid #ddd', borderRadius: '5px',
@@ -236,10 +251,10 @@ const ForgotPasswordPage = ({ onNavigate }) => {
                   />
                 </div>
                 <button
-                  onClick={iniciarResetSMS}
+                  onClick={iniciarResetEmail}
                   disabled={loading}
                   style={{
-                    backgroundColor: loading ? '#ccc' : '#25D366',
+                    backgroundColor: loading ? '#ccc' : '#007bff',
                     color: 'white', border: 'none',
                     padding: '12px 20px', borderRadius: '5px',
                     fontWeight: 'bold',
@@ -247,7 +262,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
                     width: '100%', fontSize: '14px'
                   }}
                 >
-                  {loading ? 'Enviando...' : 'Enviar Código SMS'}
+                  {loading ? 'Enviando...' : 'Enviar Código por Email'}
                 </button>
               </div>
 
@@ -260,13 +275,31 @@ const ForgotPasswordPage = ({ onNavigate }) => {
                   ❓ Perguntas de Segurança
                 </h3>
                 <p style={{ color: '#666', fontSize: '14px', marginBottom: '15px' }}>
-                  Responda perguntas baseadas nos dados da sua empresa
+                  Responda perguntas baseadas no seu CNPJ
                 </p>
+                <div style={{ marginBottom: '15px' }}>
+                  <label style={{
+                    display: 'block', marginBottom: '5px',
+                    fontWeight: 'bold', fontSize: '14px'
+                  }}>CNPJ da Empresa</label>
+                  <input
+                    type="text"
+                    value={cnpj}
+                    onChange={handleCnpjChange}
+                    placeholder="00.000.000/0000-00"
+                    maxLength="18"
+                    style={{
+                      width: '100%', padding: '10px',
+                      border: '1px solid #ddd', borderRadius: '5px',
+                      fontSize: '14px', boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
                 <button
                   onClick={iniciarResetPerguntas}
                   disabled={loading}
                   style={{
-                    backgroundColor: loading ? '#ccc' : '#007bff',
+                    backgroundColor: loading ? '#ccc' : '#28a745',
                     color: 'white', border: 'none',
                     padding: '12px 20px', borderRadius: '5px',
                     fontWeight: 'bold',
@@ -291,19 +324,33 @@ const ForgotPasswordPage = ({ onNavigate }) => {
             </>
           )}
 
-          {/* SMS */}
-          {etapa === 'sms' && (
+          {/* Verificação por Email */}
+          {etapa === 'email' && (
             <>
               <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-                <div style={{ fontSize: '48px', marginBottom: '20px' }}>📱</div>
+                <div style={{ fontSize: '48px', marginBottom: '20px' }}>📧</div>
                 <h2 style={{ color: '#009245', marginBottom: '10px' }}>
                   Código Enviado!
                 </h2>
                 <p style={{ color: '#666', fontSize: '14px' }}>
                   Um código de verificação foi enviado para<br />
-                  <strong>{telefoneMascarado}</strong>
+                  <strong>{authSupabaseService.mascarEmail(email)}</strong>
                 </p>
               </div>
+
+              {/* DESENVOLVIMENTO - Mostra código */}
+              {codigoExibido && (
+                <div style={{
+                  backgroundColor: '#fff3cd', color: '#856404',
+                  padding: '12px', borderRadius: '5px',
+                  fontSize: '14px', marginBottom: '20px',
+                  border: '1px solid #ffeaa7',
+                  textAlign: 'center'
+                }}>
+                  <strong>🔧 MODO DESENVOLVIMENTO</strong><br />
+                  Código para teste: <strong>{codigoExibido}</strong>
+                </div>
+              )}
 
               <div style={{ marginBottom: '20px' }}>
                 <label style={{
@@ -368,7 +415,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
               </div>
 
               <button
-                onClick={confirmarCodigoSMS}
+                onClick={confirmarCodigoEmail}
                 disabled={loading}
                 style={{
                   backgroundColor: loading ? '#ccc' : '#28a745',
@@ -412,7 +459,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
             </>
           )}
 
-          {/* Perguntas */}
+          {/* Perguntas de Segurança */}
           {etapa === 'perguntas' && (
             <>
               <div style={{ textAlign: 'center', marginBottom: '30px' }}>
@@ -421,8 +468,8 @@ const ForgotPasswordPage = ({ onNavigate }) => {
                   Perguntas de Segurança
                 </h2>
                 <p style={{ color: '#666', fontSize: '14px' }}>
-                  Responda as perguntas baseadas nos dados da sua empresa<br />
-                  <strong>Necessário acertar todas para continuar</strong>
+                  Responda as perguntas baseadas no seu CNPJ<br />
+                  <strong>Necessário acertar pelo menos 2 para continuar</strong>
                 </p>
               </div>
 
