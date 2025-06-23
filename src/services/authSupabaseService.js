@@ -119,7 +119,7 @@ export const authSupabaseService = {
             // Busca empresa no banco
             const { data: empresa, error } = await supabase
                 .from('empresas')
-                .select('id, cnpj, cnpj_formatado, razao_social, nome_fantasia, email, senha_hash, ativo, tentativas_login')
+                .select('id, cnpj, cnpj_formatado, razao_social, nome_fantasia, nome_empresa ,email, senha_hash, ativo, tentativas_login')
                 .eq('cnpj', cnpjLimpo)
                 .single();
                 
@@ -527,6 +527,10 @@ export const authSupabaseService = {
         sessionStorage.setItem('sessaoEmpresa', JSON.stringify(sessao));
         sessionStorage.setItem('cnpj', dadosEmpresa.cnpj);
         sessionStorage.setItem('empresaInfo', dadosEmpresa.razaoSocial);
+
+        if (dadosEmpresa.nomeEmpresa){
+            sessionStorage.setItem('nomeEmpresa', dadosEmpresa.nomeEmpresa);
+        }
     },
     
     /**
