@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
+import ImageUpload from './ImageUpload';
+
+
 
 const AdminPage = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -742,7 +745,8 @@ const AdminPage = ({ onNavigate }) => {
                     </div>
                   </div>
 
-                  <div style={{ marginBottom: '25px' }}>
+
+                  <div style={{ marginBottom: '25</div>px' }}>
                     <label style={{ 
                       display: 'block', 
                       marginBottom: '8px', 
@@ -765,6 +769,8 @@ const AdminPage = ({ onNavigate }) => {
                       }}
                       required
                     />
+
+                    
                     {productForm.imagem && (
                       <img
                         src={productForm.imagem}
