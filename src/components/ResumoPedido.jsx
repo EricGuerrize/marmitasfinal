@@ -76,6 +76,12 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       
       pedidosAdmin.push(novoPedido);
       localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
+
+      // ===== BUSCAR NOME DA EMPRESA (ADICIONAR ESTAS LINHAS) =====
+      const nomeEmpresa = sessionStorage.getItem('nomeEmpresa') || '';
+      const nomeParaExibir = nomeEmpresa || cnpj;
+
+
       
       // ===== MENSAGEM DO WHATSAPP CORRIGIDA =====
       const numeroWhatsApp = '5565992556938';
