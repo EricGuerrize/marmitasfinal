@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
 import ImageUpload from './ImageUpload';
 
-
-
 const AdminPage = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [produtos, setProdutos] = useState([]);
@@ -105,6 +103,8 @@ const AdminPage = ({ onNavigate }) => {
         total: 567.00,
         status: 'em_producao',
         data: new Date().toISOString(),
+        enderecoEntrega: 'Rua das Flores, 123 - Centro, São Paulo/SP - CEP: 01234-567',
+        observacoes: 'Entregar na portaria',
         itens: [
           { nome: 'Marmita Fitness Frango', quantidade: 15, preco: 18.90 },
           { nome: 'Marmita Vegana', quantidade: 15, preco: 16.90 }
@@ -170,7 +170,6 @@ const AdminPage = ({ onNavigate }) => {
     }));
   };
 
-  // FUNÇÃO CORRIGIDA PARA SALVAR PRODUTOS
   const saveProducts = (newProducts) => {
     try {
       localStorage.setItem('adminProdutos', JSON.stringify(newProducts));
@@ -182,12 +181,10 @@ const AdminPage = ({ onNavigate }) => {
     }
   };
 
-  // FUNÇÃO CORRIGIDA PARA ADICIONAR/EDITAR PRODUTO
   const handleProductSubmit = async (e) => {
     e.preventDefault();
     
     try {
-      // Validações básicas
       if (!productForm.nome.trim()) {
         alert('Nome do produto é obrigatório');
         return;
@@ -211,7 +208,6 @@ const AdminPage = ({ onNavigate }) => {
       let produtosAtualizados;
       
       if (editingProduct) {
-        // Editando produto existente
         const novoProduto = {
           ...editingProduct,
           nome: productForm.nome.trim(),
@@ -230,7 +226,6 @@ const AdminPage = ({ onNavigate }) => {
         alert('Produto atualizado com sucesso!');
         setEditingProduct(null);
       } else {
-        // Adicionando novo produto
         const novoId = produtos.length > 0 ? Math.max(...produtos.map(p => p.id)) + 1 : 1;
         
         const novoProduto = {
@@ -248,10 +243,8 @@ const AdminPage = ({ onNavigate }) => {
         alert('Produto adicionado com sucesso!');
       }
       
-      // Salva produtos atualizados
       saveProducts(produtosAtualizados);
       
-      // Limpa o formulário
       setProductForm({
         nome: '',
         descricao: '',
@@ -312,7 +305,6 @@ const AdminPage = ({ onNavigate }) => {
     }
   };
 
-  // Função para alterar status do pedido
   const alterarStatusPedido = (pedidoId, novoStatus) => {
     try {
       const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
@@ -438,7 +430,7 @@ const AdminPage = ({ onNavigate }) => {
         maxWidth: '1200px',
         margin: '0 auto'
       }}>
-        {/* Dashboard Tab */}
+        {/* ==================== DASHBOARD TAB ==================== */}
         {activeTab === 'dashboard' && (
           <div>
             <h1 style={{ color: '#343a40', marginBottom: '30px' }}>📊 Dashboard</h1>
@@ -525,7 +517,7 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Produtos Tab */}
+        {/* ==================== PRODUTOS TAB ==================== */}
         {activeTab === 'produtos' && (
           <div>
             <div style={{
@@ -563,155 +555,193 @@ const AdminPage = ({ onNavigate }) => {
               </button>
             </div>
 
-            {pedidos.map(pedido => {
-              const statusInfo = getStatusInfo(pedido.status);
-              return (
-                <div
-                  key={pedido.id}
-                  style={{
-                    backgroundColor: 'white',
-                    padding: '25px',
-                    borderRadius: '10px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                  }}
-                >
+            {/* Formulário de Adicionar/Editar Produto */}
+            {showAddProduct && (
+              <div style={{
+                backgroundColor: 'white',
+                padding: '30px',
+                borderRadius: '10px',
+                boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                marginBottom: '30px'
+              }}>
+                <h2 style={{ color: '#009245', marginBottom: '25px' }}>
+                  {editingProduct ? '✏️ Editar Produto' : '➕ Adicionar Novo Produto'}
+                </h2>
+                
+                <form onSubmit={handleProductSubmit}>
                   <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '20px',
                     marginBottom: '20px'
                   }}>
                     <div>
-                      <h3 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
-                        Pedido #{pedido.numero}
-                      </h3>
-                      <p style={{ margin: 0, color: '#6c757d' }}>
-                        {pedido.cliente} - {pedido.cnpj}
-                      </p>
-                      <p style={{ margin: '5px 0 0 0', color: '#6c757d', fontSize: '14px' }}>
-                        {new Date(pedido.data).toLocaleDateString('pt-BR', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
+                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                        Nome do Produto *
+                      </label>
+                      <input
+                        type="text"
+                        value={productForm.nome}
+                        onChange={(e) => setProductForm({...productForm, nome: e.target.value})}
+                        placeholder="Ex: Marmita Fitness Frango"
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '1px solid #ddd',
+                          borderRadius: '5px',
+                          fontSize: '14px',
+                          boxSizing: 'border-box'
+                        }}
+                        required
+                      />
                     </div>
                     
-                    <div style={{ textAlign: 'right' }}></div>
-                      <div style={{ marginBottom: '10px' }}>
-                        <select
-                          value={pedido.status}
-                          onChange={(e) => alterarStatusPedido(pedido.id, e.target.value)}
-                          style={{
-                            backgroundColor: statusInfo.color,
-                            color: 'white',
-                            border: 'none',
-                            padding: '8px 12px',
-                            borderRadius: '20px',
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            outline: 'none'
-                          }}
-                        >
-                          {statusPedidos.map(status => (
-                            <option key={status.value} value={status.value}>
-                              {status.icon} {status.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      
-                      <div style={{
-                        fontSize: '24px',
-                        fontWeight: 'bold',
-                        color: '#28a745'
-                      }}>
-                        R$ {pedido.total.toFixed(2)}
-                      </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                        Preço (R$) *
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={productForm.preco}
+                        onChange={(e) => setProductForm({...productForm, preco: e.target.value})}
+                        placeholder="0,00"
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '1px solid #ddd',
+                          borderRadius: '5px',
+                          fontSize: '14px',
+                          boxSizing: 'border-box'
+                        }}
+                        required
+                      />
                     </div>
                   </div>
-                  
-                  {/* NOVO: ENDEREÇO DE ENTREGA */}
-                  {pedido.enderecoEntrega && (
-                    <div style={{
-                      backgroundColor: '#fff8e1',
-                      padding: '15px',
-                      borderRadius: '8px',
-                      marginBottom: '15px',
-                      border: '1px solid #ffecb3'
-                    }}>
-                      <h4 style={{ 
-                        margin: '0 0 8px 0', 
-                        color: '#f57f17',
-                        fontSize: '14px',
-                        fontWeight: 'bold'
-                      }}>
-                        📍 Endereço de Entrega:
-                      </h4>
-                      <p style={{ 
-                        margin: 0, 
-                        color: '#e65100',
-                        fontSize: '13px',
-                        lineHeight: '1.4'
-                      }}>
-                        {pedido.enderecoEntrega}
-                      </p>
-                    </div>
-                  )}
 
-                  {/* NOVO: OBSERVAÇÕES SE EXISTIR */}
-                  {pedido.observacoes && (
-                    <div style={{
-                      backgroundColor: '#e3f2fd',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      marginBottom: '15px',
-                      border: '1px solid #bbdefb'
-                    }}>
-                      <h4 style={{ 
-                        margin: '0 0 5px 0', 
-                        color: '#1976d2',
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                      Descrição *
+                    </label>
+                    <textarea
+                      value={productForm.descricao}
+                      onChange={(e) => setProductForm({...productForm, descricao: e.target.value})}
+                      placeholder="Descreva os ingredientes e características do produto"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        border: '1px solid #ddd',
+                        borderRadius: '5px',
                         fontSize: '14px',
-                        fontWeight: 'bold'
-                      }}>
-                        💬 Observações:
-                      </h4>
-                      <p style={{ 
-                        margin: 0, 
-                        color: '#0277bd',
-                        fontSize: '13px',
-                        fontStyle: 'italic'
-                      }}>
-                        {pedido.observacoes}
-                      </p>
-                    </div>
-                  )}
-                  
-                  <div>
-                    <h4 style={{ margin: '15px 0 10px 0', color: '#343a40' }}>Itens do Pedido:</h4>
-                    {pedido.itens.map((item, index) => (
-                      <div
-                        key={index}
+                        minHeight: '80px',
+                        resize: 'vertical',
+                        boxSizing: 'border-box'
+                      }}
+                      required
+                    />
+                  </div>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: '20px',
+                    marginBottom: '20px'
+                  }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                        Categoria
+                      </label>
+                      <select
+                        value={productForm.categoria}
+                        onChange={(e) => setProductForm({...productForm, categoria: e.target.value})}
                         style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          padding: '8px 0',
-                          borderBottom: index < pedido.itens.length - 1 ? '1px solid #eee' : 'none'
+                          width: '100%',
+                          padding: '10px',
+                          border: '1px solid #ddd',
+                          borderRadius: '5px',
+                          fontSize: '14px',
+                          boxSizing: 'border-box'
                         }}
                       >
-                        <span>{item.quantidade}x {item.nome}</span>
-                        <span style={{ fontWeight: 'bold' }}>
-                          R$ {(item.quantidade * item.preco).toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
+                        <option value="fitness">Fitness</option>
+                        <option value="vegana">Vegana</option>
+                        <option value="tradicional">Tradicional</option>
+                        <option value="gourmet">Gourmet</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                        Estoque
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={productForm.estoque}
+                        onChange={(e) => setProductForm({...productForm, estoque: e.target.value})}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '1px solid #ddd',
+                          borderRadius: '5px',
+                          fontSize: '14px',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                        Status
+                      </label>
+                      <select
+                        value={productForm.disponivel}
+                        onChange={(e) => setProductForm({...productForm, disponivel: e.target.value === 'true'})}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          border: '1px solid #ddd',
+                          borderRadius: '5px',
+                          fontSize: '14px',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        <option value="true">Disponível</option>
+                        <option value="false">Indisponível</option>
+                      </select>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+
+                  {/* Componente de Upload de Imagem */}
+                  <div style={{ marginBottom: '25px' }}>
+                    <ImageUpload
+                      currentImage={productForm.imagem}
+                      onImageUpload={(imageUrl) => setProductForm({...productForm, imagem: imageUrl})}
+                      placeholder="URL da imagem do produto"
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="submit"
+                      disabled={uploadingImage}
+                      style={{
+                        backgroundColor: uploadingImage ? '#ccc' : '#28a745',
+                        color: 'white',
+                        border: 'none',
+                        padding: '12px 20px',
+                        borderRadius: '5px',
+                        cursor: uploadingImage ? 'wait' : 'pointer',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      {editingProduct ? '💾 Salvar Alterações' : '➕ Adicionar Produto'}
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
                         setShowAddProduct(false);
                         setEditingProduct(null);
                       }}
@@ -732,6 +762,7 @@ const AdminPage = ({ onNavigate }) => {
               </div>
             )}
 
+            {/* Grid de Produtos */}
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
@@ -850,7 +881,202 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* Empresas Tab - ATUALIZADO COM EMAILS */}
+        {/* ==================== PEDIDOS TAB ==================== */}
+        {activeTab === 'pedidos' && (
+          <div>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '30px'
+            }}>
+              <h1 style={{ color: '#343a40', margin: 0 }}>📋 Gerenciar Pedidos</h1>
+              <div style={{
+                backgroundColor: '#28a745',
+                color: 'white',
+                padding: '8px 12px',
+                borderRadius: '15px',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}>
+                🔄 Atualização automática ativa
+              </div>
+            </div>
+            
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px'
+            }}>
+              {pedidos.length === 0 ? (
+                <div style={{
+                  backgroundColor: 'white',
+                  padding: '40px',
+                  borderRadius: '10px',
+                  textAlign: 'center',
+                  color: '#666'
+                }}>
+                  <div style={{ fontSize: '48px', marginBottom: '20px' }}>📋</div>
+                  <h3>Nenhum pedido encontrado</h3>
+                  <p>Os novos pedidos aparecerão aqui automaticamente.</p>
+                </div>
+              ) : (
+                pedidos.map(pedido => {
+                  const statusInfo = getStatusInfo(pedido.status);
+                  return (
+                    <div
+                      key={pedido.id}
+                      style={{
+                        backgroundColor: 'white',
+                        padding: '25px',
+                        borderRadius: '10px',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                      }}
+                    >
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        marginBottom: '20px'
+                      }}>
+                        <div>
+                          <h3 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
+                            Pedido #{pedido.numero}
+                          </h3>
+                          <p style={{ margin: 0, color: '#6c757d' }}>
+                            {pedido.cliente} - {pedido.cnpj}
+                          </p>
+                          <p style={{ margin: '5px 0 0 0', color: '#6c757d', fontSize: '14px' }}>
+                            {new Date(pedido.data).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        </div>
+                        
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ marginBottom: '10px' }}>
+                            <select
+                              value={pedido.status}
+                              onChange={(e) => alterarStatusPedido(pedido.id, e.target.value)}
+                              style={{
+                                backgroundColor: statusInfo.color,
+                                color: 'white',
+                                border: 'none',
+                                padding: '8px 12px',
+                                borderRadius: '20px',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                outline: 'none'
+                              }}
+                            >
+                              {statusPedidos.map(status => (
+                                <option key={status.value} value={status.value}>
+                                  {status.icon} {status.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          
+                          <div style={{
+                            fontSize: '24px',
+                            fontWeight: 'bold',
+                            color: '#28a745'
+                          }}>
+                            R$ {pedido.total.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* ENDEREÇO DE ENTREGA - DESTAQUE PRINCIPAL */}
+                      {pedido.enderecoEntrega && (
+                        <div style={{
+                          backgroundColor: '#fff8e1',
+                          padding: '15px',
+                          borderRadius: '8px',
+                          marginBottom: '15px',
+                          border: '1px solid #ffecb3'
+                        }}>
+                          <h4 style={{ 
+                            margin: '0 0 8px 0', 
+                            color: '#f57f17',
+                            fontSize: '14px',
+                            fontWeight: 'bold'
+                          }}>
+                            📍 Endereço de Entrega:
+                          </h4>
+                          <p style={{ 
+                            margin: 0, 
+                            color: '#e65100',
+                            fontSize: '13px',
+                            lineHeight: '1.4'
+                          }}>
+                            {pedido.enderecoEntrega}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* OBSERVAÇÕES */}
+                      {pedido.observacoes && (
+                        <div style={{
+                          backgroundColor: '#e3f2fd',
+                          padding: '12px',
+                          borderRadius: '8px',
+                          marginBottom: '15px',
+                          border: '1px solid #bbdefb'
+                        }}>
+                          <h4 style={{ 
+                            margin: '0 0 5px 0', 
+                            color: '#1976d2',
+                            fontSize: '14px',
+                            fontWeight: 'bold'
+                          }}>
+                            💬 Observações:
+                          </h4>
+                          <p style={{ 
+                            margin: 0, 
+                            color: '#0277bd',
+                            fontSize: '13px',
+                            fontStyle: 'italic'
+                          }}>
+                            {pedido.observacoes}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* ITENS DO PEDIDO */}
+                      <div>
+                        <h4 style={{ margin: '15px 0 10px 0', color: '#343a40' }}>📦 Itens do Pedido:</h4>
+                        {pedido.itens && pedido.itens.map((item, index) => (
+                          <div
+                            key={index}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              padding: '8px 0',
+                              borderBottom: index < pedido.itens.length - 1 ? '1px solid #eee' : 'none'
+                            }}
+                          >
+                            <span>{item.quantidade}x {item.nome}</span>
+                            <span style={{ fontWeight: 'bold' }}>
+                              R$ {(item.quantidade * item.preco).toFixed(2)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ==================== EMPRESAS TAB ==================== */}
         {activeTab === 'empresas' && (
           <div>
             <h1 style={{ color: '#343a40', marginBottom: '30px' }}>🏢 Empresas Cadastradas</h1>
@@ -994,144 +1220,6 @@ const AdminPage = ({ onNavigate }) => {
                 ))}
               </div>
             )}
-          </div>
-        )}
-
-        {/* Pedidos Tab - mantida igual */}
-        {activeTab === 'pedidos' && (
-          <div>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '30px'
-            }}>
-              <h1 style={{ color: '#343a40', margin: 0 }}>📋 Gerenciar Pedidos</h1>
-              <div style={{
-                backgroundColor: '#28a745',
-                color: 'white',
-                padding: '8px 12px',
-                borderRadius: '15px',
-                fontSize: '12px',
-                fontWeight: 'bold'
-              }}>
-                🔄 Atualização automática ativa
-              </div>
-            </div>
-            
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '20px'
-            }}>
-              {pedidos.length === 0 ? (
-                <div style={{
-                  backgroundColor: 'white',
-                  padding: '40px',
-                  borderRadius: '10px',
-                  textAlign: 'center',
-                  color: '#666'
-                }}>
-                  <div style={{ fontSize: '48px', marginBottom: '20px' }}>📋</div>
-                  <h3>Nenhum pedido encontrado</h3>
-                  <p>Os novos pedidos aparecerão aqui automaticamente.</p>
-                </div>
-              ) : (
-                pedidos.map(pedido => {
-                  const statusInfo = getStatusInfo(pedido.status);
-                  return (
-                    <div
-                      key={pedido.id}
-                      style={{
-                        backgroundColor: 'white',
-                        padding: '25px',
-                        borderRadius: '10px',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                      }}
-                    >
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        marginBottom: '20px'
-                      }}>
-                        <div>
-                          <h3 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
-                            Pedido #{pedido.numero}
-                          </h3>
-                          <p style={{ margin: 0, color: '#6c757d' }}>
-                            {pedido.cliente} - {pedido.cnpj}
-                          </p>
-                          <p style={{ margin: '5px 0 0 0', color: '#6c757d', fontSize: '14px' }}>
-                            {new Date(pedido.data).toLocaleDateString('pt-BR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </p>
-                        </div>
-                        
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ marginBottom: '10px' }}>
-                            <select
-                              value={pedido.status}
-                              onChange={(e) => alterarStatusPedido(pedido.id, e.target.value)}
-                              style={{
-                                backgroundColor: statusInfo.color,
-                                color: 'white',
-                                border: 'none',
-                                padding: '8px 12px',
-                                borderRadius: '20px',
-                                fontSize: '12px',
-                                fontWeight: 'bold',
-                                cursor: 'pointer',
-                                outline: 'none'
-                              }}
-                            >
-                              {statusPedidos.map(status => (
-                                <option key={status.value} value={status.value}>
-                                  {status.icon} {status.label}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          
-                          <div style={{
-                            fontSize: '24px',
-                            fontWeight: 'bold',
-                            color: '#28a745'
-                          }}>
-                            R$ {pedido.total.toFixed(2)}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <h4 style={{ margin: '15px 0 10px 0', color: '#343a40' }}>Itens do Pedido:</h4>
-                        {pedido.itens.map((item, index) => (
-                          <div
-                            key={index}
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              padding: '8px 0',
-                              borderBottom: index < pedido.itens.length - 1 ? '1px solid #eee' : 'none'
-                            }}
-                          >
-                            <span>{item.quantidade}x {item.nome}</span>
-                            <span style={{ fontWeight: 'bold' }}>
-                              R$ {(item.quantidade * item.preco).toFixed(2)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
           </div>
         )}
       </div>
