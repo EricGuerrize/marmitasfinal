@@ -5,16 +5,13 @@ const PedidoConfirmado = ({ onNavigate }) => {
   const [pedidoConfirmado, setPedidoConfirmado] = useState(null);
 
   useEffect(() => {
-    // Recupera informações do sessionStorage - APENAS CNPJ
     const cnpjInfo = sessionStorage.getItem('cnpj') || '';
     setCnpj(cnpjInfo);
 
-    // Recupera pedido confirmado
     const pedidoSalvo = sessionStorage.getItem('pedidoConfirmado');
     if (pedidoSalvo) {
       setPedidoConfirmado(JSON.parse(pedidoSalvo));
     } else {
-      // Se não tem pedido confirmado, volta para home
       onNavigate('home');
     }
   }, [onNavigate]);
@@ -30,18 +27,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
     });
   };
 
-  const formatarDataEntrega = (dataISO) => {
-    const data = new Date(dataISO);
-    return data.toLocaleDateString('pt-BR', {
-      weekday: 'long',
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric'
-    });
-  };
-
   const fazerNovoPedido = () => {
-    // Limpa dados do pedido confirmado
     sessionStorage.removeItem('pedidoConfirmado');
     onNavigate('home');
   };
@@ -53,21 +39,18 @@ const PedidoConfirmado = ({ onNavigate }) => {
   const enviarNovamenteWhatsApp = () => {
     const numeroWhatsApp = '5565992556938';
     
-    // Monta a mensagem para WhatsApp
-    let mensagem = `🍽️ *CONSULTA DE PEDIDO - FIT IN BOX*\n\n`;
-    mensagem += `📋 *Pedido:* #${pedidoConfirmado.numero}\n`;
-    mensagem += `🏢 *CNPJ:* ${cnpj}\n`;
-    mensagem += `📅 *Data:* ${formatarData(pedidoConfirmado.dataConfirmacao || pedidoConfirmado.dataEnvio)}\n`;
-    mensagem += `💰 *Total:* R$ ${pedidoConfirmado.total.toFixed(2)}\n\n`;
-    mensagem += `Gostaria de tirar alguma dúvida sobre este pedido.`;
+    let mensagem = `*CONSULTA DE PEDIDO - FIT IN BOX*\n\n`;
+    mensagem += `*Pedido:* #${pedidoConfirmado.numero}\n`;
+    mensagem += `*CNPJ:* ${cnpj}\n`;
+    mensagem += `*Data:* ${formatarData(pedidoConfirmado.dataConfirmacao || pedidoConfirmado.dataEnvio)}\n`;
+    mensagem += `*Total:* R$ ${pedidoConfirmado.total.toFixed(2)}\n\n`;
+    mensagem += `Gostaria de tirar alguma duvida sobre este pedido.`;
 
-    // URL do WhatsApp com código do país
     const url = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
     window.open(url, '_blank');
   };
 
   const baixarComprovante = () => {
-    // Cria conteúdo HTML para PDF
     const conteudoPDF = `
       <!DOCTYPE html>
       <html>
@@ -87,7 +70,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
       </head>
       <body>
         <div class="header">
-          <div class="logo">🍽️ FIT IN BOX</div>
+          <div class="logo">Fit In Box</div>
           <h1>COMPROVANTE DE PEDIDO</h1>
         </div>
         
@@ -113,7 +96,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
           </div>
           <div class="item">
             <span>Taxa de entrega:</span>
-            <span>${pedidoConfirmado.taxaEntrega === 0 ? 'GRÁTIS' : `R$ ${pedidoConfirmado.taxaEntrega.toFixed(2)}`}</span>
+            <span>${pedidoConfirmado.taxaEntrega === 0 ? 'GRATIS' : `R$ ${pedidoConfirmado.taxaEntrega.toFixed(2)}`}</span>
           </div>
           <div class="item total">
             <span>TOTAL:</span>
@@ -122,29 +105,23 @@ const PedidoConfirmado = ({ onNavigate }) => {
         </div>
         
         <div class="info-box">
-          <strong>Previsão de entrega:</strong> ${formatarDataEntrega(pedidoConfirmado.previsaoEntrega)}
-        </div>
-        
-        <div class="info-box">
-          <strong>Endereço de entrega:</strong><br>
+          <strong>Endereco de entrega:</strong><br>
           ${pedidoConfirmado.enderecoEntrega}
-          ${pedidoConfirmado.observacoes ? `<br><br><strong>Observações:</strong><br>${pedidoConfirmado.observacoes}` : ''}
+          ${pedidoConfirmado.observacoes ? `<br><br><strong>Observacoes:</strong><br>${pedidoConfirmado.observacoes}` : ''}
         </div>
         
         <div class="rodape">
-          <p>Fit In Box - Alimentação Saudável</p>
+          <p>Fit In Box - Alimentacao Saudavel</p>
           <p>Pedido enviado via WhatsApp</p>
-          <p>Obrigado pela preferência!</p>
+          <p>Obrigado pela preferencia!</p>
         </div>
       </body>
       </html>
     `;
 
-    // Cria um blob com o conteúdo HTML
     const blob = new Blob([conteudoPDF], { type: 'text/html' });
     const url = window.URL.createObjectURL(blob);
     
-    // Abre em nova janela para o usuário imprimir como PDF
     const novaJanela = window.open(url, '_blank');
     novaJanela.onload = () => {
       setTimeout(() => {
@@ -311,19 +288,6 @@ const PedidoConfirmado = ({ onNavigate }) => {
               </div>
             </div>
           </div>
-
-          <div style={{
-            backgroundColor: '#fff3cd',
-            border: '1px solid #ffeaa7',
-            borderRadius: '8px',
-            padding: '15px',
-            color: '#856404'
-          }}>
-            <strong>📅 Previsão de Entrega:</strong>
-            <div style={{ fontSize: '18px', fontWeight: 'bold', marginTop: '5px' }}>
-              {formatarDataEntrega(pedidoConfirmado.previsaoEntrega)}
-            </div>
-          </div>
         </div>
 
         {/* Detalhes do Pedido */}
@@ -339,7 +303,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
             marginBottom: '20px',
             fontSize: '24px'
           }}>
-            📋 Detalhes do Pedido
+            Detalhes do Pedido
           </h2>
 
           {/* Lista de Itens */}
@@ -424,13 +388,13 @@ const PedidoConfirmado = ({ onNavigate }) => {
             padding: '15px',
             borderRadius: '8px'
           }}>
-            <strong>📍 Endereço de Entrega:</strong>
+            <strong>Endereço de Entrega:</strong>
             <div style={{ marginTop: '5px' }}>
               {pedidoConfirmado.enderecoEntrega}
             </div>
             {pedidoConfirmado.observacoes && (
               <div style={{ marginTop: '10px' }}>
-                <strong>💬 Observações:</strong>
+                <strong>Observações:</strong>
                 <div style={{ marginTop: '5px', fontStyle: 'italic' }}>
                   {pedidoConfirmado.observacoes}
                 </div>
@@ -462,7 +426,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
               gap: '8px'
             }}
           >
-            📱 Abrir WhatsApp
+            Abrir WhatsApp
           </button>
 
           <button
@@ -482,7 +446,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
               gap: '8px'
             }}
           >
-            📄 Baixar Comprovante
+            Baixar Comprovante
           </button>
 
           <button
@@ -502,7 +466,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
               gap: '8px'
             }}
           >
-            📋 Meus Pedidos
+            Meus Pedidos
           </button>
 
           <button
@@ -522,7 +486,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
               gap: '8px'
             }}
           >
-            🛒 Fazer Novo Pedido
+            Fazer Novo Pedido
           </button>
         </div>
 
@@ -536,7 +500,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
           textAlign: 'center'
         }}>
           <h3 style={{ color: '#009245', marginBottom: '15px' }}>
-            📞 Precisa de Ajuda?
+            Precisa de Ajuda?
           </h3>
           
           <p style={{ color: '#666', marginBottom: '20px' }}>
@@ -555,7 +519,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
               padding: '15px',
               borderRadius: '8px'
             }}>
-              <strong>📱 WhatsApp</strong>
+              <strong>WhatsApp</strong>
               <div>+55 (65) 99255-6938</div>
             </div>
             
@@ -564,7 +528,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
               padding: '15px',
               borderRadius: '8px'
             }}>
-              <strong>📧 Email</strong>
+              <strong>Email</strong>
               <div>contato@fitinbox.com</div>
             </div>
             
@@ -573,7 +537,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
               padding: '15px',
               borderRadius: '8px'
             }}>
-              <strong>🕒 Horário</strong>
+              <strong>Horário</strong>
               <div>Seg-Sex: 8h às 18h</div>
             </div>
           </div>

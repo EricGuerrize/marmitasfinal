@@ -19,20 +19,16 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
   }, []);
 
   useEffect(() => {
-    // Recupera informações do sessionStorage
     const cnpjInfo = sessionStorage.getItem('cnpj') || '';
     setCnpj(cnpjInfo);
 
-    // Recupera dados do pedido
     const pedidoSalvo = sessionStorage.getItem('pedidoAtual');
     if (pedidoSalvo) {
       setPedidoAtual(JSON.parse(pedidoSalvo));
     } else {
-      // Se não tem pedido, volta para o carrinho
       onNavigate('carrinho');
     }
     
-    // Intercepta o botão voltar do navegador
     const handlePopState = (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -53,21 +49,17 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
     setProcessandoPedido(true);
 
     try {
-      // Simula um pequeno delay
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // Cria dados do pedido final
       const pedidoFinal = {
         ...pedidoAtual,
         status: 'enviado',
-        dataEnvio: new Date().toISOString(),
-        previsaoEntrega: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString()
+        dataEnvio: new Date().toISOString()
+        // REMOVIDO: previsaoEntrega
       };
 
-      // Salva pedido confirmado
       sessionStorage.setItem('pedidoConfirmado', JSON.stringify(pedidoFinal));
 
-      // Salva no admin para dashboard
       const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
       const novoPedido = {
         id: Date.now(),
@@ -85,12 +77,12 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       pedidosAdmin.push(novoPedido);
       localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
       
-      // Formatar mensagem para WhatsApp
+      // ===== MENSAGEM DO WHATSAPP CORRIGIDA =====
       const numeroWhatsApp = '5565992556938';
-      let mensagem = `🍽️ *NOVO PEDIDO - FIT IN BOX*\n\n`;
-      mensagem += `📋 *Pedido:* #${pedidoFinal.numero}\n`;
-      mensagem += `🏢 *CNPJ:* ${cnpj}\n`;
-      mensagem += `📅 *Data:* ${new Date().toLocaleDateString('pt-BR', {
+      let mensagem = `*NOVO PEDIDO - FIT IN BOX*\n\n`;
+      mensagem += `*Pedido:* #${pedidoFinal.numero}\n`;
+      mensagem += `*CNPJ:* ${cnpj}\n`;
+      mensagem += `*Data:* ${new Date().toLocaleDateString('pt-BR', {
         day: '2-digit',
         month: '2-digit', 
         year: 'numeric',
@@ -98,39 +90,32 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
         minute: '2-digit'
       })}\n\n`;
       
-      mensagem += `*📦 ITENS DO PEDIDO:*\n`;
+      mensagem += `*ITENS DO PEDIDO:*\n`;
       pedidoFinal.itens.forEach(item => {
         mensagem += `• ${item.quantidade}x ${item.nome} - R$ ${(item.quantidade * item.preco).toFixed(2)}\n`;
       });
       
-      mensagem += `\n*💰 RESUMO FINANCEIRO:*\n`;
+      mensagem += `\n*RESUMO FINANCEIRO:*\n`;
       mensagem += `• Subtotal: R$ ${pedidoFinal.subtotal.toFixed(2)}\n`;
-      mensagem += `• Taxa de entrega: ${pedidoFinal.taxaEntrega === 0 ? 'GRÁTIS' : `R$ ${pedidoFinal.taxaEntrega.toFixed(2)}`}\n`;
+      mensagem += `• Taxa de entrega: ${pedidoFinal.taxaEntrega === 0 ? 'GRATIS' : `R$ ${pedidoFinal.taxaEntrega.toFixed(2)}`}\n`;
       mensagem += `• *TOTAL: R$ ${pedidoFinal.total.toFixed(2)}*\n\n`;
       
-      mensagem += `*📍 ENDEREÇO DE ENTREGA:*\n${pedidoFinal.enderecoEntrega}\n\n`;
+      mensagem += `*ENDERECO DE ENTREGA:*\n${pedidoFinal.enderecoEntrega}\n\n`;
       
       if (pedidoFinal.observacoes) {
-        mensagem += `*💬 OBSERVAÇÕES:*\n${pedidoFinal.observacoes}\n\n`;
+        mensagem += `*OBSERVACOES:*\n${pedidoFinal.observacoes}\n\n`;
       }
       
-      mensagem += `*🕒 Previsão de entrega:* ${new Date(pedidoFinal.previsaoEntrega).toLocaleDateString('pt-BR', {
-        weekday: 'long',
-        day: '2-digit',
-        month: 'long'
-      })}\n\n`;
+      // REMOVIDO: Previsão de entrega
       
-      mensagem += `Aguardo confirmação! 🙏`;
+      mensagem += `Aguardo confirmacao!`;
 
-      // URL do WhatsApp
       const url = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
       window.open(url, '_blank');
       
-      // Limpa carrinho
       sessionStorage.removeItem('carrinho');
       sessionStorage.removeItem('pedidoAtual');
 
-      // Vai para página de confirmação
       onNavigate('pedido-confirmado');
 
     } catch (error) {
@@ -231,7 +216,7 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
             marginBottom: '25px',
             fontSize: isMobile ? '22px' : '26px'
           }}>
-            📋 Resumo do Pedido
+            Resumo do Pedido
           </h1>
 
           {/* Informações do Pedido */}
@@ -249,7 +234,7 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
               marginBottom: '25px'
             }}>
               <div>
-                <h3 style={{ color: '#009245', margin: '0 0 10px 0' }}>📋 Dados do Pedido</h3>
+                <h3 style={{ color: '#009245', margin: '0 0 10px 0' }}>Dados do Pedido</h3>
                 <p style={{ margin: '5px 0', color: '#666' }}>
                   <strong>Número:</strong> #{pedidoAtual.numero}
                 </p>
@@ -262,7 +247,7 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
               </div>
 
               <div>
-                <h3 style={{ color: '#009245', margin: '0 0 10px 0' }}>💰 Resumo Financeiro</h3>
+                <h3 style={{ color: '#009245', margin: '0 0 10px 0' }}>Resumo Financeiro</h3>
                 <p style={{ margin: '5px 0', color: '#666' }}>
                   <strong>Subtotal:</strong> R$ {pedidoAtual.subtotal.toFixed(2)}
                 </p>
@@ -277,7 +262,7 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
 
             {/* Lista de Itens */}
             <div>
-              <h3 style={{ color: '#009245', marginBottom: '15px' }}>🍽️ Itens do Pedido:</h3>
+              <h3 style={{ color: '#009245', marginBottom: '15px' }}>Itens do Pedido:</h3>
               {pedidoAtual.itens.map(item => (
                 <div
                   key={item.id}
@@ -317,13 +302,13 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
             marginBottom: '25px'
           }}>
-            <h3 style={{ color: '#009245', marginBottom: '15px' }}>📍 Endereço de Entrega</h3>
+            <h3 style={{ color: '#009245', marginBottom: '15px' }}>Endereço de Entrega</h3>
             <p style={{ color: '#666', lineHeight: '1.5', margin: 0 }}>
               {pedidoAtual.enderecoEntrega}
             </p>
             {pedidoAtual.observacoes && (
               <div style={{ marginTop: '15px' }}>
-                <strong style={{ color: '#009245' }}>💬 Observações:</strong>
+                <strong style={{ color: '#009245' }}>Observações:</strong>
                 <p style={{ color: '#666', margin: '5px 0 0 0' }}>
                   {pedidoAtual.observacoes}
                 </p>
@@ -372,7 +357,7 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
               textAlign: 'left'
             }}>
               <h4 style={{ color: '#0066cc', marginBottom: '12px', margin: '0 0 12px 0' }}>
-                📋 O que acontece depois:
+                O que acontece depois:
               </h4>
               <ul style={{ color: '#333', paddingLeft: '20px', margin: 0, lineHeight: '1.6' }}>
                 <li>WhatsApp abrirá automaticamente</li>
@@ -391,7 +376,7 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
               fontSize: '14px',
               textAlign: 'left'
             }}>
-              <strong>📞 Contato:</strong><br />
+              <strong>Contato:</strong><br />
               <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
                 +55 (65) 99255-6938
               </span>
@@ -418,7 +403,7 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
                 gap: '10px'
               }}
             >
-              {processandoPedido ? '⏳ Enviando...' : '📱 Confirmar e Enviar no WhatsApp'}
+              {processandoPedido ? 'Enviando...' : 'Confirmar e Enviar no WhatsApp'}
             </button>
             
             <button
