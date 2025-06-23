@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
 import LogoComponent from './LogoComponent';
@@ -10,16 +11,17 @@ const HomePage = ({ onNavigate }) => {
   const [fazendoLogin, setFazendoLogin] = useState(false);
   const [modo, setModo] = useState('login'); // 'login' ou 'cadastro'
   const [confirmarSenha, setConfirmarSenha] = useState('');
+  const [nomeEmpresa, setNomeEmpresa] = useState(''); // NOVO CAMPO - NOME DA EMPRESA
 
   // Detecta se é mobile
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth <= 768);
     };
-    
+
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    
+
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
@@ -34,7 +36,7 @@ const HomePage = ({ onNavigate }) => {
   // Função para aplicar máscara de CNPJ
   const applyCnpjMask = (value) => {
     const onlyNumbers = value.replace(/\D/g, '');
-    
+
     return onlyNumbers
       .replace(/^(\d{2})(\d)/, '$1.$2')
       .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
@@ -48,50 +50,57 @@ const HomePage = ({ onNavigate }) => {
     setCnpj(maskedValue);
   };
 
+  // FUNÇÃO DE LOGIN ATUALIZADA (SEM ERRO DETALHADO)
   const handleLogin = async () => {
     if (!cnpj.trim()) {
       alert('Por favor, informe o CNPJ');
       return;
     }
-    
+
     if (!senha.trim()) {
       alert('Por favor, informe a senha');
       return;
     }
-    
+
     setFazendoLogin(true);
-    
+
     try {
       const resultado = await authSupabaseService.autenticar(cnpj, senha);
-      
+
       if (resultado.success) {
+        // SALVAR NOME DA EMPRESA NA SESSÃO
+        if (resultado.empresa && resultado.empresa.nomeEmpresa) {
+          sessionStorage.setItem('nomeEmpresa', resultado.empresa.nomeEmpresa);
+        }
         onNavigate('prosseguir');
       } else {
-        alert(`Erro no login: ${resultado.error}`);
+        // ERRO GENÉRICO - SEM DETALHES
+        alert('CNPJ ou senha incorretos');
       }
     } catch (error) {
-      alert('Erro inesperado. Tente novamente.');
+      alert('Erro de conexão. Tente novamente.');
     } finally {
       setFazendoLogin(false);
     }
   };
 
+  // FUNÇÃO DE CADASTRO ATUALIZADA
   const handleCadastro = async () => {
     if (!cnpj.trim()) {
       alert('Por favor, informe o CNPJ');
       return;
     }
-    
+
     if (!senha.trim()) {
       alert('Por favor, informe a senha');
       return;
     }
-    
+
     if (senha.length < 6) {
       alert('Senha deve ter pelo menos 6 caracteres');
       return;
     }
-    
+
     if (senha !== confirmarSenha) {
       alert('Senhas não conferem');
       return;
@@ -102,25 +111,27 @@ const HomePage = ({ onNavigate }) => {
       alert('Email inválido');
       return;
     }
-    
+
     setFazendoLogin(true);
-    
+
     try {
-      // Dados da empresa com email opcional
       const dadosEmpresa = {
-        email: email.trim() || null // Email opcional
+        email: email.trim() || null,
+        nomeEmpresa: nomeEmpresa.trim() || null  // NOVO CAMPO
       };
 
       const resultado = await authSupabaseService.registrarEmpresa(cnpj, senha, dadosEmpresa);
-      
+
       if (resultado.success) {
         alert('Cadastro realizado com sucesso! Agora você pode fazer login.');
         setModo('login');
         setSenha('');
         setConfirmarSenha('');
         setEmail('');
+        setNomeEmpresa(''); // LIMPAR CAMPO
       } else {
-        alert(`Erro no cadastro: ${resultado.error}`);
+        // REMOVER A MENSAGEM DE ERRO DETALHADA
+        alert('Erro no cadastro. Tente novamente.');
       }
     } catch (error) {
       alert('Erro inesperado. Tente novamente.');
@@ -178,11 +189,11 @@ const HomePage = ({ onNavigate }) => {
         padding: isMobile ? '10px 15px' : '10px 20px',
         backgroundColor: 'white'
       }}>
-        <LogoComponent 
+        <LogoComponent
           size={isMobile ? 'small' : 'medium'}
           showText={true}
         />
-        <button 
+        <button
           onClick={handleMeusPedidos}
           style={{
             backgroundColor: '#f38e3c',
@@ -210,7 +221,7 @@ const HomePage = ({ onNavigate }) => {
           margin: 0,
           lineHeight: '1.2'
         }}>
-          Sua <strong>Alimentação</strong> <br /> 
+          Sua <strong>Alimentação</strong> <br />
           <strong>Nosso</strong> Compromisso
         </h1>
         <p style={{
@@ -280,15 +291,15 @@ const HomePage = ({ onNavigate }) => {
 
           {/* Campo CNPJ */}
           <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '8px', 
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
               fontWeight: 'bold',
               color: '#009245'
             }}>
               CNPJ
             </label>
-            <input 
+            <input
               type="text"
               value={cnpj}
               onChange={handleCnpjChange}
@@ -309,48 +320,81 @@ const HomePage = ({ onNavigate }) => {
 
           {/* Campo Email (APENAS NO CADASTRO - OPCIONAL) */}
           {modo === 'cadastro' && (
-            <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: '8px', 
-                fontWeight: 'bold',
-                color: '#009245'
-              }}>
-                Email (opcional)
-              </label>
-              <input 
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="empresa@exemplo.com"
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '2px solid #ddd',
-                  borderRadius: '5px',
-                  fontSize: '16px',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-              />
-              <small style={{ color: '#666', fontSize: '12px' }}>
-                Email para recuperação de senha e comunicações importantes
-              </small>
-            </div>
+            <>
+              <div style={{ marginBottom: '20px', textAlign: 'left' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: 'bold',
+                  color: '#009245'
+                }}>
+                  Email (opcional)
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="empresa@exemplo.com"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '2px solid #ddd',
+                    borderRadius: '5px',
+                    fontSize: '16px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                <small style={{ color: '#666', fontSize: '12px' }}>
+                  Email para recuperação de senha e comunicações importantes
+                </small>
+              </div>
+
+              {/* NOVO CAMPO - NOME DA EMPRESA */}
+              <div style={{ marginBottom: '20px', textAlign: 'left' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: 'bold',
+                  color: '#009245'
+                }}>
+                  Nome da Empresa (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={nomeEmpresa}
+                  onChange={(e) => setNomeEmpresa(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Ex: Minha Empresa Ltda"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '2px solid #ddd',
+                    borderRadius: '5px',
+                    fontSize: '16px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                <small style={{ color: '#666', fontSize: '12px' }}>
+                  Nome fantasia ou razão social para identificação nos pedidos
+                </small>
+              </div>
+            </>
           )}
 
           {/* Campo Senha */}
           <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '8px', 
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
               fontWeight: 'bold',
               color: '#009245'
             }}>
               Senha {modo === 'cadastro' && '(mínimo 6 caracteres)'}
             </label>
-            <input 
+            <input
               type="password"
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
@@ -368,21 +412,21 @@ const HomePage = ({ onNavigate }) => {
             />
           </div>
 
-              
+
 
 
           {/* Campo Confirmar Senha (só no cadastro) */}
           {modo === 'cadastro' && (
             <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: '8px', 
+              <label style={{
+                display: 'block',
+                marginBottom: '8px',
                 fontWeight: 'bold',
                 color: '#009245'
               }}>
                 Confirmar Senha
               </label>
-              <input 
+              <input
                 type="password"
                 value={confirmarSenha}
                 onChange={(e) => setConfirmarSenha(e.target.value)}
@@ -425,7 +469,7 @@ const HomePage = ({ onNavigate }) => {
           )}
 
           {/* Botão de Ação */}
-          <button 
+          <button
             onClick={modo === 'login' ? handleLogin : handleCadastro}
             disabled={fazendoLogin}
             style={{
@@ -441,22 +485,22 @@ const HomePage = ({ onNavigate }) => {
               opacity: fazendoLogin ? 0.7 : 1
             }}
           >
-            {fazendoLogin ? 
-              (modo === 'login' ? 'ENTRANDO...' : 'CADASTRANDO...') : 
+            {fazendoLogin ?
+              (modo === 'login' ? 'ENTRANDO...' : 'CADASTRANDO...') :
               (modo === 'login' ? 'ENTRAR' : 'CADASTRAR')
             }
           </button>
 
           {/* Links para alternar modo e esqueci senha */}
-          <div style={{ 
-            marginTop: '20px', 
+          <div style={{
+            marginTop: '20px',
             textAlign: 'center',
             fontSize: '14px',
             color: '#666'
           }}>
             {modo === 'login' && (
               <>
-                <button 
+                <button
                   onClick={() => onNavigate('forgot-password')}
                   style={{
                     background: 'none',
@@ -473,11 +517,11 @@ const HomePage = ({ onNavigate }) => {
                 <br />
               </>
             )}
-            
+
             {modo === 'login' ? (
               <>
-                Não tem conta? 
-                <button 
+                Não tem conta?
+                <button
                   onClick={() => setModo('cadastro')}
                   style={{
                     background: 'none',
@@ -493,8 +537,8 @@ const HomePage = ({ onNavigate }) => {
               </>
             ) : (
               <>
-                Já tem conta? 
-                <button 
+                Já tem conta?
+                <button
                   onClick={() => setModo('login')}
                   style={{
                     background: 'none',
