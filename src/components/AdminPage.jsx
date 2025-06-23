@@ -745,49 +745,16 @@ const AdminPage = ({ onNavigate }) => {
                     </div>
                   </div>
 
-
-                  <div style={{ marginBottom: '25</div>px' }}>
-                    <label style={{ 
-                      display: 'block', 
-                      marginBottom: '8px', 
-                      fontWeight: 'bold' 
-                    }}>
-                      URL da Imagem *
-                    </label>
-                    <input
-                      type="url"
-                      value={productForm.imagem}
-                      onChange={(e) => setProductForm({...productForm, imagem: e.target.value})}
-                      placeholder="https://exemplo.com/imagem.jpg"
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        border: '1px solid #ddd',
-                        borderRadius: '5px',
-                        fontSize: '16px',
-                        boxSizing: 'border-box'
-                      }}
-                      required
+                  <div style={{ marginBottom: '25px' }}>
+                    <ImageUpload 
+                      onImageUpload={(imageUrl) => setProductForm({...productForm, imagem: imageUrl})}
+                      currentImage={productForm.imagem}
+                      placeholder="Digite URL ou faça upload da imagem do produto"
+                      maxSize={5}
+                      acceptedTypes={['image/jpeg', 'image/png', 'image/webp']}
+                      preview={true}
+                      previewSize={{ width: '120px', height: '80px' }}
                     />
-
-                    
-                    {productForm.imagem && (
-                      <img
-                        src={productForm.imagem}
-                        alt="Preview"
-                        style={{
-                          width: '100px',
-                          height: '60px',
-                          objectFit: 'cover',
-                          marginTop: '10px',
-                          borderRadius: '5px',
-                          border: '1px solid #ddd'
-                        }}
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
-                      />
-                    )}
                   </div>
 
                   <div style={{ display: 'flex', gap: '10px' }}>
