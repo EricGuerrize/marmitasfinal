@@ -563,219 +563,155 @@ const AdminPage = ({ onNavigate }) => {
               </button>
             </div>
 
-            {/* Formulário de Produto */}
-            {showAddProduct && (
-              <div style={{
-                backgroundColor: 'white',
-                padding: '30px',
-                borderRadius: '10px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                marginBottom: '30px'
-              }}>
-                <h3 style={{ color: '#343a40', marginBottom: '20px' }}>
-                  {editingProduct ? 'Editar Produto' : 'Adicionar Novo Produto'}
-                </h3>
-                
-                <form onSubmit={handleProductSubmit}>
+            {pedidos.map(pedido => {
+              const statusInfo = getStatusInfo(pedido.status);
+              return (
+                <div
+                  key={pedido.id}
+                  style={{
+                    backgroundColor: 'white',
+                    padding: '25px',
+                    borderRadius: '10px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}
+                >
                   <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '20px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
                     marginBottom: '20px'
                   }}>
                     <div>
-                      <label style={{ 
-                        display: 'block', 
-                        marginBottom: '8px', 
-                        fontWeight: 'bold' 
-                      }}>
-                        Nome do Produto *
-                      </label>
-                      <input
-                        type="text"
-                        value={productForm.nome}
-                        onChange={(e) => setProductForm({...productForm, nome: e.target.value})}
-                        placeholder="Ex: Marmita Fitness"
-                        style={{
-                          width: '100%',
-                          padding: '12px',
-                          border: '1px solid #ddd',
-                          borderRadius: '5px',
-                          fontSize: '16px',
-                          boxSizing: 'border-box'
-                        }}
-                        required
-                      />
+                      <h3 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
+                        Pedido #{pedido.numero}
+                      </h3>
+                      <p style={{ margin: 0, color: '#6c757d' }}>
+                        {pedido.cliente} - {pedido.cnpj}
+                      </p>
+                      <p style={{ margin: '5px 0 0 0', color: '#6c757d', fontSize: '14px' }}>
+                        {new Date(pedido.data).toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
                     </div>
                     
-                    <div>
-                      <label style={{ 
-                        display: 'block', 
-                        marginBottom: '8px', 
-                        fontWeight: 'bold' 
+                    <div style={{ textAlign: 'right' }}></div>
+                      <div style={{ marginBottom: '10px' }}>
+                        <select
+                          value={pedido.status}
+                          onChange={(e) => alterarStatusPedido(pedido.id, e.target.value)}
+                          style={{
+                            backgroundColor: statusInfo.color,
+                            color: 'white',
+                            border: 'none',
+                            padding: '8px 12px',
+                            borderRadius: '20px',
+                            fontSize: '12px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            outline: 'none'
+                          }}
+                        >
+                          {statusPedidos.map(status => (
+                            <option key={status.value} value={status.value}>
+                              {status.icon} {status.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div style={{
+                        fontSize: '24px',
+                        fontWeight: 'bold',
+                        color: '#28a745'
                       }}>
-                        Preço (R$) *
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={productForm.preco}
-                        onChange={(e) => setProductForm({...productForm, preco: e.target.value})}
-                        placeholder="Ex: 18.90"
-                        style={{
-                          width: '100%',
-                          padding: '12px',
-                          border: '1px solid #ddd',
-                          borderRadius: '5px',
-                          fontSize: '16px',
-                          boxSizing: 'border-box'
-                        }}
-                        required
-                      />
+                        R$ {pedido.total.toFixed(2)}
+                      </div>
                     </div>
                   </div>
-
-                  <div style={{ marginBottom: '20px' }}>
-                    <label style={{ 
-                      display: 'block', 
-                      marginBottom: '8px', 
-                      fontWeight: 'bold' 
+                  
+                  {/* NOVO: ENDEREÇO DE ENTREGA */}
+                  {pedido.enderecoEntrega && (
+                    <div style={{
+                      backgroundColor: '#fff8e1',
+                      padding: '15px',
+                      borderRadius: '8px',
+                      marginBottom: '15px',
+                      border: '1px solid #ffecb3'
                     }}>
-                      Descrição *
-                    </label>
-                    <textarea
-                      value={productForm.descricao}
-                      onChange={(e) => setProductForm({...productForm, descricao: e.target.value})}
-                      placeholder="Descreva o produto..."
-                      style={{
-                        width: '100%',
-                        padding: '12px',
-                        border: '1px solid #ddd',
-                        borderRadius: '5px',
-                        fontSize: '16px',
-                        resize: 'vertical',
-                        height: '100px',
-                        boxSizing: 'border-box'
-                      }}
-                      required
-                    />
-                  </div>
-
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr 1fr',
-                    gap: '20px',
-                    marginBottom: '20px'
-                  }}>
-                    <div>
-                      <label style={{ 
-                        display: 'block', 
-                        marginBottom: '8px', 
-                        fontWeight: 'bold' 
-                      }}>
-                        Categoria
-                      </label>
-                      <select
-                        value={productForm.categoria}
-                        onChange={(e) => setProductForm({...productForm, categoria: e.target.value})}
-                        style={{
-                          width: '100%',
-                          padding: '12px',
-                          border: '1px solid #ddd',
-                          borderRadius: '5px',
-                          fontSize: '16px',
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        <option value="fitness">Fitness</option>
-                        <option value="vegana">Vegana</option>
-                        <option value="tradicional">Tradicional</option>
-                        <option value="gourmet">Gourmet</option>
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label style={{ 
-                        display: 'block', 
-                        marginBottom: '8px', 
-                        fontWeight: 'bold' 
-                      }}>
-                        Estoque
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={productForm.estoque}
-                        onChange={(e) => setProductForm({...productForm, estoque: e.target.value})}
-                        style={{
-                          width: '100%',
-                          padding: '12px',
-                          border: '1px solid #ddd',
-                          borderRadius: '5px',
-                          fontSize: '16px',
-                          boxSizing: 'border-box'
-                        }}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label style={{ 
-                        display: 'block', 
-                        marginBottom: '8px', 
-                        fontWeight: 'bold' 
-                      }}>
-                        Status
-                      </label>
-                      <select
-                        value={productForm.disponivel}
-                        onChange={(e) => setProductForm({...productForm, disponivel: e.target.value === 'true'})}
-                        style={{
-                          width: '100%',
-                          padding: '12px',
-                          border: '1px solid #ddd',
-                          borderRadius: '5px',
-                          fontSize: '16px',
-                          boxSizing: 'border-box'
-                        }}
-                      >
-                        <option value="true">Disponível</option>
-                        <option value="false">Indisponível</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: '25px' }}>
-                    <ImageUpload 
-                      onImageUpload={(imageUrl) => setProductForm({...productForm, imagem: imageUrl})}
-                      currentImage={productForm.imagem}
-                      placeholder="Digite URL ou faça upload da imagem do produto"
-                      maxSize={5}
-                      acceptedTypes={['image/jpeg', 'image/png', 'image/webp']}
-                      preview={true}
-                      previewSize={{ width: '120px', height: '80px' }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button
-                      type="submit"
-                      style={{
-                        backgroundColor: '#28a745',
-                        color: 'white',
-                        border: 'none',
-                        padding: '12px 20px',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
+                      <h4 style={{ 
+                        margin: '0 0 8px 0', 
+                        color: '#f57f17',
+                        fontSize: '14px',
                         fontWeight: 'bold'
-                      }}
-                    >
-                      {editingProduct ? 'Atualizar Produto' : 'Adicionar Produto'}
-                    </button>
-                    
-                    <button
-                      type="button"
-                      onClick={() => {
+                      }}>
+                        📍 Endereço de Entrega:
+                      </h4>
+                      <p style={{ 
+                        margin: 0, 
+                        color: '#e65100',
+                        fontSize: '13px',
+                        lineHeight: '1.4'
+                      }}>
+                        {pedido.enderecoEntrega}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* NOVO: OBSERVAÇÕES SE EXISTIR */}
+                  {pedido.observacoes && (
+                    <div style={{
+                      backgroundColor: '#e3f2fd',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      marginBottom: '15px',
+                      border: '1px solid #bbdefb'
+                    }}>
+                      <h4 style={{ 
+                        margin: '0 0 5px 0', 
+                        color: '#1976d2',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                      }}>
+                        💬 Observações:
+                      </h4>
+                      <p style={{ 
+                        margin: 0, 
+                        color: '#0277bd',
+                        fontSize: '13px',
+                        fontStyle: 'italic'
+                      }}>
+                        {pedido.observacoes}
+                      </p>
+                    </div>
+                  )}
+                  
+                  <div>
+                    <h4 style={{ margin: '15px 0 10px 0', color: '#343a40' }}>Itens do Pedido:</h4>
+                    {pedido.itens.map((item, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          padding: '8px 0',
+                          borderBottom: index < pedido.itens.length - 1 ? '1px solid #eee' : 'none'
+                        }}
+                      >
+                        <span>{item.quantidade}x {item.nome}</span>
+                        <span style={{ fontWeight: 'bold' }}>
+                          R$ {(item.quantidade * item.preco).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
                         setShowAddProduct(false);
                         setEditingProduct(null);
                       }}
