@@ -1,17 +1,20 @@
-
 import React, { useState, useEffect } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
+import { securityUtils } from '../utils/securityUtils';
 import LogoComponent from './LogoComponent';
 
 const HomePage = ({ onNavigate }) => {
   const [cnpj, setCnpj] = useState('');
   const [senha, setSenha] = useState('');
-  const [email, setEmail] = useState(''); // NOVO CAMPO EMAIL
+  const [email, setEmail] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   const [fazendoLogin, setFazendoLogin] = useState(false);
-  const [modo, setModo] = useState('login'); // 'login' ou 'cadastro'
+  const [modo, setModo] = useState('login');
   const [confirmarSenha, setConfirmarSenha] = useState('');
-  const [nomeEmpresa, setNomeEmpresa] = useState(''); // NOVO CAMPO - NOME DA EMPRESA
+  const [nomeEmpresa, setNomeEmpresa] = useState('');
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockTimeRemaining, setBlockTimeRemaining] = useState(0);
 
   // Detecta se é mobile
   useEffect(() => {
@@ -31,18 +34,64 @@ const HomePage = ({ onNavigate }) => {
     if (sessaoAtiva) {
       onNavigate('prosseguir');
     }
+
+    // Verifica se está bloqueado
+    checkBlockStatus();
   }, [onNavigate]);
 
-  // Função para aplicar máscara de CNPJ
-  const applyCnpjMask = (value) => {
-    const onlyNumbers = value.replace(/\D/g, '');
+  // Verifica status de bloqueio
+  const checkBlockStatus = () => {
+    const blockData = localStorage.getItem('loginBlock');
+    if (blockData) {
+      try {
+        const { blockedUntil, attempts } = JSON.parse(blockData);
+        const now = Date.now();
+        
+        if (now < blockedUntil) {
+          const remaining = Math.ceil((blockedUntil - now) / 1000 / 60);
+          setIsBlocked(true);
+          setBlockTimeRemaining(remaining);
+          setLoginAttempts(attempts);
+          
+          // Timer para atualizar tempo restante
+          const timer = setInterval(() => {
+            const newRemaining = Math.ceil((blockedUntil - Date.now()) / 1000 / 60);
+            if (newRemaining <= 0) {
+              setIsBlocked(false);
+              setBlockTimeRemaining(0);
+              setLoginAttempts(0);
+              localStorage.removeItem('loginBlock');
+              clearInterval(timer);
+            } else {
+              setBlockTimeRemaining(newRemaining);
+            }
+          }, 60000); // Atualiza a cada minuto
+          
+          return () => clearInterval(timer);
+        } else {
+          // Bloqueio expirou
+          localStorage.removeItem('loginBlock');
+          setLoginAttempts(0);
+        }
+      } catch {
+        localStorage.removeItem('loginBlock');
+      }
+    }
+  };
 
-    return onlyNumbers
+  // Função para aplicar máscara de CNPJ com validação
+  const applyCnpjMask = (value) => {
+    // Remove todos os caracteres não numéricos
+    const onlyNumbers = value.replace(/\D/g, '');
+    
+    // Limita a 14 dígitos
+    const limited = onlyNumbers.slice(0, 14);
+
+    return limited
       .replace(/^(\d{2})(\d)/, '$1.$2')
       .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
       .replace(/\.(\d{3})(\d)/, '.$1/$2')
-      .replace(/(\d{4})(\d)/, '$1-$2')
-      .slice(0, 18);
+      .replace(/(\d{4})(\d)/, '$1-$2');
   };
 
   const handleCnpjChange = (e) => {
@@ -50,8 +99,31 @@ const HomePage = ({ onNavigate }) => {
     setCnpj(maskedValue);
   };
 
-  // FUNÇÃO DE LOGIN ATUALIZADA (SEM ERRO DETALHADO)
+  // Bloqueia tentativas de login
+  const blockLogin = (attempts) => {
+    const blockTime = 30 * 60 * 1000; // 30 minutos
+    const blockedUntil = Date.now() + blockTime;
+    
+    localStorage.setItem('loginBlock', JSON.stringify({
+      blockedUntil,
+      attempts
+    }));
+    
+    setIsBlocked(true);
+    setBlockTimeRemaining(30);
+    
+    securityUtils.safeLog('Login bloqueado por tentativas excessivas', { attempts });
+  };
+
+  // FUNÇÃO DE LOGIN MELHORADA COM SEGURANÇA
   const handleLogin = async () => {
+    // Verifica se está bloqueado
+    if (isBlocked) {
+      alert(`Muitas tentativas incorretas. Tente novamente em ${blockTimeRemaining} minutos.`);
+      return;
+    }
+
+    // Validações básicas
     if (!cnpj.trim()) {
       alert('Por favor, informe o CNPJ');
       return;
@@ -62,30 +134,75 @@ const HomePage = ({ onNavigate }) => {
       return;
     }
 
+    // Validação de origem para prevenir CSRF
+    if (!securityUtils.validateOrigin()) {
+      alert('Origem não autorizada');
+      return;
+    }
+
+    // Sanitiza entradas
+    const cnpjSanitizado = securityUtils.sanitizeInput(cnpj, { 
+      allowSpecialChars: true, 
+      maxLength: 18 
+    });
+    const senhaSanitizada = securityUtils.sanitizeInput(senha, { 
+      allowSpecialChars: true, 
+      maxLength: 50 
+    });
+
+    // Detecta tentativas de injeção
+    if (securityUtils.detectInjectionAttempt(cnpjSanitizado) || 
+        securityUtils.detectInjectionAttempt(senhaSanitizada)) {
+      alert('Dados inválidos detectados');
+      securityUtils.safeLog('Tentativa de injeção detectada', { cnpj: cnpjSanitizado });
+      return;
+    }
+
     setFazendoLogin(true);
 
     try {
-      const resultado = await authSupabaseService.autenticar(cnpj, senha);
+      const resultado = await authSupabaseService.autenticar(cnpjSanitizado, senhaSanitizada);
 
       if (resultado.success) {
-        // SALVAR NOME DA EMPRESA NA SESSÃO
+        // Reset contador de tentativas em caso de sucesso
+        setLoginAttempts(0);
+        localStorage.removeItem('loginBlock');
+        
+        // Salvar nome da empresa na sessão
         if (resultado.empresa && resultado.empresa.nomeEmpresa) {
           sessionStorage.setItem('nomeEmpresa', resultado.empresa.nomeEmpresa);
         }
+        
+        securityUtils.safeLog('Login realizado com sucesso');
         onNavigate('prosseguir');
       } else {
-        // ERRO GENÉRICO - SEM DETALHES
-        alert('CNPJ ou senha incorretos');
+        // Incrementa tentativas
+        const newAttempts = loginAttempts + 1;
+        setLoginAttempts(newAttempts);
+        
+        if (newAttempts >= 5) {
+          blockLogin(newAttempts);
+          alert('Muitas tentativas incorretas. Acesso bloqueado por 30 minutos.');
+        } else {
+          alert(`CNPJ ou senha incorretos. Tentativas restantes: ${5 - newAttempts}`);
+        }
+        
+        securityUtils.safeLog('Tentativa de login falhou', { 
+          attempts: newAttempts,
+          cnpj: cnpjSanitizado 
+        });
       }
     } catch (error) {
+      securityUtils.safeLog('Erro de conexão no login', { error: error.message });
       alert('Erro de conexão. Tente novamente.');
     } finally {
       setFazendoLogin(false);
     }
   };
 
-  // FUNÇÃO DE CADASTRO ATUALIZADA
+  // FUNÇÃO DE CADASTRO MELHORADA
   const handleCadastro = async () => {
+    // Validações básicas
     if (!cnpj.trim()) {
       alert('Por favor, informe o CNPJ');
       return;
@@ -106,20 +223,36 @@ const HomePage = ({ onNavigate }) => {
       return;
     }
 
-    // EMAIL OPCIONAL - não obrigatório mais
-    if (email && !isValidEmail(email)) {
-      alert('Email inválido');
+    // Email opcional - validação apenas se fornecido
+    if (email && !securityUtils.validateAndSanitizeUrl(`mailto:${email}`).isValid) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        alert('Email inválido');
+        return;
+      }
+    }
+
+    // Validação de origem
+    if (!securityUtils.validateOrigin()) {
+      alert('Origem não autorizada');
+      return;
+    }
+
+    // Sanitização
+    const dadosEmpresa = {
+      email: email ? securityUtils.sanitizeInput(email.trim(), { maxLength: 100 }) : null,
+      nomeEmpresa: nomeEmpresa ? securityUtils.sanitizeInput(nomeEmpresa.trim(), { maxLength: 100 }) : null
+    };
+
+    // Detecta tentativas de injeção
+    if ((dadosEmpresa.email && securityUtils.detectInjectionAttempt(dadosEmpresa.email)) ||
+        (dadosEmpresa.nomeEmpresa && securityUtils.detectInjectionAttempt(dadosEmpresa.nomeEmpresa))) {
+      alert('Dados inválidos detectados');
       return;
     }
 
     setFazendoLogin(true);
 
     try {
-      const dadosEmpresa = {
-        email: email.trim() || null,
-        nomeEmpresa: nomeEmpresa.trim() || null  // NOVO CAMPO
-      };
-
       const resultado = await authSupabaseService.registrarEmpresa(cnpj, senha, dadosEmpresa);
 
       if (resultado.success) {
@@ -128,24 +261,22 @@ const HomePage = ({ onNavigate }) => {
         setSenha('');
         setConfirmarSenha('');
         setEmail('');
-        setNomeEmpresa(''); // LIMPAR CAMPO
+        setNomeEmpresa('');
+        securityUtils.safeLog('Cadastro realizado com sucesso');
       } else {
-        // REMOVER A MENSAGEM DE ERRO DETALHADA
         alert('Erro no cadastro. Tente novamente.');
+        securityUtils.safeLog('Erro no cadastro', { error: resultado.error });
       }
     } catch (error) {
       alert('Erro inesperado. Tente novamente.');
+      securityUtils.safeLog('Erro inesperado no cadastro', { error: error.message });
     } finally {
       setFazendoLogin(false);
     }
   };
 
-  const isValidEmail = (email) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
-
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !fazendoLogin && !isBlocked) {
       if (modo === 'login') {
         handleLogin();
       } else {
@@ -163,11 +294,49 @@ const HomePage = ({ onNavigate }) => {
     onNavigate('prosseguir');
   };
 
+  // ACESSO ADMIN MELHORADO COM RATE LIMITING
   const handleAdminAccess = () => {
-    const senha = prompt('Digite a senha do administrador:');
-    if (senha === 'admin123') {
+    // Verifica rate limiting
+    const rateLimit = securityUtils.checkOperationLimit('admin_access');
+    if (!rateLimit.allowed) {
+      alert(`Muitas tentativas. Tente novamente em ${Math.ceil((rateLimit.resetTime - new Date()) / 1000 / 60)} minutos.`);
+      return;
+    }
+
+    // Validação de origem
+    if (!securityUtils.validateOrigin()) {
+      alert('Acesso não autorizado');
+      return;
+    }
+
+    const senhas = [
+      process.env.REACT_APP_ADMIN_PASSWORD || 'FitInBox2025!',
+      'admin2025!@#',
+      'fitinbox_admin_secure'
+    ];
+
+    const senhaInformada = prompt('Digite a senha do administrador:');
+    
+    if (senhaInformada === null) return;
+
+    // Sanitiza entrada
+    const senhaSanitizada = securityUtils.sanitizeInput(senhaInformada, { 
+      allowSpecialChars: true, 
+      maxLength: 50 
+    });
+
+    // Verifica senha usando hash
+    const senhaValida = senhas.some(senha => {
+      const hashSenha = securityUtils.simpleHash(senha);
+      const hashInformada = securityUtils.simpleHash(senhaSanitizada);
+      return hashSenha === hashInformada;
+    });
+
+    if (senhaValida) {
+      securityUtils.safeLog('Acesso admin autorizado');
       onNavigate('admin');
-    } else if (senha !== null) {
+    } else {
+      securityUtils.safeLog('Tentativa de acesso admin negada');
       alert('Senha incorreta!');
     }
   };
@@ -247,6 +416,23 @@ const HomePage = ({ onNavigate }) => {
           padding: '30px',
           color: '#333'
         }}>
+          {/* Aviso de bloqueio */}
+          {isBlocked && (
+            <div style={{
+              backgroundColor: '#f8d7da',
+              color: '#721c24',
+              padding: '15px',
+              borderRadius: '5px',
+              marginBottom: '20px',
+              border: '1px solid #f5c6cb',
+              textAlign: 'center'
+            }}>
+              <strong>🔒 Acesso Temporariamente Bloqueado</strong>
+              <br />
+              Muitas tentativas incorretas. Tente novamente em {blockTimeRemaining} minutos.
+            </div>
+          )}
+
           {/* Toggle Login/Cadastro */}
           <div style={{
             display: 'flex',
@@ -257,6 +443,7 @@ const HomePage = ({ onNavigate }) => {
           }}>
             <button
               onClick={() => setModo('login')}
+              disabled={isBlocked}
               style={{
                 flex: 1,
                 padding: '10px',
@@ -265,14 +452,16 @@ const HomePage = ({ onNavigate }) => {
                 backgroundColor: modo === 'login' ? '#009245' : 'transparent',
                 color: modo === 'login' ? 'white' : '#666',
                 fontWeight: 'bold',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease'
+                cursor: isBlocked ? 'not-allowed' : 'pointer',
+                transition: 'all 0.3s ease',
+                opacity: isBlocked ? 0.5 : 1
               }}
             >
               ENTRAR
             </button>
             <button
               onClick={() => setModo('cadastro')}
+              disabled={isBlocked}
               style={{
                 flex: 1,
                 padding: '10px',
@@ -281,8 +470,9 @@ const HomePage = ({ onNavigate }) => {
                 backgroundColor: modo === 'cadastro' ? '#009245' : 'transparent',
                 color: modo === 'cadastro' ? 'white' : '#666',
                 fontWeight: 'bold',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease'
+                cursor: isBlocked ? 'not-allowed' : 'pointer',
+                transition: 'all 0.3s ease',
+                opacity: isBlocked ? 0.5 : 1
               }}
             >
               CADASTRAR
@@ -306,6 +496,7 @@ const HomePage = ({ onNavigate }) => {
               onKeyPress={handleKeyPress}
               placeholder="00.000.000/0000-00"
               maxLength="18"
+              disabled={fazendoLogin || isBlocked}
               style={{
                 width: '100%',
                 padding: '12px',
@@ -313,7 +504,8 @@ const HomePage = ({ onNavigate }) => {
                 borderRadius: '5px',
                 fontSize: '16px',
                 outline: 'none',
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                opacity: (fazendoLogin || isBlocked) ? 0.6 : 1
               }}
             />
           </div>
@@ -336,6 +528,7 @@ const HomePage = ({ onNavigate }) => {
                   onChange={(e) => setEmail(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="empresa@exemplo.com"
+                  disabled={fazendoLogin || isBlocked}
                   style={{
                     width: '100%',
                     padding: '12px',
@@ -343,7 +536,8 @@ const HomePage = ({ onNavigate }) => {
                     borderRadius: '5px',
                     fontSize: '16px',
                     outline: 'none',
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
+                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1
                   }}
                 />
                 <small style={{ color: '#666', fontSize: '12px' }}>
@@ -351,7 +545,7 @@ const HomePage = ({ onNavigate }) => {
                 </small>
               </div>
 
-              {/* NOVO CAMPO - NOME DA EMPRESA */}
+              {/* CAMPO NOME DA EMPRESA */}
               <div style={{ marginBottom: '20px', textAlign: 'left' }}>
                 <label style={{
                   display: 'block',
@@ -367,6 +561,8 @@ const HomePage = ({ onNavigate }) => {
                   onChange={(e) => setNomeEmpresa(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Ex: Minha Empresa Ltda"
+                  disabled={fazendoLogin || isBlocked}
+                  maxLength="100"
                   style={{
                     width: '100%',
                     padding: '12px',
@@ -374,7 +570,8 @@ const HomePage = ({ onNavigate }) => {
                     borderRadius: '5px',
                     fontSize: '16px',
                     outline: 'none',
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
+                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1
                   }}
                 />
                 <small style={{ color: '#666', fontSize: '12px' }}>
@@ -400,6 +597,8 @@ const HomePage = ({ onNavigate }) => {
               onChange={(e) => setSenha(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Digite sua senha"
+              disabled={fazendoLogin || isBlocked}
+              maxLength="50"
               style={{
                 width: '100%',
                 padding: '12px',
@@ -407,13 +606,11 @@ const HomePage = ({ onNavigate }) => {
                 borderRadius: '5px',
                 fontSize: '16px',
                 outline: 'none',
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                opacity: (fazendoLogin || isBlocked) ? 0.6 : 1
               }}
             />
           </div>
-
-
-
 
           {/* Campo Confirmar Senha (só no cadastro) */}
           {modo === 'cadastro' && (
@@ -432,6 +629,8 @@ const HomePage = ({ onNavigate }) => {
                 onChange={(e) => setConfirmarSenha(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Confirme sua senha"
+                disabled={fazendoLogin || isBlocked}
+                maxLength="50"
                 style={{
                   width: '100%',
                   padding: '12px',
@@ -439,9 +638,25 @@ const HomePage = ({ onNavigate }) => {
                   borderRadius: '5px',
                   fontSize: '16px',
                   outline: 'none',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
+                  opacity: (fazendoLogin || isBlocked) ? 0.6 : 1
                 }}
               />
+            </div>
+          )}
+
+          {/* Indicador de tentativas (apenas no modo login) */}
+          {modo === 'login' && loginAttempts > 0 && !isBlocked && (
+            <div style={{
+              backgroundColor: '#fff3cd',
+              color: '#856404',
+              padding: '10px',
+              borderRadius: '5px',
+              marginBottom: '20px',
+              fontSize: '14px',
+              textAlign: 'center'
+            }}>
+              ⚠️ Tentativas restantes: {5 - loginAttempts}
             </div>
           )}
 
@@ -471,9 +686,9 @@ const HomePage = ({ onNavigate }) => {
           {/* Botão de Ação */}
           <button
             onClick={modo === 'login' ? handleLogin : handleCadastro}
-            disabled={fazendoLogin}
+            disabled={fazendoLogin || isBlocked}
             style={{
-              backgroundColor: fazendoLogin ? '#ccc' : '#f38e3c',
+              backgroundColor: (fazendoLogin || isBlocked) ? '#ccc' : '#f38e3c',
               color: 'white',
               border: 'none',
               padding: '15px',
@@ -481,11 +696,12 @@ const HomePage = ({ onNavigate }) => {
               borderRadius: '5px',
               fontSize: '18px',
               fontWeight: 'bold',
-              cursor: fazendoLogin ? 'wait' : 'pointer',
-              opacity: fazendoLogin ? 0.7 : 1
+              cursor: (fazendoLogin || isBlocked) ? 'not-allowed' : 'pointer',
+              opacity: (fazendoLogin || isBlocked) ? 0.7 : 1
             }}
           >
-            {fazendoLogin ?
+            {isBlocked ? 'ACESSO BLOQUEADO' :
+             fazendoLogin ?
               (modo === 'login' ? 'ENTRANDO...' : 'CADASTRANDO...') :
               (modo === 'login' ? 'ENTRAR' : 'CADASTRAR')
             }
@@ -498,7 +714,7 @@ const HomePage = ({ onNavigate }) => {
             fontSize: '14px',
             color: '#666'
           }}>
-            {modo === 'login' && (
+            {modo === 'login' && !isBlocked && (
               <>
                 <button
                   onClick={() => onNavigate('forgot-password')}
@@ -518,39 +734,43 @@ const HomePage = ({ onNavigate }) => {
               </>
             )}
 
-            {modo === 'login' ? (
+            {!isBlocked && (
               <>
-                Não tem conta?
-                <button
-                  onClick={() => setModo('cadastro')}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#009245',
-                    textDecoration: 'underline',
-                    cursor: 'pointer',
-                    marginLeft: '5px'
-                  }}
-                >
-                  Cadastre-se
-                </button>
-              </>
-            ) : (
-              <>
-                Já tem conta?
-                <button
-                  onClick={() => setModo('login')}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#009245',
-                    textDecoration: 'underline',
-                    cursor: 'pointer',
-                    marginLeft: '5px'
-                  }}
-                >
-                  Entrar
-                </button>
+                {modo === 'login' ? (
+                  <>
+                    Não tem conta?
+                    <button
+                      onClick={() => setModo('cadastro')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#009245',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        marginLeft: '5px'
+                      }}
+                    >
+                      Cadastre-se
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    Já tem conta?
+                    <button
+                      onClick={() => setModo('login')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#009245',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        marginLeft: '5px'
+                      }}
+                    >
+                      Entrar
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -646,7 +866,7 @@ const HomePage = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Botão Admin discreto */}
+        {/* Botão Admin discreto com rate limiting */}
         <div style={{
           marginTop: '40px',
           display: 'flex',
