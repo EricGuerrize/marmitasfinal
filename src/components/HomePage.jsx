@@ -359,7 +359,7 @@ const HomePage = ({ onNavigate }) => {
                   fontWeight: 'bold',
                   color: '#009245'
                 }}>
-                  Nome da Empresa (opcional)
+                  Nome da Empresa (recomendado)
                 </label>
                 <input
                   type="text"

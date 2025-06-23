@@ -55,16 +55,22 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
         ...pedidoAtual,
         status: 'enviado',
         dataEnvio: new Date().toISOString()
-        // REMOVIDO: previsaoEntrega
       };
 
       sessionStorage.setItem('pedidoConfirmado', JSON.stringify(pedidoFinal));
+
+      // BUSCAR NOME DA EMPRESA DA SESSÃO
+      const nomeEmpresa = sessionStorage.getItem('nomeEmpresa') || '';
+      const razaoSocial = sessionStorage.getItem('empresaInfo') || '';
+      
+      // Prioriza nomeEmpresa, depois razaoSocial, depois CNPJ como fallback
+      const nomeParaExibir = nomeEmpresa || razaoSocial || cnpj;
 
       const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
       const novoPedido = {
         id: Date.now(),
         numero: pedidoFinal.numero,
-        cliente: cnpj,
+        cliente: nomeParaExibir, // USAR NOME DA EMPRESA AQUI
         cnpj: cnpj,
         total: pedidoFinal.total,
         status: 'enviado',
@@ -76,18 +82,12 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       
       pedidosAdmin.push(novoPedido);
       localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
-
-      // ===== BUSCAR NOME DA EMPRESA (ADICIONAR ESTAS LINHAS) =====
-      const nomeEmpresa = sessionStorage.getItem('nomeEmpresa') || '';
-      const nomeParaExibir = nomeEmpresa || cnpj;
-
-
       
-      // ===== MENSAGEM DO WHATSAPP CORRIGIDA =====
+      // MENSAGEM DO WHATSAPP COM NOME DA EMPRESA
       const numeroWhatsApp = '5565992556938';
       let mensagem = `*NOVO PEDIDO - FIT IN BOX*\n\n`;
       mensagem += `*Pedido:* #${pedidoFinal.numero}\n`;
-      mensagem += `*Empresa:* ${nomeParaExibir}\n`; // USAR NOME OU CNPJ  
+      mensagem += `*Empresa:* ${nomeParaExibir}\n`; // MOSTRAR NOME DA EMPRESA
       mensagem += `*CNPJ:* ${cnpj}\n`;
       mensagem += `*Data:* ${new Date().toLocaleDateString('pt-BR', {
         day: '2-digit',
@@ -112,8 +112,6 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       if (pedidoFinal.observacoes) {
         mensagem += `*OBSERVACOES:*\n${pedidoFinal.observacoes}\n\n`;
       }
-      
-      // REMOVIDO: Previsão de entrega
       
       mensagem += `Aguardo confirmacao!`;
 

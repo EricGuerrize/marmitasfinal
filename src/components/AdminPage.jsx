@@ -11,7 +11,6 @@ const AdminPage = ({ onNavigate }) => {
   const [editingProduct, setEditingProduct] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   
-  // Form states para adicionar/editar produto
   const [productForm, setProductForm] = useState({
     nome: '',
     descricao: '',
@@ -22,7 +21,6 @@ const AdminPage = ({ onNavigate }) => {
     estoque: 100
   });
 
-  // Estados para dashboard
   const [stats, setStats] = useState({
     totalPedidos: 0,
     totalVendas: 0,
@@ -33,7 +31,6 @@ const AdminPage = ({ onNavigate }) => {
     percentualEmails: 0
   });
 
-  // Status disponíveis para pedidos
   const statusPedidos = [
     { value: 'a_preparar', label: 'A Preparar', color: '#ffc107', icon: '⏳' },
     { value: 'em_producao', label: 'Em Produção', color: '#007bff', icon: '👨‍🍳' },
@@ -59,18 +56,15 @@ const AdminPage = ({ onNavigate }) => {
     try {
       const empresas = await authSupabaseService.listarEmpresas();
       setEmpresasCadastradas(empresas);
-      
-      // Calcula estatísticas de email
       const empresasComEmail = empresas.filter(e => e.email && e.email.trim() !== '').length;
       const percentual = empresas.length > 0 ? (empresasComEmail / empresas.length) * 100 : 0;
       
       setStats(prev => ({
         ...prev,
         empresasCadastradas: empresas.length,
-        empresasComEmail: empresasComEmail,
+        empresasComEmail,
         percentualEmails: percentual
       }));
-      
     } catch (error) {
       console.error('Erro ao carregar empresas:', error);
       setEmpresasCadastradas([]);
@@ -100,14 +94,14 @@ const AdminPage = ({ onNavigate }) => {
         numero: 1001,
         cliente: 'H Azevedo de Abreu',
         cnpj: '05.336.475/0001-77',
-        total: 567.00,
+        total: 567.0,
         status: 'em_producao',
         data: new Date().toISOString(),
         enderecoEntrega: 'Rua das Flores, 123 - Centro, São Paulo/SP - CEP: 01234-567',
         observacoes: 'Entregar na portaria',
         itens: [
-          { nome: 'Marmita Fitness Frango', quantidade: 15, preco: 18.90 },
-          { nome: 'Marmita Vegana', quantidade: 15, preco: 16.90 }
+          { nome: 'Marmita Fitness Frango', quantidade: 15, preco: 18.9 },
+          { nome: 'Marmita Vegana', quantidade: 15, preco: 16.9 }
         ]
       }
     ] : [];
@@ -123,7 +117,7 @@ const AdminPage = ({ onNavigate }) => {
         id: 1,
         nome: 'Marmita Fitness Frango',
         descricao: 'Peito de frango grelhado, arroz integral, brócolis e cenoura',
-        preco: 18.90,
+        preco: 18.9,
         categoria: 'fitness',
         imagem: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=200&fit=crop',
         disponivel: true,
@@ -133,7 +127,7 @@ const AdminPage = ({ onNavigate }) => {
         id: 2,
         nome: 'Marmita Vegana',
         descricao: 'Quinoa, grão-de-bico, abobrinha refogada e salada verde',
-        preco: 16.90,
+        preco: 16.9,
         categoria: 'vegana',
         imagem: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=200&fit=crop',
         disponivel: true,
@@ -143,7 +137,7 @@ const AdminPage = ({ onNavigate }) => {
         id: 3,
         nome: 'Marmita Tradicional',
         descricao: 'Bife acebolado, arroz, feijão, farofa e salada',
-        preco: 15.90,
+        preco: 15.9,
         categoria: 'tradicional',
         imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=300&h=200&fit=crop',
         disponivel: true,
@@ -157,9 +151,7 @@ const AdminPage = ({ onNavigate }) => {
   const calcularEstatisticas = (pedidosList) => {
     const total = pedidosList.reduce((sum, pedido) => sum + pedido.total, 0);
     const hoje = new Date().toDateString();
-    const pedidosHoje = pedidosList.filter(p => 
-      new Date(p.data).toDateString() === hoje
-    ).length;
+    const pedidosHoje = pedidosList.filter(p => new Date(p.data).toDateString() === hoje).length;
 
     setStats(prev => ({
       ...prev,
@@ -227,7 +219,6 @@ const AdminPage = ({ onNavigate }) => {
         setEditingProduct(null);
       } else {
         const novoId = produtos.length > 0 ? Math.max(...produtos.map(p => p.id)) + 1 : 1;
-        
         const novoProduto = {
           id: novoId,
           nome: productForm.nome.trim(),
@@ -358,7 +349,6 @@ const AdminPage = ({ onNavigate }) => {
       backgroundColor: '#f8f9fa',
       minHeight: '100vh'
     }}>
-      {/* Header Admin */}
       <div style={{
         background: '#343a40',
         color: 'white',
@@ -374,7 +364,6 @@ const AdminPage = ({ onNavigate }) => {
             <small style={{ color: '#adb5bd' }}>Painel Administrativo</small>
           </div>
         </div>
-        
         <button 
           onClick={logout}
           style={{
@@ -391,7 +380,6 @@ const AdminPage = ({ onNavigate }) => {
         </button>
       </div>
 
-      {/* Navigation Tabs */}
       <div style={{
         backgroundColor: 'white',
         borderBottom: '1px solid #dee2e6',
@@ -424,17 +412,14 @@ const AdminPage = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Content Area */}
       <div style={{
         padding: '30px 40px',
         maxWidth: '1200px',
         margin: '0 auto'
       }}>
-        {/* ==================== DASHBOARD TAB ==================== */}
         {activeTab === 'dashboard' && (
           <div>
             <h1 style={{ color: '#343a40', marginBottom: '30px' }}>📊 Dashboard</h1>
-            
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
@@ -454,7 +439,6 @@ const AdminPage = ({ onNavigate }) => {
                   {stats.totalPedidos}
                 </div>
               </div>
-
               <div style={{
                 backgroundColor: 'white',
                 padding: '25px',
@@ -468,7 +452,6 @@ const AdminPage = ({ onNavigate }) => {
                   R$ {stats.totalVendas.toFixed(2)}
                 </div>
               </div>
-
               <div style={{
                 backgroundColor: 'white',
                 padding: '25px',
@@ -482,7 +465,6 @@ const AdminPage = ({ onNavigate }) => {
                   {stats.empresasCadastradas}
                 </div>
               </div>
-
               <div style={{
                 backgroundColor: 'white',
                 padding: '25px',
@@ -496,7 +478,6 @@ const AdminPage = ({ onNavigate }) => {
                   {produtos.filter(p => p.disponivel).length}
                 </div>
               </div>
-
               <div style={{
                 backgroundColor: 'white',
                 padding: '25px',
@@ -517,7 +498,6 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* ==================== PRODUTOS TAB ==================== */}
         {activeTab === 'produtos' && (
           <div>
             <div style={{
@@ -554,8 +534,6 @@ const AdminPage = ({ onNavigate }) => {
                 ➕ Adicionar Produto
               </button>
             </div>
-
-            {/* Formulário de Adicionar/Editar Produto */}
             {showAddProduct && (
               <div style={{
                 backgroundColor: 'white',
@@ -567,7 +545,6 @@ const AdminPage = ({ onNavigate }) => {
                 <h2 style={{ color: '#009245', marginBottom: '25px' }}>
                   {editingProduct ? '✏️ Editar Produto' : '➕ Adicionar Novo Produto'}
                 </h2>
-                
                 <form onSubmit={handleProductSubmit}>
                   <div style={{
                     display: 'grid',
@@ -582,7 +559,7 @@ const AdminPage = ({ onNavigate }) => {
                       <input
                         type="text"
                         value={productForm.nome}
-                        onChange={(e) => setProductForm({...productForm, nome: e.target.value})}
+                        onChange={(e) => setProductForm({ ...productForm, nome: e.target.value })}
                         placeholder="Ex: Marmita Fitness Frango"
                         style={{
                           width: '100%',
@@ -595,7 +572,6 @@ const AdminPage = ({ onNavigate }) => {
                         required
                       />
                     </div>
-                    
                     <div>
                       <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
                         Preço (R$) *
@@ -605,7 +581,7 @@ const AdminPage = ({ onNavigate }) => {
                         step="0.01"
                         min="0"
                         value={productForm.preco}
-                        onChange={(e) => setProductForm({...productForm, preco: e.target.value})}
+                        onChange={(e) => setProductForm({ ...productForm, preco: e.target.value })}
                         placeholder="0,00"
                         style={{
                           width: '100%',
@@ -619,14 +595,13 @@ const AdminPage = ({ onNavigate }) => {
                       />
                     </div>
                   </div>
-
                   <div style={{ marginBottom: '20px' }}>
                     <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
                       Descrição *
                     </label>
                     <textarea
                       value={productForm.descricao}
-                      onChange={(e) => setProductForm({...productForm, descricao: e.target.value})}
+                      onChange={(e) => setProductForm({ ...productForm, descricao: e.target.value })}
                       placeholder="Descreva os ingredientes e características do produto"
                       style={{
                         width: '100%',
@@ -641,7 +616,6 @@ const AdminPage = ({ onNavigate }) => {
                       required
                     />
                   </div>
-
                   <div style={{
                     display: 'grid',
                     gridTemplateColumns: '1fr 1fr 1fr',
@@ -654,7 +628,7 @@ const AdminPage = ({ onNavigate }) => {
                       </label>
                       <select
                         value={productForm.categoria}
-                        onChange={(e) => setProductForm({...productForm, categoria: e.target.value})}
+                        onChange={(e) => setProductForm({ ...productForm, categoria: e.target.value })}
                         style={{
                           width: '100%',
                           padding: '10px',
@@ -670,7 +644,6 @@ const AdminPage = ({ onNavigate }) => {
                         <option value="gourmet">Gourmet</option>
                       </select>
                     </div>
-                    
                     <div>
                       <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
                         Estoque
@@ -679,7 +652,7 @@ const AdminPage = ({ onNavigate }) => {
                         type="number"
                         min="0"
                         value={productForm.estoque}
-                        onChange={(e) => setProductForm({...productForm, estoque: e.target.value})}
+                        onChange={(e) => setProductForm({ ...productForm, estoque: e.target.value })}
                         style={{
                           width: '100%',
                           padding: '10px',
@@ -690,14 +663,15 @@ const AdminPage = ({ onNavigate }) => {
                         }}
                       />
                     </div>
-                    
                     <div>
                       <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
                         Status
                       </label>
                       <select
                         value={productForm.disponivel}
-                        onChange={(e) => setProductForm({...productForm, disponivel: e.target.value === 'true'})}
+                        onChange={(e) =>
+                          setProductForm({ ...productForm, disponivel: e.target.value === 'true' })
+                        }
                         style={{
                           width: '100%',
                           padding: '10px',
@@ -712,16 +686,15 @@ const AdminPage = ({ onNavigate }) => {
                       </select>
                     </div>
                   </div>
-
-                  {/* Componente de Upload de Imagem */}
                   <div style={{ marginBottom: '25px' }}>
                     <ImageUpload
                       currentImage={productForm.imagem}
-                      onImageUpload={(imageUrl) => setProductForm({...productForm, imagem: imageUrl})}
+                      onImageUpload={(imageUrl) =>
+                        setProductForm({ ...productForm, imagem: imageUrl })
+                      }
                       placeholder="URL da imagem do produto"
                     />
                   </div>
-
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button
                       type="submit"
@@ -738,7 +711,6 @@ const AdminPage = ({ onNavigate }) => {
                     >
                       {editingProduct ? '💾 Salvar Alterações' : '➕ Adicionar Produto'}
                     </button>
-                    
                     <button
                       type="button"
                       onClick={() => {
@@ -761,8 +733,6 @@ const AdminPage = ({ onNavigate }) => {
                 </form>
               </div>
             )}
-
-            {/* Grid de Produtos */}
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
@@ -788,7 +758,6 @@ const AdminPage = ({ onNavigate }) => {
                       objectFit: 'cover'
                     }}
                   />
-                  
                   <div style={{ padding: '15px' }}>
                     <h3 style={{
                       margin: 0,
@@ -798,7 +767,6 @@ const AdminPage = ({ onNavigate }) => {
                     }}>
                       {produto.nome}
                     </h3>
-                    
                     <div style={{
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -823,7 +791,6 @@ const AdminPage = ({ onNavigate }) => {
                         {produto.disponivel ? 'ATIVO' : 'INATIVO'}
                       </span>
                     </div>
-                    
                     <div style={{
                       display: 'flex',
                       gap: '5px',
@@ -843,7 +810,6 @@ const AdminPage = ({ onNavigate }) => {
                       >
                         ✏️ Editar
                       </button>
-                      
                       <button
                         onClick={() => toggleProductAvailability(produto.id)}
                         style={{
@@ -858,7 +824,6 @@ const AdminPage = ({ onNavigate }) => {
                       >
                         {produto.disponivel ? '⏸️' : '▶️'}
                       </button>
-                      
                       <button
                         onClick={() => deleteProduct(produto.id)}
                         style={{
@@ -881,7 +846,6 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* ==================== PEDIDOS TAB ==================== */}
         {activeTab === 'pedidos' && (
           <div>
             <div style={{
@@ -902,7 +866,6 @@ const AdminPage = ({ onNavigate }) => {
                 🔄 Atualização automática ativa
               </div>
             </div>
-            
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -956,7 +919,6 @@ const AdminPage = ({ onNavigate }) => {
                             })}
                           </p>
                         </div>
-                        
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ marginBottom: '10px' }}>
                             <select
@@ -981,7 +943,6 @@ const AdminPage = ({ onNavigate }) => {
                               ))}
                             </select>
                           </div>
-                          
                           <div style={{
                             fontSize: '24px',
                             fontWeight: 'bold',
@@ -991,8 +952,6 @@ const AdminPage = ({ onNavigate }) => {
                           </div>
                         </div>
                       </div>
-                      
-                      {/* ENDEREÇO DE ENTREGA - DESTAQUE PRINCIPAL */}
                       {pedido.enderecoEntrega && (
                         <div style={{
                           backgroundColor: '#fff8e1',
@@ -1019,8 +978,6 @@ const AdminPage = ({ onNavigate }) => {
                           </p>
                         </div>
                       )}
-
-                      {/* OBSERVAÇÕES */}
                       {pedido.observacoes && (
                         <div style={{
                           backgroundColor: '#e3f2fd',
@@ -1047,8 +1004,6 @@ const AdminPage = ({ onNavigate }) => {
                           </p>
                         </div>
                       )}
-                      
-                      {/* ITENS DO PEDIDO */}
                       <div>
                         <h4 style={{ margin: '15px 0 10px 0', color: '#343a40' }}>📦 Itens do Pedido:</h4>
                         {pedido.itens && pedido.itens.map((item, index) => (
@@ -1076,11 +1031,9 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
-        {/* ==================== EMPRESAS TAB ==================== */}
         {activeTab === 'empresas' && (
           <div>
             <h1 style={{ color: '#343a40', marginBottom: '30px' }}>🏢 Empresas Cadastradas</h1>
-            
             {empresasCadastradas.length === 0 ? (
               <div style={{
                 backgroundColor: 'white',
@@ -1117,9 +1070,19 @@ const AdminPage = ({ onNavigate }) => {
                       marginBottom: '15px'
                     }}>
                       <div style={{ flex: 1 }}>
-                        <h3 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
+                        {empresa.nome_empresa && (
+                          <h3 style={{ 
+                            margin: '0 0 8px 0', 
+                            color: '#009245',
+                            fontSize: '18px',
+                            fontWeight: 'bold'
+                          }}>
+                            🏢 {empresa.nome_empresa}
+                          </h3>
+                        )}
+                        <h4 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
                           {empresa.razao_social}
-                        </h3>
+                        </h4>
                         {empresa.nome_fantasia && empresa.nome_fantasia !== empresa.razao_social && (
                           <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
                             <strong>Nome Fantasia:</strong> {empresa.nome_fantasia}
@@ -1128,8 +1091,6 @@ const AdminPage = ({ onNavigate }) => {
                         <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
                           <strong>CNPJ:</strong> {empresa.cnpj_formatado}
                         </p>
-                        
-                        {/* EMAIL COM DESTAQUE */}
                         <p style={{ 
                           margin: '0 0 5px 0', 
                           color: empresa.email ? '#28a745' : '#dc3545', 
@@ -1139,13 +1100,11 @@ const AdminPage = ({ onNavigate }) => {
                           <strong>📧 Email:</strong> {formatarEmail(empresa.email)}
                           {!empresa.email && <span style={{ color: '#dc3545' }}> ⚠️ Não cadastrado</span>}
                         </p>
-
                         {empresa.telefone && (
                           <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
                             <strong>📱 Telefone:</strong> {empresa.telefone}
                           </p>
                         )}
-                        
                         <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
                           <strong>Cadastro:</strong> {new Date(empresa.data_cadastro).toLocaleDateString('pt-BR')}
                         </p>
@@ -1161,8 +1120,12 @@ const AdminPage = ({ onNavigate }) => {
                           </p>
                         )}
                       </div>
-                      
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        alignItems: 'flex-end', 
+                        gap: '10px' 
+                      }}>
                         <span style={{
                           backgroundColor: empresa.ativo ? '#28a745' : '#dc3545',
                           color: 'white',
@@ -1173,8 +1136,6 @@ const AdminPage = ({ onNavigate }) => {
                         }}>
                           {empresa.ativo ? 'ATIVO' : 'INATIVO'}
                         </span>
-
-                        {/* INDICADOR DE EMAIL */}
                         <span style={{
                           backgroundColor: empresa.email ? '#28a745' : '#ffc107',
                           color: empresa.email ? 'white' : '#000',
@@ -1185,7 +1146,16 @@ const AdminPage = ({ onNavigate }) => {
                         }}>
                           {empresa.email ? '📧 COM EMAIL' : '⚠️ SEM EMAIL'}
                         </span>
-                        
+                        <span style={{
+                          backgroundColor: empresa.nome_empresa ? '#17a2b8' : '#6c757d',
+                          color: 'white',
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 'bold'
+                        }}>
+                          {empresa.nome_empresa ? '🏢 COM NOME' : '📝 SEM NOME'}
+                        </span>
                         {empresa.tentativas_login > 0 && (
                           <span style={{
                             backgroundColor: '#ffc107',
@@ -1198,7 +1168,6 @@ const AdminPage = ({ onNavigate }) => {
                             {empresa.tentativas_login} tentativas inválidas
                           </span>
                         )}
-                        
                         <button
                           onClick={() => toggleEmpresaAtiva(empresa.id, empresa.ativo)}
                           style={{
@@ -1222,6 +1191,7 @@ const AdminPage = ({ onNavigate }) => {
             )}
           </div>
         )}
+        
       </div>
     </div>
   );

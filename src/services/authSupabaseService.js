@@ -65,7 +65,7 @@ export const authSupabaseService = {
                     cnpj_formatado: this.formatarCnpj(cnpjLimpo),
                     senha_hash: await this.hashSenha(senha),
                     email: dadosEmpresa.email ? dadosEmpresa.email.trim() : null, // EMAIL OPCIONAL
-                    nome_empresa: dadosEmpresa.nomeEmpresa ? dadosEmpresa.nomeEmpresa.trim() : null, // NOVO
+                    nome_empresa: dadosEmpresa.nomeEmpresa ? dadosEmpresa.nomeEmpresa.trim() : null, // NOME DA EMPRESA
                     razao_social: dadosEmpresa.razaoSocial || `Empresa ${this.formatarCnpj(cnpjLimpo)}`,
                     nome_fantasia: dadosEmpresa.nomeFantasia,
                     situacao: dadosEmpresa.situacao || 'ATIVA',
@@ -119,7 +119,7 @@ export const authSupabaseService = {
             // Busca empresa no banco
             const { data: empresa, error } = await supabase
                 .from('empresas')
-                .select('id, cnpj, cnpj_formatado, razao_social, nome_fantasia, nome_empresa ,email, senha_hash, ativo, tentativas_login')
+                .select('id, cnpj, cnpj_formatado, razao_social, nome_fantasia, nome_empresa, email, senha_hash, ativo, tentativas_login')
                 .eq('cnpj', cnpjLimpo)
                 .single();
                 
@@ -167,12 +167,13 @@ export const authSupabaseService = {
             // Gera token JWT personalizado
             const token = this.gerarToken(empresa);
             
-            // Salva sessão local
+            // Salva sessão local - INCLUINDO NOME DA EMPRESA
             this.salvarSessao({
                 id: empresa.id,
                 cnpj: empresa.cnpj_formatado,
                 razaoSocial: empresa.razao_social,
                 nomeFantasia: empresa.nome_fantasia,
+                nomeEmpresa: empresa.nome_empresa, // CAMPO NOME DA EMPRESA
                 email: empresa.email,
                 token
             });
@@ -184,7 +185,7 @@ export const authSupabaseService = {
                     cnpj: empresa.cnpj_formatado,
                     razaoSocial: empresa.razao_social,
                     nomeFantasia: empresa.nome_fantasia,
-                    nomeEmpresa: empresa.nome_empresa, // NOVO
+                    nomeEmpresa: empresa.nome_empresa, // RETORNA NOME DA EMPRESA
                     email: empresa.email,
                     ultimoAcesso: empresa.ultimo_acesso
                 },
@@ -216,7 +217,7 @@ export const authSupabaseService = {
             
             const { data, error } = await supabase
                 .from('empresas')
-                .select('id, cnpj_formatado, razao_social, email, ativo')
+                .select('id, cnpj_formatado, razao_social, nome_empresa, email, ativo')
                 .eq('email', email.trim())
                 .eq('ativo', true)
                 .single();
@@ -384,6 +385,7 @@ export const authSupabaseService = {
         sessionStorage.removeItem('cnpj');
         sessionStorage.removeItem('empresaInfo');
         sessionStorage.removeItem('dadosEmpresa');
+        sessionStorage.removeItem('nomeEmpresa'); // LIMPAR NOME DA EMPRESA
         sessionStorage.removeItem('codigoRecuperacao');
     },
     
@@ -400,6 +402,7 @@ export const authSupabaseService = {
                     cnpj_formatado,
                     razao_social,
                     nome_fantasia,
+                    nome_empresa,
                     email,
                     telefone,
                     ativo,
@@ -516,7 +519,7 @@ export const authSupabaseService = {
     },
     
     /**
-     * Salva sessão no sessionStorage
+     * Salva sessão no sessionStorage - ATUALIZADA PARA INCLUIR NOME DA EMPRESA
      */
     salvarSessao(dadosEmpresa) {
         const sessao = {
@@ -528,7 +531,8 @@ export const authSupabaseService = {
         sessionStorage.setItem('cnpj', dadosEmpresa.cnpj);
         sessionStorage.setItem('empresaInfo', dadosEmpresa.razaoSocial);
 
-        if (dadosEmpresa.nomeEmpresa){
+        // SALVAR NOME DA EMPRESA SE DISPONÍVEL
+        if (dadosEmpresa.nomeEmpresa) {
             sessionStorage.setItem('nomeEmpresa', dadosEmpresa.nomeEmpresa);
         }
     },
