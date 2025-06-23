@@ -65,6 +65,7 @@ export const authSupabaseService = {
                     cnpj_formatado: this.formatarCnpj(cnpjLimpo),
                     senha_hash: await this.hashSenha(senha),
                     email: dadosEmpresa.email ? dadosEmpresa.email.trim() : null, // EMAIL OPCIONAL
+                    nome_empresa: dadosEmpresa.nomeEmpresa ? dadosEmpresa.nomeEmpresa.trim() : null, // NOVO
                     razao_social: dadosEmpresa.razaoSocial || `Empresa ${this.formatarCnpj(cnpjLimpo)}`,
                     nome_fantasia: dadosEmpresa.nomeFantasia,
                     situacao: dadosEmpresa.situacao || 'ATIVA',
@@ -183,6 +184,7 @@ export const authSupabaseService = {
                     cnpj: empresa.cnpj_formatado,
                     razaoSocial: empresa.razao_social,
                     nomeFantasia: empresa.nome_fantasia,
+                    nomeEmpresa: empresa.nome_empresa, // NOVO
                     email: empresa.email,
                     ultimoAcesso: empresa.ultimo_acesso
                 },

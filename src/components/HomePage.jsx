@@ -368,6 +368,9 @@ const HomePage = ({ onNavigate }) => {
             />
           </div>
 
+              
+
+
           {/* Campo Confirmar Senha (só no cadastro) */}
           {modo === 'cadastro' && (
             <div style={{ marginBottom: '20px', textAlign: 'left' }}>

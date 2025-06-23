@@ -81,6 +81,7 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       const numeroWhatsApp = '5565992556938';
       let mensagem = `*NOVO PEDIDO - FIT IN BOX*\n\n`;
       mensagem += `*Pedido:* #${pedidoFinal.numero}\n`;
+      mensagem += `*Empresa:* ${nomeParaExibir}\n`; // USAR NOME OU CNPJ  
       mensagem += `*CNPJ:* ${cnpj}\n`;
       mensagem += `*Data:* ${new Date().toLocaleDateString('pt-BR', {
         day: '2-digit',
