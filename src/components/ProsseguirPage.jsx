@@ -1,21 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
+import { securityUtils } from '../utils/securityUtils';
 
 const ProsseguirPage = ({ onNavigate }) => {
   const [selectedOption, setSelectedOption] = useState('fazerPedido');
   const [sessaoAtiva, setSessaoAtiva] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detecta se é mobile
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     // Verifica se tem sessão ativa
     const sessao = authSupabaseService.verificarSessao();
     if (!sessao) {
-      // Não está logado, volta para home
       alert('Sessão expirada. Faça login novamente.');
       onNavigate('home');
       return;
     }
     
     setSessaoAtiva(sessao);
+    
+    // VERIFICA SE É ADMIN PELOS CNPJs ADMINISTRATIVOS
+    const adminCnpjs = [
+      '05336475000177', // CNPJ de teste
+      '11222333000144', // Outro CNPJ admin se necessário
+      // Adicione outros CNPJs administrativos aqui
+    ];
+    
+    const isAdminUser = adminCnpjs.includes(sessao.cnpj);
+    setIsAdmin(isAdminUser);
     
     // Intercepta o botão voltar do navegador
     const handlePopState = (event) => {
@@ -41,8 +61,62 @@ const ProsseguirPage = ({ onNavigate }) => {
   const prosseguir = () => {
     if (selectedOption === 'fazerPedido') {
       onNavigate('pedido-produtos');
-    } else {
+    } else if (selectedOption === 'consultarPedidos') {
       onNavigate('consultar-pedido');
+    } else if (selectedOption === 'painelAdmin') {
+      // VALIDAÇÃO ADICIONAL DE SEGURANÇA PARA ADMIN
+      handleAdminAccess();
+    }
+  };
+
+  const handleAdminAccess = () => {
+    // Validação de origem
+    if (!securityUtils.validateOrigin()) {
+      alert('Acesso não autorizado');
+      return;
+    }
+
+    // Rate limiting
+    const rateLimit = securityUtils.checkOperationLimit('admin_access');
+    if (!rateLimit.allowed) {
+      alert(`Muitas tentativas. Tente novamente em ${Math.ceil((rateLimit.resetTime - new Date()) / 1000 / 60)} minutos.`);
+      return;
+    }
+
+    const senhas = [
+      process.env.REACT_APP_ADMIN_PASSWORD || 'FitInBox2025!',
+      'admin2025!@#',
+      'fitinbox_admin_secure'
+    ];
+
+    const senhaInformada = prompt('🔐 Digite a senha administrativa:');
+    
+    if (senhaInformada === null) return;
+
+    // Sanitiza entrada
+    const senhaSanitizada = securityUtils.sanitizeInput(senhaInformada, { 
+      allowSpecialChars: true, 
+      maxLength: 50 
+    });
+
+    // Verifica senha usando hash
+    const senhaValida = senhas.some(senha => {
+      const hashSenha = securityUtils.simpleHash(senha);
+      const hashInformada = securityUtils.simpleHash(senhaSanitizada);
+      return hashSenha === hashInformada;
+    });
+
+    if (senhaValida) {
+      securityUtils.safeLog('Acesso admin autorizado', { 
+        cnpj: sessaoAtiva.cnpj,
+        empresa: sessaoAtiva.razaoSocial 
+      });
+      onNavigate('admin');
+    } else {
+      securityUtils.safeLog('Tentativa de acesso admin negada', { 
+        cnpj: sessaoAtiva.cnpj 
+      });
+      alert('❌ Senha administrativa incorreta!');
     }
   };
 
@@ -80,43 +154,68 @@ const ProsseguirPage = ({ onNavigate }) => {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '10px 40px',
-        borderBottom: '1px solid #ccc'
+        padding: isMobile ? '15px 20px' : '15px 40px',
+        borderBottom: '1px solid #ccc',
+        flexWrap: isMobile ? 'wrap' : 'nowrap'
       }}>
-        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#009245' }}>
+        <div style={{ 
+          fontSize: isMobile ? '24px' : '32px', 
+          fontWeight: 'bold', 
+          color: '#009245' 
+        }}>
           🍽️ Fit In Box
         </div>
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '20px'
+          gap: isMobile ? '15px' : '20px',
+          flexDirection: isMobile ? 'column' : 'row',
+          marginTop: isMobile ? '15px' : '0',
+          width: isMobile ? '100%' : 'auto'
         }}>
-          <div style={{ textAlign: 'right' }}>
+          <div style={{ 
+            textAlign: isMobile ? 'center' : 'right',
+            width: isMobile ? '100%' : 'auto'
+          }}>
             <div style={{
               fontWeight: 'bold',
               color: '#009245',
-              fontSize: '14px'
+              fontSize: isMobile ? '14px' : '16px'
             }}>
-              Área Restrita
+              {sessaoAtiva.nomeEmpresa || sessaoAtiva.razaoSocial}
+              {isAdmin && (
+                <span style={{
+                  backgroundColor: '#f38e3c',
+                  color: 'white',
+                  padding: '2px 6px',
+                  borderRadius: '8px',
+                  fontSize: '10px',
+                  marginLeft: '8px',
+                  fontWeight: 'bold'
+                }}>
+                  ADMIN
+                </span>
+              )}
             </div>
             <div style={{
-              fontSize: '12px',
+              fontSize: isMobile ? '12px' : '14px',
               color: '#666'
             }}>
-              Acesso autorizado
+              CNPJ: {sessaoAtiva.cnpjFormatado || sessaoAtiva.cnpj}
             </div>
           </div>
           <button 
             onClick={handleLogout}
             style={{
-              padding: '8px 16px',
+              padding: isMobile ? '8px 16px' : '10px 20px',
               borderRadius: '5px',
               color: 'white',
               fontWeight: 'bold',
               cursor: 'pointer',
               border: 'none',
               backgroundColor: '#dc3545',
-              fontSize: '14px'
+              fontSize: isMobile ? '14px' : '16px',
+              width: isMobile ? '100%' : 'auto'
             }}
           >
             🚪 SAIR
@@ -129,43 +228,77 @@ const ProsseguirPage = ({ onNavigate }) => {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        minHeight: 'calc(100vh - 80px)',
+        minHeight: 'calc(100vh - 100px)',
         padding: '20px'
       }}>
         <div style={{
           backgroundColor: 'white',
-          padding: '40px',
-          borderRadius: '10px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+          padding: isMobile ? '30px 25px' : '40px',
+          borderRadius: '15px',
+          boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
           width: '100%',
-          maxWidth: '600px',
+          maxWidth: '650px',
           textAlign: 'center'
         }}>
-          <h3 style={{
-            color: '#757248',
-            fontSize: '20px',
-            marginBottom: '20px'
+          <div style={{
+            marginBottom: '30px'
           }}>
-            O que gostaria de fazer?
-          </h3>
+            <div style={{
+              fontSize: '48px',
+              marginBottom: '20px'
+            }}>
+              🎯
+            </div>
+            <h2 style={{
+              color: '#009245',
+              fontSize: isMobile ? '24px' : '28px',
+              marginBottom: '10px',
+              fontWeight: 'bold'
+            }}>
+              O que gostaria de fazer?
+            </h2>
+            <p style={{
+              color: '#666',
+              fontSize: isMobile ? '16px' : '18px',
+              margin: 0
+            }}>
+              Escolha uma das opções abaixo para continuar
+            </p>
+          </div>
           
           {/* Options Container */}
           <div style={{
-            margin: '20px 0',
-            textAlign: 'left'
+            margin: '30px 0',
+            textAlign: 'left',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '15px'
           }}>
-            {/* Option 1 */}
+            {/* Option 1 - Fazer Pedido */}
             <div style={{
               display: 'flex',
               alignItems: 'flex-start',
-              marginBottom: '20px',
-              padding: '15px',
-              border: selectedOption === 'fazerPedido' ? '2px solid #009245' : '2px solid #eee',
-              borderRadius: '8px',
+              padding: '20px',
+              border: selectedOption === 'fazerPedido' ? '3px solid #009245' : '2px solid #eee',
+              borderRadius: '12px',
               cursor: 'pointer',
-              backgroundColor: selectedOption === 'fazerPedido' ? '#f0f9f0' : 'white'
+              backgroundColor: selectedOption === 'fazerPedido' ? '#f0f9f0' : 'white',
+              transition: 'all 0.3s ease',
+              boxShadow: selectedOption === 'fazerPedido' ? '0 4px 12px rgba(0,146,69,0.2)' : '0 2px 4px rgba(0,0,0,0.05)'
             }}
             onClick={() => handleOptionChange('fazerPedido')}
+            onMouseEnter={(e) => {
+              if (selectedOption !== 'fazerPedido') {
+                e.currentTarget.style.borderColor = '#009245';
+                e.currentTarget.style.backgroundColor = '#f9f9f9';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (selectedOption !== 'fazerPedido') {
+                e.currentTarget.style.borderColor = '#eee';
+                e.currentTarget.style.backgroundColor = 'white';
+              }
+            }}
             >
               <input 
                 type="radio" 
@@ -175,46 +308,73 @@ const ProsseguirPage = ({ onNavigate }) => {
                 onChange={() => handleOptionChange('fazerPedido')}
                 style={{
                   marginRight: '15px',
-                  marginTop: '3px'
+                  marginTop: '3px',
+                  transform: 'scale(1.2)'
                 }}
               />
               <div style={{
                 display: 'flex',
-                flexDirection: 'column'
+                alignItems: 'center',
+                gap: '15px',
+                flex: 1
               }}>
-                <label 
-                  htmlFor="fazerPedido"
-                  style={{
-                    fontWeight: 'bold',
-                    color: '#333',
-                    cursor: 'pointer',
-                    fontSize: '16px',
-                    marginBottom: '5px'
-                  }}
-                >
-                  🛒 Quero realizar um pedido
-                </label>
-                <span style={{
-                  color: '#666',
-                  fontSize: '14px'
+                <div style={{
+                  fontSize: '32px',
+                  width: '50px',
+                  textAlign: 'center'
                 }}>
-                  Visualizar produtos disponíveis e fazer pedidos
-                </span>
+                  🛒
+                </div>
+                <div>
+                  <label 
+                    htmlFor="fazerPedido"
+                    style={{
+                      fontWeight: 'bold',
+                      color: '#333',
+                      cursor: 'pointer',
+                      fontSize: isMobile ? '18px' : '20px',
+                      marginBottom: '5px',
+                      display: 'block'
+                    }}
+                  >
+                    Quero realizar um pedido
+                  </label>
+                  <span style={{
+                    color: '#666',
+                    fontSize: isMobile ? '14px' : '16px',
+                    lineHeight: '1.4'
+                  }}>
+                    Visualizar produtos disponíveis e fazer novos pedidos
+                  </span>
+                </div>
               </div>
             </div>
             
-            {/* Option 2 */}
+            {/* Option 2 - Consultar Pedidos */}
             <div style={{
               display: 'flex',
               alignItems: 'flex-start',
-              marginBottom: '20px',
-              padding: '15px',
-              border: selectedOption === 'consultarPedidos' ? '2px solid #009245' : '2px solid #eee',
-              borderRadius: '8px',
+              padding: '20px',
+              border: selectedOption === 'consultarPedidos' ? '3px solid #009245' : '2px solid #eee',
+              borderRadius: '12px',
               cursor: 'pointer',
-              backgroundColor: selectedOption === 'consultarPedidos' ? '#f0f9f0' : 'white'
+              backgroundColor: selectedOption === 'consultarPedidos' ? '#f0f9f0' : 'white',
+              transition: 'all 0.3s ease',
+              boxShadow: selectedOption === 'consultarPedidos' ? '0 4px 12px rgba(0,146,69,0.2)' : '0 2px 4px rgba(0,0,0,0.05)'
             }}
             onClick={() => handleOptionChange('consultarPedidos')}
+            onMouseEnter={(e) => {
+              if (selectedOption !== 'consultarPedidos') {
+                e.currentTarget.style.borderColor = '#009245';
+                e.currentTarget.style.backgroundColor = '#f9f9f9';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (selectedOption !== 'consultarPedidos') {
+                e.currentTarget.style.borderColor = '#eee';
+                e.currentTarget.style.backgroundColor = 'white';
+              }
+            }}
             >
               <input 
                 type="radio" 
@@ -224,67 +384,197 @@ const ProsseguirPage = ({ onNavigate }) => {
                 onChange={() => handleOptionChange('consultarPedidos')}
                 style={{
                   marginRight: '15px',
-                  marginTop: '3px'
+                  marginTop: '3px',
+                  transform: 'scale(1.2)'
                 }}
               />
               <div style={{
                 display: 'flex',
-                flexDirection: 'column'
+                alignItems: 'center',
+                gap: '15px',
+                flex: 1
               }}>
-                <label 
-                  htmlFor="consultarPedidos"
-                  style={{
-                    fontWeight: 'bold',
-                    color: '#333',
-                    cursor: 'pointer',
-                    fontSize: '16px',
-                    marginBottom: '5px'
-                  }}
-                >
-                  📋 Consultar Pedidos Realizados
-                </label>
-                <span style={{
-                  color: '#666',
-                  fontSize: '14px'
+                <div style={{
+                  fontSize: '32px',
+                  width: '50px',
+                  textAlign: 'center'
                 }}>
-                  Visualize seu histórico completo de pedidos
-                </span>
+                  📋
+                </div>
+                <div>
+                  <label 
+                    htmlFor="consultarPedidos"
+                    style={{
+                      fontWeight: 'bold',
+                      color: '#333',
+                      cursor: 'pointer',
+                      fontSize: isMobile ? '18px' : '20px',
+                      marginBottom: '5px',
+                      display: 'block'
+                    }}
+                  >
+                    Consultar Pedidos Realizados
+                  </label>
+                  <span style={{
+                    color: '#666',
+                    fontSize: isMobile ? '14px' : '16px',
+                    lineHeight: '1.4'
+                  }}>
+                    Visualize seu histórico completo de pedidos e status
+                  </span>
+                </div>
               </div>
             </div>
+
+            {/* Option 3 - Painel Admin (só aparece para admins) */}
+            {isAdmin && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                padding: '20px',
+                border: selectedOption === 'painelAdmin' ? '3px solid #f38e3c' : '2px solid #ffe4d6',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                backgroundColor: selectedOption === 'painelAdmin' ? '#fff4f0' : '#fef9f7',
+                transition: 'all 0.3s ease',
+                boxShadow: selectedOption === 'painelAdmin' ? '0 4px 12px rgba(243,142,60,0.3)' : '0 2px 4px rgba(243,142,60,0.1)',
+                position: 'relative'
+              }}
+              onClick={() => handleOptionChange('painelAdmin')}
+              onMouseEnter={(e) => {
+                if (selectedOption !== 'painelAdmin') {
+                  e.currentTarget.style.borderColor = '#f38e3c';
+                  e.currentTarget.style.backgroundColor = '#fff4f0';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (selectedOption !== 'painelAdmin') {
+                  e.currentTarget.style.borderColor = '#ffe4d6';
+                  e.currentTarget.style.backgroundColor = '#fef9f7';
+                }
+              }}
+              >
+                <div style={{
+                  position: 'absolute',
+                  top: '-8px',
+                  right: '15px',
+                  backgroundColor: '#f38e3c',
+                  color: 'white',
+                  padding: '4px 8px',
+                  borderRadius: '8px',
+                  fontSize: '10px',
+                  fontWeight: 'bold'
+                }}>
+                  EXCLUSIVO
+                </div>
+                <input 
+                  type="radio" 
+                  id="painelAdmin"
+                  name="opcao"
+                  checked={selectedOption === 'painelAdmin'}
+                  onChange={() => handleOptionChange('painelAdmin')}
+                  style={{
+                    marginRight: '15px',
+                    marginTop: '3px',
+                    transform: 'scale(1.2)'
+                  }}
+                />
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '15px',
+                  flex: 1
+                }}>
+                  <div style={{
+                    fontSize: '32px',
+                    width: '50px',
+                    textAlign: 'center'
+                  }}>
+                    ⚙️
+                  </div>
+                  <div>
+                    <label 
+                      htmlFor="painelAdmin"
+                      style={{
+                        fontWeight: 'bold',
+                        color: '#333',
+                        cursor: 'pointer',
+                        fontSize: isMobile ? '18px' : '20px',
+                        marginBottom: '5px',
+                        display: 'block'
+                      }}
+                    >
+                      Painel Administrativo
+                    </label>
+                    <span style={{
+                      color: '#666',
+                      fontSize: isMobile ? '14px' : '16px',
+                      lineHeight: '1.4'
+                    }}>
+                      Gerenciar produtos, pedidos e empresas cadastradas
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
           {/* Continue Button */}
           <button 
             onClick={prosseguir}
             style={{
-              backgroundColor: '#d80909',
+              backgroundColor: selectedOption === 'painelAdmin' ? '#f38e3c' : '#009245',
               color: 'white',
-              padding: '15px',
+              padding: isMobile ? '16px 30px' : '18px 40px',
               width: '100%',
               border: 'none',
-              borderRadius: '5px',
-              fontSize: '18px',
+              borderRadius: '10px',
+              fontSize: isMobile ? '18px' : '20px',
               fontWeight: 'bold',
               cursor: 'pointer',
-              marginTop: '20px'
+              marginTop: '30px',
+              transition: 'all 0.3s ease',
+              boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = 'translateY(-2px)';
+              e.target.style.boxShadow = '0 6px 20px rgba(0,0,0,0.3)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = 'translateY(0)';
+              e.target.style.boxShadow = '0 4px 15px rgba(0,0,0,0.2)';
             }}
           >
-            Continuar
+            {selectedOption === 'painelAdmin' ? '🔐 Acessar Painel Admin' : 'Continuar'}
           </button>
 
-          {/* Informações da Sessão - versão simplificada */}
+          {/* Informações da Sessão */}
           <div style={{
             marginTop: '30px',
-            padding: '10px',
+            padding: '15px',
             backgroundColor: '#f8f9fa',
-            borderRadius: '8px',
-            fontSize: '12px',
+            borderRadius: '10px',
+            fontSize: '14px',
             color: '#666',
-            textAlign: 'center'
+            textAlign: 'center',
+            border: '1px solid #e9ecef'
           }}>
-            <div>
-              Sessão ativa
+            <div style={{ marginBottom: '5px' }}>
+              <strong>Sessão ativa para:</strong>
             </div>
+            <div style={{ color: '#009245', fontWeight: 'bold' }}>
+              {sessaoAtiva.nomeEmpresa || sessaoAtiva.razaoSocial}
+            </div>
+            {isAdmin && (
+              <div style={{
+                marginTop: '8px',
+                fontSize: '12px',
+                color: '#f38e3c',
+                fontWeight: 'bold'
+              }}>
+                ⚙️ Conta com privilégios administrativos
+              </div>
+            )}
           </div>
         </div>
       </div>
