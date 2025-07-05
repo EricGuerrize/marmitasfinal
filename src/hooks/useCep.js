@@ -1,187 +1,169 @@
 // src/hooks/useCep.js
 import { useState, useCallback } from 'react';
-import { cepService } from '../services/cepService';
 
-/**
- * Hook personalizado para busca de CEP
- * @returns {Object} Objeto com estados e funções para busca de CEP
- */
 export const useCep = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [endereco, setEndereco] = useState({
     cep: '',
     rua: '',
     bairro: '',
     cidade: '',
-    estado: '',
-    complemento: '',
+    estado: 'SP',
     numero: '',
     referencia: ''
   });
+  
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   /**
-   * Busca CEP e preenche automaticamente o endereço
-   * @param {string} cep - CEP a ser buscado
-   * @param {Function} onSuccess - Callback executado em caso de sucesso
-   * @param {Function} onError - Callback executado em caso de erro
+   * Busca CEP na API ViaCEP
    */
-  const buscarCep = useCallback(async (cep, onSuccess, onError) => {
-    // Limpa erro anterior
-    setError(null);
+  const buscarCep = useCallback(async (cep) => {
+    if (!cep || cep.length < 8) return;
     
-    // Valida CEP antes de buscar
-    if (!cepService.validarCep(cep)) {
-      return;
-    }
-
+    const cepLimpo = cep.replace(/\D/g, '');
+    if (cepLimpo.length !== 8) return;
+    
     setLoading(true);
-
+    setError('');
+    
     try {
-      const resultado = await cepService.buscarCep(cep);
+      const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+      const data = await response.json();
       
-      if (resultado.success) {
-        // Atualiza o estado do endereço mantendo dados já preenchidos
-        setEndereco(prevEndereco => ({
-          ...prevEndereco,
-          cep: resultado.data.cep,
-          rua: resultado.data.rua,
-          bairro: resultado.data.bairro,
-          cidade: resultado.data.cidade,
-          estado: resultado.data.estado,
-          complemento: resultado.data.complemento
-          // Não sobrescreve número e referência que são inseridos manualmente
-        }));
-
-        // Executa callback de sucesso se fornecido
-        if (onSuccess) {
-          onSuccess(resultado.data);
-        }
-      } else {
-        setError(resultado.error);
-        
-        // Executa callback de erro se fornecido
-        if (onError) {
-          onError(resultado.error);
-        }
+      if (data.erro) {
+        setError('CEP não encontrado');
+        return;
       }
+      
+      setEndereco(prev => ({
+        ...prev,
+        cep: data.cep,
+        rua: data.logradouro || prev.rua,
+        bairro: data.bairro || prev.bairro,
+        cidade: data.localidade || prev.cidade,
+        estado: data.uf || prev.estado
+      }));
+      
     } catch (err) {
-      const errorMessage = 'Erro ao buscar CEP. Tente novamente.';
-      setError(errorMessage);
-      
-      if (onError) {
-        onError(errorMessage);
-      }
+      setError('Erro ao buscar CEP');
+      console.error('Erro CEP:', err);
     } finally {
       setLoading(false);
     }
   }, []);
 
   /**
-   * Atualiza um campo específico do endereço
-   * @param {string} campo - Nome do campo a ser atualizado
-   * @param {string} valor - Novo valor do campo
+   * Atualiza campo específico do endereço
    */
   const atualizarCampo = useCallback((campo, valor) => {
     setEndereco(prev => ({
       ...prev,
       [campo]: valor
     }));
-
-    // Se for CEP, aplica máscara e busca automaticamente quando completo
+    
+    // Auto-busca CEP quando completo
     if (campo === 'cep') {
-      const cepFormatado = cepService.aplicarMascaraCep(valor);
-      setEndereco(prev => ({
-        ...prev,
-        cep: cepFormatado
-      }));
-
-      // Busca automaticamente quando CEP estiver completo
-      if (cepService.validarCep(cepFormatado)) {
-        buscarCep(cepFormatado);
+      const cepFormatado = aplicarMascaraCep(valor);
+      setEndereco(prev => ({ ...prev, cep: cepFormatado }));
+      
+      const cepLimpo = valor.replace(/\D/g, '');
+      if (cepLimpo.length === 8) {
+        buscarCep(cepLimpo);
       }
     }
   }, [buscarCep]);
 
   /**
-   * Reseta todos os campos do endereço
+   * Aplica máscara de CEP
    */
-  const resetarEndereco = useCallback(() => {
+  const aplicarMascaraCep = (valor) => {
+    const apenasNumeros = valor.replace(/\D/g, '');
+    return apenasNumeros
+      .replace(/(\d{5})(\d)/, '$1-$2')
+      .slice(0, 9);
+  };
+
+  /**
+   * Valida se endereço está completo
+   */
+  const validarEndereco = useCallback(() => {
+    const camposObrigatorios = ['cep', 'rua', 'numero', 'bairro', 'cidade'];
+    const camposVazios = camposObrigatorios.filter(campo => !endereco[campo]?.trim());
+    
+    if (camposVazios.length > 0) {
+      return {
+        isValid: false,
+        mensagem: `Preencha os campos obrigatórios: ${camposVazios.join(', ')}`
+      };
+    }
+    
+    const cepLimpo = endereco.cep.replace(/\D/g, '');
+    if (cepLimpo.length !== 8) {
+      return {
+        isValid: false,
+        mensagem: 'CEP deve ter 8 dígitos'
+      };
+    }
+    
+    return { isValid: true, mensagem: '' };
+  }, [endereco]);
+
+  /**
+   * Formata endereço completo para exibição
+   */
+  const formatarEnderecoCompleto = useCallback(() => {
+    const { rua, numero, bairro, cidade, estado, cep, referencia } = endereco;
+    
+    let enderecoCompleto = `${rua}, ${numero} - ${bairro}, ${cidade}/${estado}`;
+    
+    if (cep) {
+      enderecoCompleto += ` - CEP: ${cep}`;
+    }
+    
+    if (referencia?.trim()) {
+      enderecoCompleto += ` (Ref: ${referencia.trim()})`;
+    }
+    
+    return enderecoCompleto;
+  }, [endereco]);
+
+  /**
+   * Limpa todos os campos
+   */
+  const limparEndereco = useCallback(() => {
     setEndereco({
       cep: '',
       rua: '',
       bairro: '',
       cidade: '',
-      estado: '',
-      complemento: '',
+      estado: 'SP',
       numero: '',
       referencia: ''
     });
-    setError(null);
+    setError('');
   }, []);
 
   /**
-   * Valida se todos os campos obrigatórios estão preenchidos
-   * @returns {Object} Resultado da validação
+   * Define endereço completo
    */
-  const validarEndereco = useCallback(() => {
-    const camposObrigatorios = {
-      cep: 'CEP',
-      rua: 'Rua/Avenida',
-      numero: 'Número',
-      bairro: 'Bairro',
-      cidade: 'Cidade',
-      estado: 'Estado'
-    };
-
-    const camposVazios = [];
-
-    Object.entries(camposObrigatorios).forEach(([campo, label]) => {
-      if (!endereco[campo] || endereco[campo].trim() === '') {
-        camposVazios.push(label);
-      }
-    });
-
-    return {
-      isValid: camposVazios.length === 0,
-      camposVazios,
-      mensagem: camposVazios.length > 0 
-        ? `Por favor, preencha: ${camposVazios.join(', ')}`
-        : ''
-    };
-  }, [endereco]);
-
-  /**
-   * Formata endereço completo para exibição
-   * @returns {string} Endereço formatado
-   */
-  const formatarEnderecoCompleto = useCallback(() => {
-    const { rua, numero, bairro, cidade, estado, cep, referencia } = endereco;
-    
-    let enderecoFormatado = `${rua}, ${numero} - ${bairro}, ${cidade}/${estado} - CEP: ${cep}`;
-    
-    if (referencia && referencia.trim() !== '') {
-      enderecoFormatado += ` - Ref: ${referencia}`;
-    }
-    
-    return enderecoFormatado;
-  }, [endereco]);
+  const setEnderecoCompleto = useCallback((novoEndereco) => {
+    setEndereco(prev => ({
+      ...prev,
+      ...novoEndereco
+    }));
+  }, []);
 
   return {
-    // Estados
     endereco,
     loading,
     error,
-    
-    // Funções
     buscarCep,
     atualizarCampo,
-    resetarEndereco,
     validarEndereco,
     formatarEnderecoCompleto,
-    
-    // Utilitários
-    aplicarMascaraCep: cepService.aplicarMascaraCep,
-    validarCep: cepService.validarCep
+    limparEndereco,
+    setEnderecoCompleto,
+    aplicarMascaraCep
   };
 };

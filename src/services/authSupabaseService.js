@@ -1,597 +1,263 @@
 // src/services/authSupabaseService.js
-import { supabase } from '../lib/supabase';
 
-/**
- * Serviço de autenticação usando Supabase - VERSÃO SIMPLIFICADA
- * MUDANÇAS: Email opcional em vez de telefone obrigatório
- */
 export const authSupabaseService = {
-    
-    /**
-     * Registra nova empresa com CNPJ, senha e email opcional
-     * @param {string} cnpj - CNPJ da empresa
-     * @param {string} senha - Senha escolhida
-     * @param {Object} dadosEmpresa - Dados da empresa (email opcional)
-     * @returns {Object} Resultado da operação
-     */
-    async registrarEmpresa(cnpj, senha, dadosEmpresa = {}) {
-        try {
-            const cnpjLimpo = cnpj.replace(/\D/g, '');
-            
-            // Valida CNPJ
-            if (!this.validarCnpj(cnpjLimpo)) {
-                throw new Error('CNPJ inválido');
-            }
-            
-            // Valida senha
-            if (!senha || senha.length < 6) {
-                throw new Error('Senha deve ter pelo menos 6 caracteres');
-            }
-
-            // Email opcional - só valida se foi fornecido
-            if (dadosEmpresa.email && !this.validarEmail(dadosEmpresa.email)) {
-                throw new Error('Email inválido');
-            }
-            
-            // Verifica se CNPJ já está cadastrado
-            const { data: empresaExistente } = await supabase
-                .from('empresas')
-                .select('id')
-                .eq('cnpj', cnpjLimpo)
-                .single();
-                
-            if (empresaExistente) {
-                throw new Error('CNPJ já cadastrado no sistema');
-            }
-
-            // Se email foi fornecido, verifica se já existe
-            if (dadosEmpresa.email) {
-                const { data: emailExistente } = await supabase
-                    .from('empresas')
-                    .select('id')
-                    .eq('email', dadosEmpresa.email.trim())
-                    .single();
-                    
-                if (emailExistente) {
-                    throw new Error('Este email já está cadastrado em outra empresa');
-                }
-            }
-            
-            // Cria registro da empresa
-            const { data, error } = await supabase
-                .from('empresas')
-                .insert([{
-                    cnpj: cnpjLimpo,
-                    cnpj_formatado: this.formatarCnpj(cnpjLimpo),
-                    senha_hash: await this.hashSenha(senha),
-                    email: dadosEmpresa.email ? dadosEmpresa.email.trim() : null, // EMAIL OPCIONAL
-                    nome_empresa: dadosEmpresa.nomeEmpresa ? dadosEmpresa.nomeEmpresa.trim() : null, // NOME DA EMPRESA
-                    razao_social: dadosEmpresa.razaoSocial || `Empresa ${this.formatarCnpj(cnpjLimpo)}`,
-                    nome_fantasia: dadosEmpresa.nomeFantasia,
-                    situacao: dadosEmpresa.situacao || 'ATIVA',
-                    atividade: dadosEmpresa.atividade,
-                    municipio: dadosEmpresa.municipio,
-                    uf: dadosEmpresa.uf,
-                    telefone: dadosEmpresa.telefone || null, // Telefone opcional também
-                    ativo: true,
-                    tentativas_login: 0,
-                    data_cadastro: new Date().toISOString()
-                }])
-                .select()
-                .single();
-                
-            if (error) throw error;
-            
-            return {
-                success: true,
-                message: 'Empresa cadastrada com sucesso!',
-                empresa: data
-            };
-            
-        } catch (error) {
-            console.error('Erro ao registrar empresa:', error);
-            return {
-                success: false,
-                error: error.message
-            };
+    // Verifica se existe sessão ativa
+    verificarSessao: () => {
+      try {
+        const session = sessionStorage.getItem('userSession');
+        if (!session) return false;
+        
+        const parsed = JSON.parse(session);
+        const now = Date.now();
+        
+        // Verifica se a sessão não expirou (24 horas)
+        if (now > parsed.expiresAt) {
+          sessionStorage.removeItem('userSession');
+          return false;
         }
+        
+        return true;
+      } catch (error) {
+        console.warn('Erro ao verificar sessão:', error);
+        return false;
+      }
     },
-    
-    /**
-     * Autentica empresa com CNPJ e senha
-     * @param {string} cnpj - CNPJ da empresa
-     * @param {string} senha - Senha informada
-     * @returns {Object} Resultado da autenticação
-     */
-    async autenticar(cnpj, senha) {
-        try {
-            const cnpjLimpo = cnpj.replace(/\D/g, '');
-            
-            // Valida entrada
-            if (!this.validarCnpj(cnpjLimpo)) {
-                throw new Error('CNPJ inválido');
-            }
-            
-            if (!senha || senha.length < 6) {
-                throw new Error('Senha deve ter pelo menos 6 caracteres');
-            }
-            
-            // Busca empresa no banco
-            const { data: empresa, error } = await supabase
-                .from('empresas')
-                .select('id, cnpj, cnpj_formatado, razao_social, nome_fantasia, nome_empresa, email, senha_hash, ativo, tentativas_login')
-                .eq('cnpj', cnpjLimpo)
-                .single();
-                
-            if (error || !empresa) {
-                await this.logTentativaLogin(cnpjLimpo, false, 'CNPJ não encontrado');
-                throw new Error('CNPJ não cadastrado no sistema');
-            }
-            
-            if (!empresa.ativo) {
-                throw new Error('Empresa desativada. Entre em contato com o suporte');
-            }
-            
-            // Verifica tentativas de login
-            if (empresa.tentativas_login >= 5) {
-                throw new Error('Muitas tentativas inválidas. Empresa bloqueada temporariamente');
-            }
-            
-            // Verifica senha
-            const senhaValida = await this.verificarSenha(senha, empresa.senha_hash);
-            
-            if (!senhaValida) {
-                // Incrementa tentativas no banco
-                await supabase
-                    .from('empresas')
-                    .update({ 
-                        tentativas_login: empresa.tentativas_login + 1 
-                    })
-                    .eq('id', empresa.id);
-                
-                await this.logTentativaLogin(cnpjLimpo, false, 'Senha incorreta');
-                throw new Error(`Senha incorreta. Tentativas restantes: ${5 - empresa.tentativas_login - 1}`);
-            }
-            
-            // Login bem-sucedido - reset tentativas e atualiza último acesso
-            await supabase
-                .from('empresas')
-                .update({ 
-                    tentativas_login: 0,
-                    ultimo_acesso: new Date().toISOString()
-                })
-                .eq('id', empresa.id);
-            
-            await this.logTentativaLogin(cnpjLimpo, true, null);
-            
-            // Gera token JWT personalizado
-            const token = this.gerarToken(empresa);
-            
-            // Salva sessão local - INCLUINDO NOME DA EMPRESA
-            this.salvarSessao({
-                id: empresa.id,
-                cnpj: empresa.cnpj_formatado,
-                razaoSocial: empresa.razao_social,
-                nomeFantasia: empresa.nome_fantasia,
-                nomeEmpresa: empresa.nome_empresa, // CAMPO NOME DA EMPRESA
-                email: empresa.email,
-                token
-            });
-            
-            return {
-                success: true,
-                empresa: {
-                    id: empresa.id,
-                    cnpj: empresa.cnpj_formatado,
-                    razaoSocial: empresa.razao_social,
-                    nomeFantasia: empresa.nome_fantasia,
-                    nomeEmpresa: empresa.nome_empresa, // RETORNA NOME DA EMPRESA
-                    email: empresa.email,
-                    ultimoAcesso: empresa.ultimo_acesso
-                },
-                token
-            };
-            
-        } catch (error) {
-            console.error('Erro na autenticação:', error);
-            return {
-                success: false,
-                error: error.message
-            };
+  
+    // Autenticar usuário
+    autenticar: async (cnpj, senha) => {
+      try {
+        // Simula delay de rede
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Remove formatação do CNPJ
+        const cnpjLimpo = cnpj.replace(/\D/g, '');
+        
+        // Validações básicas
+        if (!cnpjLimpo || cnpjLimpo.length !== 14) {
+          return {
+            success: false,
+            error: 'CNPJ inválido'
+          };
         }
-    },
-
-    /**
-     * Busca empresa por email (para recuperação de senha)
-     * @param {string} email - Email a ser buscado
-     * @returns {Object} Dados da empresa ou erro
-     */
-    async buscarEmpresaPorEmail(email) {
-        try {
-            if (!email || !this.validarEmail(email)) {
-                return {
-                    success: false,
-                    error: 'Email inválido'
-                };
-            }
-            
-            const { data, error } = await supabase
-                .from('empresas')
-                .select('id, cnpj_formatado, razao_social, nome_empresa, email, ativo')
-                .eq('email', email.trim())
-                .eq('ativo', true)
-                .single();
-                
-            if (error || !data) {
-                return {
-                    success: false,
-                    error: 'Email não encontrado ou empresa inativa'
-                };
-            }
-            
-            return {
-                success: true,
-                empresa: data
-            };
-            
-        } catch (error) {
-            console.error('Erro ao buscar empresa por email:', error);
-            return {
-                success: false,
-                error: 'Erro ao consultar email'
-            };
+        
+        if (!senha || senha.length < 6) {
+          return {
+            success: false,
+            error: 'Senha deve ter pelo menos 6 caracteres'
+          };
         }
-    },
-
-    /**
-     * Envia código de recuperação por email (simulado)
-     * @param {string} email - Email da empresa
-     * @returns {Object} Resultado da operação
-     */
-    async enviarCodigoRecuperacao(email) {
-        try {
-            const resultado = await this.buscarEmpresaPorEmail(email);
-            if (!resultado.success) {
-                throw new Error(resultado.error);
-            }
-            
-            // Gera código de 6 dígitos
-            const codigo = Math.floor(100000 + Math.random() * 900000);
-            
-            // Em produção, aqui você enviaria um email real
-            // Por enquanto, vamos simular e mostrar o código
-            console.log(`CÓDIGO DE RECUPERAÇÃO: ${codigo}`);
-            
-            // Salva código temporariamente (em produção seria no banco)
-            const codigoData = {
-                email: email,
-                codigo: codigo.toString(),
-                expira: new Date(Date.now() + 10 * 60 * 1000), // 10 minutos
-                empresa: resultado.empresa
-            };
-            
-            sessionStorage.setItem('codigoRecuperacao', JSON.stringify(codigoData));
-            
-            return {
-                success: true,
-                message: `Código enviado para ${this.mascarEmail(email)}`,
-                codigo: codigo // REMOVER EM PRODUÇÃO
-            };
-            
-        } catch (error) {
-            console.error('Erro ao enviar código:', error);
-            return {
-                success: false,
-                error: error.message
-            };
+        
+        // Simula autenticação (substitua por integração real)
+        const isValidLogin = await this.mockAuthentication(cnpjLimpo, senha);
+        
+        if (isValidLogin.success) {
+          // Cria sessão
+          const sessionData = {
+            cnpj: cnpjLimpo,
+            empresa: isValidLogin.empresa,
+            loginTime: Date.now(),
+            expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 horas
+          };
+          
+          sessionStorage.setItem('userSession', JSON.stringify(sessionData));
+          
+          return {
+            success: true,
+            empresa: isValidLogin.empresa
+          };
         }
-    },
-
-    /**
-     * Confirma código e altera senha
-     * @param {string} email - Email da empresa
-     * @param {string} codigo - Código recebido
-     * @param {string} novaSenha - Nova senha
-     * @returns {Object} Resultado da operação
-     */
-    async confirmarCodigoEAlterarSenha(email, codigo, novaSenha) {
-        try {
-            // Recupera código salvo
-            const codigoSalvo = JSON.parse(sessionStorage.getItem('codigoRecuperacao') || 'null');
-            
-            if (!codigoSalvo) {
-                throw new Error('Nenhum código de recuperação encontrado. Solicite um novo código.');
-            }
-            
-            if (new Date() > new Date(codigoSalvo.expira)) {
-                sessionStorage.removeItem('codigoRecuperacao');
-                throw new Error('Código expirado. Solicite um novo código.');
-            }
-            
-            if (codigoSalvo.email !== email || codigoSalvo.codigo !== codigo) {
-                throw new Error('Código inválido');
-            }
-            
-            if (!novaSenha || novaSenha.length < 6) {
-                throw new Error('Nova senha deve ter pelo menos 6 caracteres');
-            }
-            
-            // Busca empresa para obter ID
-            const empresaResult = await this.buscarEmpresaPorEmail(email);
-            if (!empresaResult.success) {
-                throw new Error('Empresa não encontrada');
-            }
-            
-            // Atualiza senha
-            const novoHash = await this.hashSenha(novaSenha);
-            const { error } = await supabase
-                .from('empresas')
-                .update({ 
-                    senha_hash: novoHash,
-                    tentativas_login: 0,
-                    data_alteracao_senha: new Date().toISOString()
-                })
-                .eq('id', empresaResult.empresa.id);
-                
-            if (error) throw error;
-            
-            // Remove código usado
-            sessionStorage.removeItem('codigoRecuperacao');
-            
-            return {
-                success: true,
-                message: 'Senha alterada com sucesso!'
-            };
-            
-        } catch (error) {
-            console.error('Erro ao confirmar código:', error);
-            return {
-                success: false,
-                error: error.message
-            };
-        }
-    },
-    
-    /**
-     * Verifica se existe sessão ativa válida
-     * @returns {Object|null} Dados da sessão ou null
-     */
-    verificarSessao() {
-        try {
-            const sessao = JSON.parse(sessionStorage.getItem('sessaoEmpresa') || 'null');
-            
-            if (!sessao) return null;
-            
-            // Verifica se token não expirou (24 horas)
-            if (sessao.token && this.verificarToken(sessao.token)) {
-                return sessao;
-            }
-            
-            // Token expirado
-            this.logout();
-            return null;
-            
-        } catch (error) {
-            console.error('Erro ao verificar sessão:', error);
-            return null;
-        }
-    },
-    
-    /**
-     * Faz logout e limpa sessão
-     */
-    logout() {
-        sessionStorage.removeItem('sessaoEmpresa');
-        sessionStorage.removeItem('cnpj');
-        sessionStorage.removeItem('empresaInfo');
-        sessionStorage.removeItem('dadosEmpresa');
-        sessionStorage.removeItem('nomeEmpresa'); // LIMPAR NOME DA EMPRESA
-        sessionStorage.removeItem('codigoRecuperacao');
-    },
-    
-    /**
-     * Lista empresas cadastradas (para admin)
-     * @returns {Array} Lista de empresas
-     */
-    async listarEmpresas() {
-        try {
-            const { data, error } = await supabase
-                .from('empresas')
-                .select(`
-                    id,
-                    cnpj_formatado,
-                    razao_social,
-                    nome_fantasia,
-                    nome_empresa,
-                    email,
-                    telefone,
-                    ativo,
-                    tentativas_login,
-                    data_cadastro,
-                    ultimo_acesso,
-                    situacao,
-                    municipio,
-                    uf
-                `)
-                .order('data_cadastro', { ascending: false });
-                
-            if (error) throw error;
-            
-            return data || [];
-            
-        } catch (error) {
-            console.error('Erro ao listar empresas:', error);
-            return [];
-        }
-    },
-    
-    /**
-     * Ativa/Desativa empresa (para admin)
-     * @param {number} empresaId - ID da empresa
-     * @param {boolean} ativo - Status ativo/inativo
-     * @returns {Object} Resultado da operação
-     */
-    async toggleEmpresaAtiva(empresaId, ativo) {
-        try {
-            const { error } = await supabase
-                .from('empresas')
-                .update({ ativo })
-                .eq('id', empresaId);
-                
-            if (error) throw error;
-            
-            return {
-                success: true,
-                message: `Empresa ${ativo ? 'ativada' : 'desativada'} com sucesso!`
-            };
-            
-        } catch (error) {
-            console.error('Erro ao alterar status da empresa:', error);
-            return {
-                success: false,
-                error: error.message
-            };
-        }
-    },
-    
-    // === MÉTODOS AUXILIARES ===
-    
-    /**
-     * Log de tentativas de login
-     */
-    async logTentativaLogin(cnpj, sucesso, motivo) {
-        try {
-            await supabase.rpc('log_tentativa_login', {
-                p_cnpj: cnpj,
-                p_ip_address: '0.0.0.0',
-                p_sucesso: sucesso,
-                p_motivo_falha: motivo
-            });
-        } catch (error) {
-            console.warn('Erro ao logar tentativa:', error);
-        }
-    },
-    
-    /**
-     * Cria hash seguro da senha
-     */
-    async hashSenha(senha) {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(senha + 'fitinbox_salt_2025');
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    },
-    
-    /**
-     * Verifica se senha confere com hash
-     */
-    async verificarSenha(senha, hash) {
-        const senhaHash = await this.hashSenha(senha);
-        return senhaHash === hash;
-    },
-    
-    /**
-     * Gera token JWT simples
-     */
-    gerarToken(empresa) {
-        const payload = {
-            empresaId: empresa.id,
-            cnpj: empresa.cnpj,
-            iat: Math.floor(Date.now() / 1000),
-            exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24 horas
+        
+        return {
+          success: false,
+          error: 'CNPJ ou senha incorretos'
         };
         
-        return btoa(JSON.stringify(payload));
+      } catch (error) {
+        console.error('Erro na autenticação:', error);
+        return {
+          success: false,
+          error: 'Erro de conexão. Tente novamente.'
+        };
+      }
     },
-    
-    /**
-     * Verifica se token é válido
-     */
-    verificarToken(token) {
-        try {
-            const payload = JSON.parse(atob(token));
-            const agora = Math.floor(Date.now() / 1000);
-            return payload.exp > agora;
-        } catch {
-            return false;
+  
+    // Registrar nova empresa
+    registrarEmpresa: async (cnpj, senha, dadosEmpresa) => {
+      try {
+        // Simula delay de rede
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // Remove formatação do CNPJ
+        const cnpjLimpo = cnpj.replace(/\D/g, '');
+        
+        // Validações
+        if (!cnpjLimpo || cnpjLimpo.length !== 14) {
+          return {
+            success: false,
+            error: 'CNPJ inválido'
+          };
         }
-    },
-    
-    /**
-     * Salva sessão no sessionStorage - ATUALIZADA PARA INCLUIR NOME DA EMPRESA
-     */
-    salvarSessao(dadosEmpresa) {
-        const sessao = {
-            ...dadosEmpresa,
-            loginTime: new Date().toISOString()
+        
+        if (!senha || senha.length < 6) {
+          return {
+            success: false,
+            error: 'Senha deve ter pelo menos 6 caracteres'
+          };
+        }
+        
+        // Verifica se CNPJ já existe
+        const existingCompany = await this.checkExistingCompany(cnpjLimpo);
+        if (existingCompany) {
+          return {
+            success: false,
+            error: 'CNPJ já cadastrado. Tente fazer login.'
+          };
+        }
+        
+        // Simula cadastro
+        const registrationResult = await this.mockRegistration(cnpjLimpo, senha, dadosEmpresa);
+        
+        if (registrationResult.success) {
+          return {
+            success: true,
+            message: 'Empresa cadastrada com sucesso!'
+          };
+        }
+        
+        return {
+          success: false,
+          error: registrationResult.error || 'Erro no cadastro'
         };
         
-        sessionStorage.setItem('sessaoEmpresa', JSON.stringify(sessao));
-        sessionStorage.setItem('cnpj', dadosEmpresa.cnpj);
-        sessionStorage.setItem('empresaInfo', dadosEmpresa.razaoSocial);
-
-        // SALVAR NOME DA EMPRESA SE DISPONÍVEL
-        if (dadosEmpresa.nomeEmpresa) {
-            sessionStorage.setItem('nomeEmpresa', dadosEmpresa.nomeEmpresa);
-        }
+      } catch (error) {
+        console.error('Erro no cadastro:', error);
+        return {
+          success: false,
+          error: 'Erro de conexão. Tente novamente.'
+        };
+      }
     },
-    
-    /**
-     * Valida CNPJ
-     */
-    validarCnpj(cnpj) {
-        const numeros = cnpj.replace(/\D/g, '');
-        if (numeros.length !== 14) return false;
-        if (/^(\d)\1+$/.test(numeros)) return false;
+  
+    // Logout
+    logout: () => {
+      try {
+        sessionStorage.removeItem('userSession');
+        sessionStorage.removeItem('nomeEmpresa');
+        localStorage.removeItem('loginBlock');
+        return true;
+      } catch (error) {
+        console.warn('Erro no logout:', error);
+        return false;
+      }
+    },
+  
+    // Recuperar senha
+    recuperarSenha: async (cnpj) => {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        let soma = 0;
-        let peso = 2;
+        const cnpjLimpo = cnpj.replace(/\D/g, '');
         
-        for (let i = 11; i >= 0; i--) {
-            soma += parseInt(numeros[i]) * peso;
-            peso = peso === 9 ? 2 : peso + 1;
-        }
-        
-        let resto = soma % 11;
-        let digito1 = resto < 2 ? 0 : 11 - resto;
-        
-        if (parseInt(numeros[12]) !== digito1) return false;
-        
-        soma = 0;
-        peso = 2;
-        
-        for (let i = 12; i >= 0; i--) {
-            soma += parseInt(numeros[i]) * peso;
-            peso = peso === 9 ? 2 : peso + 1;
+        if (!cnpjLimpo || cnpjLimpo.length !== 14) {
+          return {
+            success: false,
+            error: 'CNPJ inválido'
+          };
         }
         
-        resto = soma % 11;
-        let digito2 = resto < 2 ? 0 : 11 - resto;
+        // Simula envio de email de recuperação
+        return {
+          success: true,
+          message: 'Se o CNPJ estiver cadastrado, você receberá um email com instruções para redefinir sua senha.'
+        };
         
-        return parseInt(numeros[13]) === digito2;
+      } catch (error) {
+        console.error('Erro na recuperação:', error);
+        return {
+          success: false,
+          error: 'Erro de conexão. Tente novamente.'
+        };
+      }
     },
-    
-    /**
-     * Formata CNPJ
-     */
-    formatarCnpj(cnpj) {
-        return cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+  
+    // Mock de autenticação (substitua por integração real)
+    mockAuthentication: async (cnpj, senha) => {
+      // CNPJs de teste
+      const testAccounts = {
+        '12345678000123': {
+          senha: '123456',
+          empresa: {
+            nomeEmpresa: 'Empresa Teste Ltda',
+            email: 'teste@empresa.com'
+          }
+        },
+        '98765432000100': {
+          senha: 'senha123',
+          empresa: {
+            nomeEmpresa: 'Outra Empresa Ltda',
+            email: 'contato@outraempresa.com'
+          }
+        }
+      };
+      
+      const account = testAccounts[cnpj];
+      
+      if (account && account.senha === senha) {
+        return {
+          success: true,
+          empresa: account.empresa
+        };
+      }
+      
+      // Para outros CNPJs, aceita qualquer senha com pelo menos 6 caracteres
+      if (senha.length >= 6) {
+        return {
+          success: true,
+          empresa: {
+            nomeEmpresa: 'Empresa Demo',
+            email: null
+          }
+        };
+      }
+      
+      return {
+        success: false
+      };
     },
-
-    /**
-     * Valida email
-     */
-    validarEmail(email) {
-        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  
+    // Mock de verificação de empresa existente
+    checkExistingCompany: async (cnpj) => {
+      const existingCNPJs = ['11111111111111', '22222222222222'];
+      return existingCNPJs.includes(cnpj);
     },
-
-    /**
-     * Mascara email para exibição
-     */
-    mascarEmail(email) {
-        const [usuario, dominio] = email.split('@');
-        const usuarioMascarado = usuario.slice(0, 2) + '*'.repeat(usuario.length - 2);
-        return `${usuarioMascarado}@${dominio}`;
+  
+    // Mock de registro
+    mockRegistration: async (cnpj, senha, dadosEmpresa) => {
+      // Simula alguns CNPJs que falham no cadastro
+      const failureCNPJs = ['00000000000000', '99999999999999'];
+      
+      if (failureCNPJs.includes(cnpj)) {
+        return {
+          success: false,
+          error: 'CNPJ inválido ou não encontrado na Receita Federal'
+        };
+      }
+      
+      return {
+        success: true
+      };
+    },
+  
+    // Obter dados da sessão atual
+    obterSessao: () => {
+      try {
+        const session = sessionStorage.getItem('userSession');
+        if (!session) return null;
+        
+        return JSON.parse(session);
+      } catch (error) {
+        console.warn('Erro ao obter sessão:', error);
+        return null;
+      }
     }
-};
+  };
