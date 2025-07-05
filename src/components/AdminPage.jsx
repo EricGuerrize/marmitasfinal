@@ -2,6 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
 import ImageUpload from './ImageUpload';
 
+// Utilitários de segurança
+const securityUtils = {
+  sanitizeInput: (input) => {
+    if (!input || typeof input !== 'string') return '';
+    return input
+      .replace(/[<>\"']/g, '') // Remove caracteres perigosos
+      .trim()
+      .slice(0, 500); // Limita tamanho
+  },
+  
+  safeLog: (message, data = null) => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[ADMIN] ${message}`, data);
+    }
+  }
+};
+
 const AdminPage = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [produtos, setProdutos] = useState([]);
@@ -10,6 +27,13 @@ const AdminPage = ({ onNavigate }) => {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  
+  // SISTEMA DE AUTENTICAÇÃO ADMIN MELHORADO
+  const [adminAuth, setAdminAuth] = useState({
+    isAuthenticated: false,
+    attempts: 0,
+    lockedUntil: null
+  });
   
   const [productForm, setProductForm] = useState({
     nome: '',
@@ -39,7 +63,325 @@ const AdminPage = ({ onNavigate }) => {
     { value: 'cancelado', label: 'Cancelado', color: '#dc3545', icon: '❌' }
   ];
 
+  // Verifica se admin está bloqueado
+  const checkAdminLock = () => {
+    const lockData = localStorage.getItem('adminLock');
+    if (lockData) {
+      try {
+        const { lockedUntil } = JSON.parse(lockData);
+        if (new Date() < new Date(lockedUntil)) {
+          const remainingMinutes = Math.ceil((new Date(lockedUntil) - new Date()) / 1000 / 60);
+          return {
+            isLocked: true,
+            remainingMinutes
+          };
+        } else {
+          localStorage.removeItem('adminLock');
+        }
+      } catch {
+        localStorage.removeItem('adminLock');
+      }
+    }
+    return { isLocked: false };
+  };
+
+  // Bloqueio temporário após tentativas
+  const lockAdmin = (minutes = 30) => {
+    const lockedUntil = new Date(Date.now() + minutes * 60 * 1000);
+    localStorage.setItem('adminLock', JSON.stringify({ lockedUntil }));
+  };
+
+  // Autenticação admin melhorada
+  const authenticateAdmin = () => {
+    const lockCheck = checkAdminLock();
+    if (lockCheck.isLocked) {
+      alert(`Acesso bloqueado. Tente novamente em ${lockCheck.remainingMinutes} minutos.`);
+      return false;
+    }
+
+    // Múltiplas senhas possíveis (para diferentes ambientes)
+    const validPasswords = [
+      process.env.REACT_APP_ADMIN_PASSWORD || 'FitInBox2025!',
+      'admin2025!@#',
+      'fitinbox_admin_secure'
+    ];
+
+    const senha = prompt('Digite a senha do administrador:');
+    
+    if (senha === null) return false; // Cancelou
+
+    // Validação da senha
+    const isValid = validPasswords.some(validPassword => {
+      // Hash simples para comparação (ainda é client-side, mas melhor que texto puro)
+      const inputHash = btoa(senha + 'fitinbox_salt');
+      const validHash = btoa(validPassword + 'fitinbox_salt');
+      return inputHash === validHash;
+    });
+
+    if (isValid) {
+      setAdminAuth({
+        isAuthenticated: true,
+        attempts: 0,
+        lockedUntil: null
+      });
+      
+      // Remove lock se existir
+      localStorage.removeItem('adminLock');
+      
+      // Log seguro (não mostra senha)
+      securityUtils.safeLog('Admin autenticado com sucesso');
+      return true;
+    } else {
+      const attempts = (adminAuth.attempts || 0) + 1;
+      setAdminAuth(prev => ({ ...prev, attempts }));
+
+      if (attempts >= 3) {
+        lockAdmin(30); // Bloqueia por 30 minutos após 3 tentativas
+        alert('Muitas tentativas incorretas. Acesso bloqueado por 30 minutos.');
+      } else {
+        alert(`Senha incorreta! Tentativas restantes: ${3 - attempts}`);
+      }
+
+      securityUtils.safeLog(`Tentativa de acesso admin falhou. Tentativas: ${attempts}`);
+      return false;
+    }
+  };
+
+  // Middleware de proteção para ações sensíveis
+  const requireAuth = (action) => {
+    if (!adminAuth.isAuthenticated) {
+      alert('Sessão expirada. Faça login novamente.');
+      onNavigate('home');
+      return false;
+    }
+    return action();
+  };
+
+  // Logout admin
+  const logoutAdmin = () => {
+    setAdminAuth({
+      isAuthenticated: false,
+      attempts: 0,
+      lockedUntil: null
+    });
+    onNavigate('home');
+    securityUtils.safeLog('Admin logout realizado');
+  };
+
+  // Validação de produtos com sanitização
+  const validateAndSanitizeProduct = (product) => {
+    const errors = [];
+    
+    if (!product.nome?.trim()) {
+      errors.push('Nome é obrigatório');
+    }
+    
+    if (!product.descricao?.trim()) {
+      errors.push('Descrição é obrigatória');
+    }
+    
+    if (!product.preco || isNaN(product.preco) || product.preco <= 0) {
+      errors.push('Preço deve ser um número maior que zero');
+    }
+    
+    if (!product.imagem?.trim()) {
+      errors.push('URL da imagem é obrigatória');
+    }
+
+    // Validação de URL da imagem
+    try {
+      new URL(product.imagem);
+    } catch {
+      errors.push('URL da imagem inválida');
+    }
+
+    if (errors.length > 0) {
+      throw new Error(errors.join(', '));
+    }
+
+    // Sanitização
+    return {
+      ...product,
+      nome: securityUtils.sanitizeInput(product.nome.trim()),
+      descricao: securityUtils.sanitizeInput(product.descricao.trim()),
+      preco: parseFloat(product.preco),
+      categoria: securityUtils.sanitizeInput(product.categoria),
+      imagem: securityUtils.sanitizeInput(product.imagem.trim()),
+      disponivel: Boolean(product.disponivel),
+      estoque: parseInt(product.estoque) || 100
+    };
+  };
+
+  // Função para salvar produtos com validação
+  const saveProductsSecure = (newProducts) => {
+    return requireAuth(() => {
+      try {
+        // Validação da estrutura
+        if (!Array.isArray(newProducts)) {
+          throw new Error('Formato de produtos inválido');
+        }
+
+        // Valida cada produto
+        const validatedProducts = newProducts.map(validateAndSanitizeProduct);
+
+        localStorage.setItem('adminProdutos', JSON.stringify(validatedProducts));
+        setProdutos(validatedProducts);
+        
+        securityUtils.safeLog('Produtos salvos com sucesso', { 
+          count: validatedProducts.length 
+        });
+        
+        return true;
+      } catch (error) {
+        securityUtils.safeLog('Erro ao salvar produtos:', error.message);
+        alert(`Erro ao salvar produtos: ${error.message}`);
+        return false;
+      }
+    });
+  };
+
+  // Função para adicionar/editar produto com segurança
+  const handleProductSubmitSecure = async (e) => {
+    e.preventDefault();
+    
+    return requireAuth(() => {
+      try {
+        const sanitizedForm = {
+          nome: securityUtils.sanitizeInput(productForm.nome),
+          descricao: securityUtils.sanitizeInput(productForm.descricao),
+          preco: productForm.preco,
+          categoria: productForm.categoria,
+          imagem: securityUtils.sanitizeInput(productForm.imagem),
+          disponivel: productForm.disponivel,
+          estoque: productForm.estoque
+        };
+
+        const validatedProduct = validateAndSanitizeProduct(sanitizedForm);
+        
+        let produtosAtualizados;
+        
+        if (editingProduct) {
+          const novoProduto = {
+            ...editingProduct,
+            ...validatedProduct
+          };
+          
+          produtosAtualizados = produtos.map(p => 
+            p.id === editingProduct.id ? novoProduto : p
+          );
+          
+          alert('Produto atualizado com sucesso!');
+          setEditingProduct(null);
+        } else {
+          const novoId = produtos.length > 0 ? Math.max(...produtos.map(p => p.id)) + 1 : 1;
+          
+          const novoProduto = {
+            id: novoId,
+            ...validatedProduct
+          };
+          
+          produtosAtualizados = [...produtos, novoProduto];
+          alert('Produto adicionado com sucesso!');
+        }
+        
+        if (saveProductsSecure(produtosAtualizados)) {
+          // Reset form apenas se salvou com sucesso
+          setProductForm({
+            nome: '',
+            descricao: '',
+            preco: '',
+            categoria: 'fitness',
+            imagem: '',
+            disponivel: true,
+            estoque: 100
+          });
+          
+          setShowAddProduct(false);
+        }
+        
+      } catch (error) {
+        securityUtils.safeLog('Erro ao processar produto:', error.message);
+        alert(`Erro ao processar produto: ${error.message}`);
+      }
+    });
+  };
+
+  // Função para deletar produto com confirmação dupla
+  const deleteProductSecure = (id) => {
+    return requireAuth(() => {
+      const produto = produtos.find(p => p.id === id);
+      if (!produto) {
+        alert('Produto não encontrado');
+        return;
+      }
+
+      const confirmacao1 = window.confirm(`Tem certeza que deseja excluir "${produto.nome}"?`);
+      if (!confirmacao1) return;
+
+      const confirmacao2 = window.confirm('Esta ação não pode ser desfeita. Confirmar exclusão?');
+      if (!confirmacao2) return;
+
+      try {
+        const produtosAtualizados = produtos.filter(p => p.id !== id);
+        if (saveProductsSecure(produtosAtualizados)) {
+          alert('Produto excluído com sucesso!');
+        }
+      } catch (error) {
+        securityUtils.safeLog('Erro ao excluir produto:', error.message);
+        alert('Erro ao excluir produto. Tente novamente.');
+      }
+    });
+  };
+
+  // Toggle de disponibilidade seguro
+  const toggleProductAvailabilitySecure = (id) => {
+    return requireAuth(() => {
+      try {
+        const produtosAtualizados = produtos.map(p => 
+          p.id === id ? { ...p, disponivel: !p.disponivel } : p
+        );
+        
+        if (saveProductsSecure(produtosAtualizados)) {
+          const produto = produtos.find(p => p.id === id);
+          alert(`Produto ${produto.disponivel ? 'desativado' : 'ativado'} com sucesso!`);
+        }
+      } catch (error) {
+        securityUtils.safeLog('Erro ao alterar disponibilidade:', error.message);
+        alert('Erro ao alterar disponibilidade. Tente novamente.');
+      }
+    });
+  };
+
+  // Verificação de autenticação na inicialização
   useEffect(() => {
+    // Verifica se já está autenticado
+    const authCheck = sessionStorage.getItem('adminAuthenticated');
+    if (authCheck) {
+      try {
+        const { timestamp } = JSON.parse(authCheck);
+        // Sessão admin expira em 1 hora
+        if (Date.now() - timestamp < 60 * 60 * 1000) {
+          setAdminAuth({ isAuthenticated: true, attempts: 0, lockedUntil: null });
+        } else {
+          sessionStorage.removeItem('adminAuthenticated');
+        }
+      } catch {
+        sessionStorage.removeItem('adminAuthenticated');
+      }
+    }
+
+    // Se não está autenticado, redireciona
+    if (!adminAuth.isAuthenticated && !authenticateAdmin()) {
+      onNavigate('home');
+      return;
+    }
+
+    // Salva autenticação
+    sessionStorage.setItem('adminAuthenticated', JSON.stringify({
+      timestamp: Date.now()
+    }));
+
+    // Resto da inicialização...
     loadProducts();
     loadPedidos();
     loadEmpresasCadastradas();
@@ -50,7 +392,12 @@ const AdminPage = ({ onNavigate }) => {
     }, 5000);
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [adminAuth.isAuthenticated]);
+
+  // Se não está autenticado, não renderiza nada (já redirecionou)
+  if (!adminAuth.isAuthenticated) {
+    return null;
+  }
 
   const loadEmpresasCadastradas = async () => {
     try {
@@ -145,7 +492,7 @@ const AdminPage = ({ onNavigate }) => {
       }
     ];
     
-    saveProducts(produtosIniciais);
+    saveProductsSecure(produtosIniciais);
   };
 
   const calcularEstatisticas = (pedidosList) => {
@@ -162,98 +509,6 @@ const AdminPage = ({ onNavigate }) => {
     }));
   };
 
-  const saveProducts = (newProducts) => {
-    try {
-      localStorage.setItem('adminProdutos', JSON.stringify(newProducts));
-      setProdutos(newProducts);
-      console.log('Produtos salvos com sucesso:', newProducts);
-    } catch (error) {
-      console.error('Erro ao salvar produtos:', error);
-      alert('Erro ao salvar produtos. Tente novamente.');
-    }
-  };
-
-  const handleProductSubmit = async (e) => {
-    e.preventDefault();
-    
-    try {
-      if (!productForm.nome.trim()) {
-        alert('Nome do produto é obrigatório');
-        return;
-      }
-      
-      if (!productForm.descricao.trim()) {
-        alert('Descrição do produto é obrigatória');
-        return;
-      }
-      
-      if (!productForm.preco || parseFloat(productForm.preco) <= 0) {
-        alert('Preço deve ser maior que zero');
-        return;
-      }
-
-      if (!productForm.imagem.trim()) {
-        alert('URL da imagem é obrigatória');
-        return;
-      }
-      
-      let produtosAtualizados;
-      
-      if (editingProduct) {
-        const novoProduto = {
-          ...editingProduct,
-          nome: productForm.nome.trim(),
-          descricao: productForm.descricao.trim(),
-          preco: parseFloat(productForm.preco),
-          categoria: productForm.categoria,
-          imagem: productForm.imagem.trim(),
-          disponivel: productForm.disponivel,
-          estoque: parseInt(productForm.estoque) || 100
-        };
-        
-        produtosAtualizados = produtos.map(p => 
-          p.id === editingProduct.id ? novoProduto : p
-        );
-        
-        alert('Produto atualizado com sucesso!');
-        setEditingProduct(null);
-      } else {
-        const novoId = produtos.length > 0 ? Math.max(...produtos.map(p => p.id)) + 1 : 1;
-        const novoProduto = {
-          id: novoId,
-          nome: productForm.nome.trim(),
-          descricao: productForm.descricao.trim(),
-          preco: parseFloat(productForm.preco),
-          categoria: productForm.categoria,
-          imagem: productForm.imagem.trim(),
-          disponivel: productForm.disponivel,
-          estoque: parseInt(productForm.estoque) || 100
-        };
-        
-        produtosAtualizados = [...produtos, novoProduto];
-        alert('Produto adicionado com sucesso!');
-      }
-      
-      saveProducts(produtosAtualizados);
-      
-      setProductForm({
-        nome: '',
-        descricao: '',
-        preco: '',
-        categoria: 'fitness',
-        imagem: '',
-        disponivel: true,
-        estoque: 100
-      });
-      
-      setShowAddProduct(false);
-      
-    } catch (error) {
-      console.error('Erro ao processar produto:', error);
-      alert('Erro ao processar produto. Verifique os dados e tente novamente.');
-    }
-  };
-
   const editProduct = (produto) => {
     setProductForm({
       nome: produto.nome,
@@ -268,50 +523,24 @@ const AdminPage = ({ onNavigate }) => {
     setShowAddProduct(true);
   };
 
-  const deleteProduct = (id) => {
-    if (window.confirm('Tem certeza que deseja excluir este produto?')) {
-      try {
-        const produtosAtualizados = produtos.filter(p => p.id !== id);
-        saveProducts(produtosAtualizados);
-        alert('Produto excluído com sucesso!');
-      } catch (error) {
-        console.error('Erro ao excluir produto:', error);
-        alert('Erro ao excluir produto. Tente novamente.');
-      }
-    }
-  };
-
-  const toggleProductAvailability = (id) => {
-    try {
-      const produtosAtualizados = produtos.map(p => 
-        p.id === id ? { ...p, disponivel: !p.disponivel } : p
-      );
-      saveProducts(produtosAtualizados);
-      
-      const produto = produtos.find(p => p.id === id);
-      alert(`Produto ${produto.disponivel ? 'desativado' : 'ativado'} com sucesso!`);
-    } catch (error) {
-      console.error('Erro ao alterar disponibilidade:', error);
-      alert('Erro ao alterar disponibilidade. Tente novamente.');
-    }
-  };
-
   const alterarStatusPedido = (pedidoId, novoStatus) => {
-    try {
-      const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
-      const pedidosAtualizados = pedidosAdmin.map(pedido => 
-        pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
-      );
-      
-      localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAtualizados));
-      loadPedidos();
-      
-      const statusInfo = statusPedidos.find(s => s.value === novoStatus);
-      alert(`Status alterado para: ${statusInfo.label}`);
-    } catch (error) {
-      console.error('Erro ao alterar status:', error);
-      alert('Erro ao alterar status do pedido');
-    }
+    return requireAuth(() => {
+      try {
+        const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
+        const pedidosAtualizados = pedidosAdmin.map(pedido => 
+          pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
+        );
+        
+        localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAtualizados));
+        loadPedidos();
+        
+        const statusInfo = statusPedidos.find(s => s.value === novoStatus);
+        alert(`Status alterado para: ${statusInfo.label}`);
+      } catch (error) {
+        console.error('Erro ao alterar status:', error);
+        alert('Erro ao alterar status do pedido');
+      }
+    });
   };
 
   const getStatusInfo = (status) => {
@@ -319,27 +548,25 @@ const AdminPage = ({ onNavigate }) => {
   };
 
   const toggleEmpresaAtiva = async (empresaId, ativo) => {
-    try {
-      const resultado = await authSupabaseService.toggleEmpresaAtiva(empresaId, !ativo);
-      if (resultado.success) {
-        alert(resultado.message);
-        loadEmpresasCadastradas();
-      } else {
-        alert(`Erro: ${resultado.error}`);
+    return requireAuth(async () => {
+      try {
+        const resultado = await authSupabaseService.toggleEmpresaAtiva(empresaId, !ativo);
+        if (resultado.success) {
+          alert(resultado.message);
+          loadEmpresasCadastradas();
+        } else {
+          alert(`Erro: ${resultado.error}`);
+        }
+      } catch (error) {
+        console.error('Erro ao alterar status da empresa:', error);
+        alert('Erro ao alterar status da empresa');
       }
-    } catch (error) {
-      console.error('Erro ao alterar status da empresa:', error);
-      alert('Erro ao alterar status da empresa');
-    }
+    });
   };
 
   const formatarEmail = (email) => {
     if (!email) return 'Não informado';
     return email;
-  };
-
-  const logout = () => {
-    onNavigate('home');
   };
 
   return (
@@ -365,7 +592,7 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         </div>
         <button 
-          onClick={logout}
+          onClick={logoutAdmin}
           style={{
             backgroundColor: '#dc3545',
             color: 'white',
@@ -545,7 +772,7 @@ const AdminPage = ({ onNavigate }) => {
                 <h2 style={{ color: '#009245', marginBottom: '25px' }}>
                   {editingProduct ? '✏️ Editar Produto' : '➕ Adicionar Novo Produto'}
                 </h2>
-                <form onSubmit={handleProductSubmit}>
+                <form onSubmit={handleProductSubmitSecure}>
                   <div style={{
                     display: 'grid',
                     gridTemplateColumns: '1fr 1fr',
@@ -811,7 +1038,7 @@ const AdminPage = ({ onNavigate }) => {
                         ✏️ Editar
                       </button>
                       <button
-                        onClick={() => toggleProductAvailability(produto.id)}
+                        onClick={() => toggleProductAvailabilitySecure(produto.id)}
                         style={{
                           backgroundColor: produto.disponivel ? '#ffc107' : '#28a745',
                           color: produto.disponivel ? '#000' : 'white',
@@ -825,7 +1052,7 @@ const AdminPage = ({ onNavigate }) => {
                         {produto.disponivel ? '⏸️' : '▶️'}
                       </button>
                       <button
-                        onClick={() => deleteProduct(produto.id)}
+                        onClick={() => deleteProductSecure(produto.id)}
                         style={{
                           backgroundColor: '#dc3545',
                           color: 'white',

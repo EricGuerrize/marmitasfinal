@@ -35,6 +35,10 @@ const HomePage = ({ onNavigate }) => {
       onNavigate('prosseguir');
     }
 
+<<<<<<< HEAD
+=======
+    // Verifica se está bloqueado
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
     checkBlockStatus();
   }, [onNavigate]);
 
@@ -52,6 +56,10 @@ const HomePage = ({ onNavigate }) => {
           setBlockTimeRemaining(remaining);
           setLoginAttempts(attempts);
           
+<<<<<<< HEAD
+=======
+          // Timer para atualizar tempo restante
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
           const timer = setInterval(() => {
             const newRemaining = Math.ceil((blockedUntil - Date.now()) / 1000 / 60);
             if (newRemaining <= 0) {
@@ -63,10 +71,18 @@ const HomePage = ({ onNavigate }) => {
             } else {
               setBlockTimeRemaining(newRemaining);
             }
+<<<<<<< HEAD
           }, 60000);
           
           return () => clearInterval(timer);
         } else {
+=======
+          }, 60000); // Atualiza a cada minuto
+          
+          return () => clearInterval(timer);
+        } else {
+          // Bloqueio expirou
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
           localStorage.removeItem('loginBlock');
           setLoginAttempts(0);
         }
@@ -75,12 +91,24 @@ const HomePage = ({ onNavigate }) => {
       }
     }
   };
+<<<<<<< HEAD
 
   // Função para aplicar máscara de CNPJ
   const applyCnpjMask = (value) => {
     const onlyNumbers = value.replace(/\D/g, '');
     const limited = onlyNumbers.slice(0, 14);
 
+=======
+
+  // Função para aplicar máscara de CNPJ com validação
+  const applyCnpjMask = (value) => {
+    // Remove todos os caracteres não numéricos
+    const onlyNumbers = value.replace(/\D/g, '');
+    
+    // Limita a 14 dígitos
+    const limited = onlyNumbers.slice(0, 14);
+
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
     return limited
       .replace(/^(\d{2})(\d)/, '$1.$2')
       .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
@@ -111,11 +139,19 @@ const HomePage = ({ onNavigate }) => {
 
   // FUNÇÃO DE LOGIN MELHORADA COM SEGURANÇA
   const handleLogin = async () => {
+<<<<<<< HEAD
+=======
+    // Verifica se está bloqueado
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
     if (isBlocked) {
       alert(`Muitas tentativas incorretas. Tente novamente em ${blockTimeRemaining} minutos.`);
       return;
     }
 
+<<<<<<< HEAD
+=======
+    // Validações básicas
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
     if (!cnpj.trim()) {
       alert('Por favor, informe o CNPJ');
       return;
@@ -126,11 +162,19 @@ const HomePage = ({ onNavigate }) => {
       return;
     }
 
+<<<<<<< HEAD
+=======
+    // Validação de origem para prevenir CSRF
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
     if (!securityUtils.validateOrigin()) {
       alert('Origem não autorizada');
       return;
     }
 
+<<<<<<< HEAD
+=======
+    // Sanitiza entradas
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
     const cnpjSanitizado = securityUtils.sanitizeInput(cnpj, { 
       allowSpecialChars: true, 
       maxLength: 18 
@@ -140,6 +184,10 @@ const HomePage = ({ onNavigate }) => {
       maxLength: 50 
     });
 
+<<<<<<< HEAD
+=======
+    // Detecta tentativas de injeção
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
     if (securityUtils.detectInjectionAttempt(cnpjSanitizado) || 
         securityUtils.detectInjectionAttempt(senhaSanitizada)) {
       alert('Dados inválidos detectados');
@@ -153,9 +201,17 @@ const HomePage = ({ onNavigate }) => {
       const resultado = await authSupabaseService.autenticar(cnpjSanitizado, senhaSanitizada);
 
       if (resultado.success) {
+<<<<<<< HEAD
         setLoginAttempts(0);
         localStorage.removeItem('loginBlock');
         
+=======
+        // Reset contador de tentativas em caso de sucesso
+        setLoginAttempts(0);
+        localStorage.removeItem('loginBlock');
+        
+        // Salvar nome da empresa na sessão
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
         if (resultado.empresa && resultado.empresa.nomeEmpresa) {
           sessionStorage.setItem('nomeEmpresa', resultado.empresa.nomeEmpresa);
         }
@@ -163,6 +219,10 @@ const HomePage = ({ onNavigate }) => {
         securityUtils.safeLog('Login realizado com sucesso');
         onNavigate('prosseguir');
       } else {
+<<<<<<< HEAD
+=======
+        // Incrementa tentativas
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
         const newAttempts = loginAttempts + 1;
         setLoginAttempts(newAttempts);
         
@@ -170,7 +230,11 @@ const HomePage = ({ onNavigate }) => {
           blockLogin(newAttempts);
           alert('Muitas tentativas incorretas. Acesso bloqueado por 30 minutos.');
         } else {
+<<<<<<< HEAD
           alert(`${resultado.error}. Tentativas restantes: ${5 - newAttempts}`);
+=======
+          alert(`CNPJ ou senha incorretos. Tentativas restantes: ${5 - newAttempts}`);
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
         }
         
         securityUtils.safeLog('Tentativa de login falhou', { 
@@ -188,6 +252,7 @@ const HomePage = ({ onNavigate }) => {
 
   // FUNÇÃO DE CADASTRO MELHORADA
   const handleCadastro = async () => {
+    // Validações básicas
     if (!cnpj.trim()) {
       alert('Por favor, informe o CNPJ');
       return;
@@ -208,8 +273,35 @@ const HomePage = ({ onNavigate }) => {
       return;
     }
 
+<<<<<<< HEAD
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       alert('Email inválido');
+=======
+    // Email opcional - validação apenas se fornecido
+    if (email && !securityUtils.validateAndSanitizeUrl(`mailto:${email}`).isValid) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        alert('Email inválido');
+        return;
+      }
+    }
+
+    // Validação de origem
+    if (!securityUtils.validateOrigin()) {
+      alert('Origem não autorizada');
+      return;
+    }
+
+    // Sanitização
+    const dadosEmpresa = {
+      email: email ? securityUtils.sanitizeInput(email.trim(), { maxLength: 100 }) : null,
+      nomeEmpresa: nomeEmpresa ? securityUtils.sanitizeInput(nomeEmpresa.trim(), { maxLength: 100 }) : null
+    };
+
+    // Detecta tentativas de injeção
+    if ((dadosEmpresa.email && securityUtils.detectInjectionAttempt(dadosEmpresa.email)) ||
+        (dadosEmpresa.nomeEmpresa && securityUtils.detectInjectionAttempt(dadosEmpresa.nomeEmpresa))) {
+      alert('Dados inválidos detectados');
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
       return;
     }
 
@@ -243,7 +335,11 @@ const HomePage = ({ onNavigate }) => {
         setNomeEmpresa('');
         securityUtils.safeLog('Cadastro realizado com sucesso');
       } else {
+<<<<<<< HEAD
         alert(`Erro no cadastro: ${resultado.error}`);
+=======
+        alert('Erro no cadastro. Tente novamente.');
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
         securityUtils.safeLog('Erro no cadastro', { error: resultado.error });
       }
     } catch (error) {
@@ -273,6 +369,56 @@ const HomePage = ({ onNavigate }) => {
     onNavigate('prosseguir');
   };
 
+<<<<<<< HEAD
+=======
+  // ACESSO ADMIN MELHORADO COM RATE LIMITING
+  const handleAdminAccess = () => {
+    // Verifica rate limiting
+    const rateLimit = securityUtils.checkOperationLimit('admin_access');
+    if (!rateLimit.allowed) {
+      alert(`Muitas tentativas. Tente novamente em ${Math.ceil((rateLimit.resetTime - new Date()) / 1000 / 60)} minutos.`);
+      return;
+    }
+
+    // Validação de origem
+    if (!securityUtils.validateOrigin()) {
+      alert('Acesso não autorizado');
+      return;
+    }
+
+    const senhas = [
+      process.env.REACT_APP_ADMIN_PASSWORD || 'FitInBox2025!',
+      'admin2025!@#',
+      'fitinbox_admin_secure'
+    ];
+
+    const senhaInformada = prompt('Digite a senha do administrador:');
+    
+    if (senhaInformada === null) return;
+
+    // Sanitiza entrada
+    const senhaSanitizada = securityUtils.sanitizeInput(senhaInformada, { 
+      allowSpecialChars: true, 
+      maxLength: 50 
+    });
+
+    // Verifica senha usando hash
+    const senhaValida = senhas.some(senha => {
+      const hashSenha = securityUtils.simpleHash(senha);
+      const hashInformada = securityUtils.simpleHash(senhaSanitizada);
+      return hashSenha === hashInformada;
+    });
+
+    if (senhaValida) {
+      securityUtils.safeLog('Acesso admin autorizado');
+      onNavigate('admin');
+    } else {
+      securityUtils.safeLog('Tentativa de acesso admin negada');
+      alert('Senha incorreta!');
+    }
+  };
+
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
   return (
     <div style={{
       fontFamily: 'Arial, sans-serif',
@@ -359,7 +505,11 @@ const HomePage = ({ onNavigate }) => {
               backgroundColor: '#f8d7da',
               color: '#721c24',
               padding: '15px',
+<<<<<<< HEAD
               borderRadius: '8px',
+=======
+              borderRadius: '5px',
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
               marginBottom: '20px',
               border: '1px solid #f5c6cb',
               textAlign: 'center'
@@ -442,8 +592,12 @@ const HomePage = ({ onNavigate }) => {
                 fontSize: '16px',
                 outline: 'none',
                 boxSizing: 'border-box',
+<<<<<<< HEAD
                 opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
                 transition: 'border-color 0.3s ease'
+=======
+                opacity: (fazendoLogin || isBlocked) ? 0.6 : 1
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
               }}
               onFocus={(e) => e.target.style.borderColor = '#009245'}
               onBlur={(e) => e.target.style.borderColor = '#ddd'}
@@ -477,8 +631,12 @@ const HomePage = ({ onNavigate }) => {
                     fontSize: '16px',
                     outline: 'none',
                     boxSizing: 'border-box',
+<<<<<<< HEAD
                     opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
                     transition: 'border-color 0.3s ease'
+=======
+                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
                   }}
                   onFocus={(e) => e.target.style.borderColor = '#009245'}
                   onBlur={(e) => e.target.style.borderColor = '#ddd'}
@@ -514,8 +672,12 @@ const HomePage = ({ onNavigate }) => {
                     fontSize: '16px',
                     outline: 'none',
                     boxSizing: 'border-box',
+<<<<<<< HEAD
                     opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
                     transition: 'border-color 0.3s ease'
+=======
+                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
                   }}
                   onFocus={(e) => e.target.style.borderColor = '#009245'}
                   onBlur={(e) => e.target.style.borderColor = '#ddd'}
@@ -553,8 +715,12 @@ const HomePage = ({ onNavigate }) => {
                 fontSize: '16px',
                 outline: 'none',
                 boxSizing: 'border-box',
+<<<<<<< HEAD
                 opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
                 transition: 'border-color 0.3s ease'
+=======
+                opacity: (fazendoLogin || isBlocked) ? 0.6 : 1
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
               }}
               onFocus={(e) => e.target.style.borderColor = '#009245'}
               onBlur={(e) => e.target.style.borderColor = '#ddd'}
@@ -588,8 +754,12 @@ const HomePage = ({ onNavigate }) => {
                   fontSize: '16px',
                   outline: 'none',
                   boxSizing: 'border-box',
+<<<<<<< HEAD
                   opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
                   transition: 'border-color 0.3s ease'
+=======
+                  opacity: (fazendoLogin || isBlocked) ? 0.6 : 1
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
                 }}
                 onFocus={(e) => e.target.style.borderColor = '#009245'}
                 onBlur={(e) => e.target.style.borderColor = '#ddd'}
@@ -599,6 +769,24 @@ const HomePage = ({ onNavigate }) => {
 
           {/* Indicador de tentativas (apenas no modo login) */}
           {modo === 'login' && loginAttempts > 0 && !isBlocked && (
+<<<<<<< HEAD
+=======
+            <div style={{
+              backgroundColor: '#fff3cd',
+              color: '#856404',
+              padding: '10px',
+              borderRadius: '5px',
+              marginBottom: '20px',
+              fontSize: '14px',
+              textAlign: 'center'
+            }}>
+              ⚠️ Tentativas restantes: {5 - loginAttempts}
+            </div>
+          )}
+
+          {/* Aviso sobre email (só no cadastro) */}
+          {modo === 'cadastro' && (
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
             <div style={{
               backgroundColor: '#fff3cd',
               color: '#856404',
@@ -626,6 +814,7 @@ const HomePage = ({ onNavigate }) => {
               fontSize: '18px',
               fontWeight: 'bold',
               cursor: (fazendoLogin || isBlocked) ? 'not-allowed' : 'pointer',
+<<<<<<< HEAD
               marginBottom: '20px',
               opacity: (fazendoLogin || isBlocked) ? 0.7 : 1,
               transition: 'all 0.3s ease',
@@ -642,6 +831,9 @@ const HomePage = ({ onNavigate }) => {
                 e.target.style.backgroundColor = '#f38e3c';
                 e.target.style.transform = 'translateY(0)';
               }
+=======
+              opacity: (fazendoLogin || isBlocked) ? 0.7 : 1
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
             }}
           >
             {isBlocked ? 'ACESSO BLOQUEADO' :
@@ -874,6 +1066,40 @@ const HomePage = ({ onNavigate }) => {
             </p>
           </div>
         </div>
+<<<<<<< HEAD
+=======
+
+        {/* Botão Admin discreto com rate limiting */}
+        <div style={{
+          marginTop: '40px',
+          display: 'flex',
+          justifyContent: 'center'
+        }}>
+          <button
+            onClick={handleAdminAccess}
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              color: 'rgba(255, 255, 255, 0.7)',
+              padding: '8px 16px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+              e.target.style.color = 'white';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+              e.target.style.color = 'rgba(255, 255, 255, 0.7)';
+            }}
+          >
+            ⚙️ Área Administrativa
+          </button>
+        </div>
+>>>>>>> e29daefc0c793ffbdfb91536084215605c56fd83
       </section>
 
       {/* Footer com Informações da Empresa */}
