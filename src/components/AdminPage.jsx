@@ -355,33 +355,39 @@ const AdminPage = ({ onNavigate }) => {
 
   // Verificação de autenticação na inicialização
   useEffect(() => {
-    const preAuth = sessionStorage.getItem('adminPreAuthenticated');
-    
-    if (preAuth) {
-      try {
-        const { timestamp } = JSON.parse(preAuth);
-        if (Date.now() - timestamp < 30 * 60 * 1000) {
-          setAdminAuth({ isAuthenticated: true, attempts: 0, lockedUntil: null });
+    const checkAuthentication = () => {
+      const preAuth = sessionStorage.getItem('adminPreAuthenticated');
+      
+      if (preAuth) {
+        try {
+          const { timestamp } = JSON.parse(preAuth);
+          if (Date.now() - timestamp < 30 * 60 * 1000) {
+            setAdminAuth({ isAuthenticated: true, attempts: 0, lockedUntil: null });
+            sessionStorage.removeItem('adminPreAuthenticated');
+            console.log('Admin autenticado via pré-autenticação');
+            
+            sessionStorage.setItem('adminAuthenticated', JSON.stringify({
+              timestamp: Date.now()
+            }));
+            
+            loadProducts();
+            loadPedidos();
+            loadEmpresasCadastradas();
+            return;
+          }
+        } catch (error) {
+          console.error('Erro na pré-autenticação:', error);
           sessionStorage.removeItem('adminPreAuthenticated');
-          
-          sessionStorage.setItem('adminAuthenticated', JSON.stringify({
-            timestamp: Date.now()
-          }));
-          
-          loadProducts();
-          loadPedidos();
-          loadEmpresasCadastradas();
-          return;
         }
-      } catch (error) {
-        console.error('Erro na pré-autenticação:', error);
       }
-    }
   
-    if (!adminAuth.isAuthenticated) {
+      // Se não tem pré-autenticação válida, redireciona
+      console.log('Acesso admin não autorizado, redirecionando...');
       onNavigate('home');
-    }
-  }, [adminAuth.isAuthenticated, onNavigate]);
+    };
+  
+    checkAuthentication();
+  }, [onNavigate]);
 
   // Se não está autenticado, não renderiza nada (já redirecionou)
   if (!adminAuth.isAuthenticated) {
