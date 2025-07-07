@@ -381,7 +381,6 @@ const AdminPage = ({ onNavigate }) => {
         }
       }
   
-      // Se não tem pré-autenticação válida, redireciona
       console.log('Acesso admin não autorizado, redirecionando...');
       onNavigate('home');
     };
