@@ -72,19 +72,11 @@ const ProsseguirPage = ({ onNavigate }) => {
   };
 
   const handleAdminAccess = () => {
-    // Validação de origem
-    if (!securityUtils.validateOrigin()) {
-      alert('Acesso não autorizado');
-      return;
-    }
-  
-    // Se já foi identificado como admin pelo CNPJ, não pede senha
-    securityUtils.safeLog('Acesso admin autorizado via CNPJ', { 
+    console.log('Acesso admin autorizado via CNPJ:', {
       cnpj: sessaoAtiva.cnpj,
       empresa: sessaoAtiva.razaoSocial 
     });
   
-    // Marca que já passou pela validação admin
     sessionStorage.setItem('adminPreAuthenticated', JSON.stringify({
       cnpj: sessaoAtiva.cnpj,
       timestamp: Date.now(),

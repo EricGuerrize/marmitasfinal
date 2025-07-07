@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
 import ImageUpload from './ImageUpload';
 
+
 // Utilitários de segurança
 const securityUtils = {
   sanitizeInput: (input) => {
@@ -354,27 +355,33 @@ const AdminPage = ({ onNavigate }) => {
 
   // Verificação de autenticação na inicialização
   useEffect(() => {
-    // Verifica se já foi pré-autenticado pelo ProsseguirPage
     const preAuth = sessionStorage.getItem('adminPreAuthenticated');
-    let isPreAuthenticated = false;
     
     if (preAuth) {
       try {
         const { timestamp } = JSON.parse(preAuth);
-        if (Date.now() - timestamp < 5 * 60 * 1000) {
-          isPreAuthenticated = true;
+        if (Date.now() - timestamp < 30 * 60 * 1000) {
           setAdminAuth({ isAuthenticated: true, attempts: 0, lockedUntil: null });
           sessionStorage.removeItem('adminPreAuthenticated');
-          securityUtils.safeLog('Admin autenticado via pré-autenticação');
+          
+          sessionStorage.setItem('adminAuthenticated', JSON.stringify({
+            timestamp: Date.now()
+          }));
+          
+          loadProducts();
+          loadPedidos();
+          loadEmpresasCadastradas();
+          return;
         }
-      } catch {
-        sessionStorage.removeItem('adminPreAuthenticated');
+      } catch (error) {
+        console.error('Erro na pré-autenticação:', error);
       }
     }
   
-    // Se não foi pré-autenticado, verifica outras formas...
-    // ... resto do código original
-  }, [adminAuth.isAuthenticated]);
+    if (!adminAuth.isAuthenticated) {
+      onNavigate('home');
+    }
+  }, [adminAuth.isAuthenticated, onNavigate]);
 
   // Se não está autenticado, não renderiza nada (já redirecionou)
   if (!adminAuth.isAuthenticated) {
