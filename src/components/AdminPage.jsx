@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
 import ImageUpload from './ImageUpload';
-
 
 // Utilitários de segurança
 const securityUtils = {
@@ -63,6 +62,118 @@ const AdminPage = ({ onNavigate }) => {
     { value: 'entregue', label: 'Entregue', color: '#6c757d', icon: '✅' },
     { value: 'cancelado', label: 'Cancelado', color: '#dc3545', icon: '❌' }
   ];
+
+  // ===== FUNÇÕES DEFINIDAS COM useCallback PARA EVITAR PROBLEMAS DE HOISTING =====
+
+  const loadEmpresasCadastradas = useCallback(async () => {
+    try {
+      const empresas = await authSupabaseService.listarEmpresas();
+      setEmpresasCadastradas(empresas);
+      const empresasComEmail = empresas.filter(e => e.email && e.email.trim() !== '').length;
+      const percentual = empresas.length > 0 ? (empresasComEmail / empresas.length) * 100 : 0;
+      
+      setStats(prev => ({
+        ...prev,
+        empresasCadastradas: empresas.length,
+        empresasComEmail,
+        percentualEmails: percentual
+      }));
+    } catch (error) {
+      console.error('Erro ao carregar empresas:', error);
+      setEmpresasCadastradas([]);
+    }
+  }, []);
+
+  const loadProducts = useCallback(() => {
+    try {
+      const produtosSalvos = localStorage.getItem('adminProdutos');
+      if (produtosSalvos) {
+        const produtosParsed = JSON.parse(produtosSalvos);
+        setProdutos(produtosParsed);
+      } else {
+        initializeDefaultProducts();
+      }
+    } catch (error) {
+      console.error('Erro ao carregar produtos:', error);
+      initializeDefaultProducts();
+    }
+  }, []);
+
+  const loadPedidos = useCallback(() => {
+    const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
+    const pedidosSimulados = pedidosAdmin.length === 0 ? [
+      {
+        id: 1,
+        numero: 1001,
+        cliente: 'H Azevedo de Abreu',
+        cnpj: '05.336.475/0001-77',
+        total: 567.0,
+        status: 'em_producao',
+        data: new Date().toISOString(),
+        enderecoEntrega: 'Rua das Flores, 123 - Centro, São Paulo/SP - CEP: 01234-567',
+        observacoes: 'Entregar na portaria',
+        itens: [
+          { nome: 'Marmita Fitness Frango', quantidade: 15, preco: 18.9 },
+          { nome: 'Marmita Vegana', quantidade: 15, preco: 16.9 }
+        ]
+      }
+    ] : [];
+
+    const todosPedidos = [...pedidosSimulados, ...pedidosAdmin];
+    setPedidos(todosPedidos);
+    calcularEstatisticas(todosPedidos);
+  }, []);
+
+  const calcularEstatisticas = useCallback((pedidosList) => {
+    const total = pedidosList.reduce((sum, pedido) => sum + pedido.total, 0);
+    const hoje = new Date().toDateString();
+    const pedidosHoje = pedidosList.filter(p => new Date(p.data).toDateString() === hoje).length;
+
+    setStats(prev => ({
+      ...prev,
+      totalPedidos: pedidosList.length,
+      totalVendas: total,
+      pedidosHoje,
+      produtosMaisVendidos: ['Marmita Fitness Frango', 'Marmita Tradicional']
+    }));
+  }, []);
+
+  const initializeDefaultProducts = useCallback(() => {
+    const produtosIniciais = [
+      {
+        id: 1,
+        nome: 'Marmita Fitness Frango',
+        descricao: 'Peito de frango grelhado, arroz integral, brócolis e cenoura',
+        preco: 18.9,
+        categoria: 'fitness',
+        imagem: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=200&fit=crop',
+        disponivel: true,
+        estoque: 95
+      },
+      {
+        id: 2,
+        nome: 'Marmita Vegana',
+        descricao: 'Quinoa, grão-de-bico, abobrinha refogada e salada verde',
+        preco: 16.9,
+        categoria: 'vegana',
+        imagem: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=200&fit=crop',
+        disponivel: true,
+        estoque: 88
+      },
+      {
+        id: 3,
+        nome: 'Marmita Tradicional',
+        descricao: 'Bife acebolado, arroz, feijão, farofa e salada',
+        preco: 15.9,
+        categoria: 'tradicional',
+        imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=300&h=200&fit=crop',
+        disponivel: true,
+        estoque: 120
+      }
+    ];
+    
+    saveProductsSecure(produtosIniciais);
+  }, []);
 
   // Verifica se admin está bloqueado
   const checkAdminLock = () => {
@@ -353,156 +464,6 @@ const AdminPage = ({ onNavigate }) => {
     });
   };
 
-  // Verificação de autenticação na inicialização
-  useEffect(() => {
-    const checkAuthentication = () => {
-      const preAuth = sessionStorage.getItem('adminPreAuthenticated');
-      
-      if (preAuth) {
-        try {
-          const { timestamp } = JSON.parse(preAuth);
-          if (Date.now() - timestamp < 30 * 60 * 1000) {
-            setAdminAuth({ isAuthenticated: true, attempts: 0, lockedUntil: null });
-            sessionStorage.removeItem('adminPreAuthenticated');
-            console.log('Admin autenticado via pré-autenticação');
-            
-            sessionStorage.setItem('adminAuthenticated', JSON.stringify({
-              timestamp: Date.now()
-            }));
-            
-            loadProducts();
-            loadPedidos();
-            loadEmpresasCadastradas();
-            return;
-          }
-        } catch (error) {
-          console.error('Erro na pré-autenticação:', error);
-          sessionStorage.removeItem('adminPreAuthenticated');
-        }
-      }
-  
-      console.log('Acesso admin não autorizado, redirecionando...');
-      onNavigate('home');
-    };
-  
-    checkAuthentication();
-  }, [onNavigate]);
-
-  // Se não está autenticado, não renderiza nada (já redirecionou)
-  if (!adminAuth.isAuthenticated) {
-    return null;
-  }
-
-  const loadEmpresasCadastradas = async () => {
-    try {
-      const empresas = await authSupabaseService.listarEmpresas();
-      setEmpresasCadastradas(empresas);
-      const empresasComEmail = empresas.filter(e => e.email && e.email.trim() !== '').length;
-      const percentual = empresas.length > 0 ? (empresasComEmail / empresas.length) * 100 : 0;
-      
-      setStats(prev => ({
-        ...prev,
-        empresasCadastradas: empresas.length,
-        empresasComEmail,
-        percentualEmails: percentual
-      }));
-    } catch (error) {
-      console.error('Erro ao carregar empresas:', error);
-      setEmpresasCadastradas([]);
-    }
-  };
-
-  const loadProducts = () => {
-    try {
-      const produtosSalvos = localStorage.getItem('adminProdutos');
-      if (produtosSalvos) {
-        const produtosParsed = JSON.parse(produtosSalvos);
-        setProdutos(produtosParsed);
-      } else {
-        initializeDefaultProducts();
-      }
-    } catch (error) {
-      console.error('Erro ao carregar produtos:', error);
-      initializeDefaultProducts();
-    }
-  };
-
-  const loadPedidos = () => {
-    const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
-    const pedidosSimulados = pedidosAdmin.length === 0 ? [
-      {
-        id: 1,
-        numero: 1001,
-        cliente: 'H Azevedo de Abreu',
-        cnpj: '05.336.475/0001-77',
-        total: 567.0,
-        status: 'em_producao',
-        data: new Date().toISOString(),
-        enderecoEntrega: 'Rua das Flores, 123 - Centro, São Paulo/SP - CEP: 01234-567',
-        observacoes: 'Entregar na portaria',
-        itens: [
-          { nome: 'Marmita Fitness Frango', quantidade: 15, preco: 18.9 },
-          { nome: 'Marmita Vegana', quantidade: 15, preco: 16.9 }
-        ]
-      }
-    ] : [];
-
-    const todosPedidos = [...pedidosSimulados, ...pedidosAdmin];
-    setPedidos(todosPedidos);
-    calcularEstatisticas(todosPedidos);
-  };
-
-  const initializeDefaultProducts = () => {
-    const produtosIniciais = [
-      {
-        id: 1,
-        nome: 'Marmita Fitness Frango',
-        descricao: 'Peito de frango grelhado, arroz integral, brócolis e cenoura',
-        preco: 18.9,
-        categoria: 'fitness',
-        imagem: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=200&fit=crop',
-        disponivel: true,
-        estoque: 95
-      },
-      {
-        id: 2,
-        nome: 'Marmita Vegana',
-        descricao: 'Quinoa, grão-de-bico, abobrinha refogada e salada verde',
-        preco: 16.9,
-        categoria: 'vegana',
-        imagem: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=200&fit=crop',
-        disponivel: true,
-        estoque: 88
-      },
-      {
-        id: 3,
-        nome: 'Marmita Tradicional',
-        descricao: 'Bife acebolado, arroz, feijão, farofa e salada',
-        preco: 15.9,
-        categoria: 'tradicional',
-        imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=300&h=200&fit=crop',
-        disponivel: true,
-        estoque: 120
-      }
-    ];
-    
-    saveProductsSecure(produtosIniciais);
-  };
-
-  const calcularEstatisticas = (pedidosList) => {
-    const total = pedidosList.reduce((sum, pedido) => sum + pedido.total, 0);
-    const hoje = new Date().toDateString();
-    const pedidosHoje = pedidosList.filter(p => new Date(p.data).toDateString() === hoje).length;
-
-    setStats(prev => ({
-      ...prev,
-      totalPedidos: pedidosList.length,
-      totalVendas: total,
-      pedidosHoje,
-      produtosMaisVendidos: ['Marmita Fitness Frango', 'Marmita Tradicional']
-    }));
-  };
-
   const editProduct = (produto) => {
     setProductForm({
       nome: produto.nome,
@@ -562,6 +523,61 @@ const AdminPage = ({ onNavigate }) => {
     if (!email) return 'Não informado';
     return email;
   };
+
+  // ===== VERIFICAÇÃO DE AUTENTICAÇÃO COM FUNÇÕES JÁ DEFINIDAS =====
+  useEffect(() => {
+    const checkAuthentication = () => {
+      console.log('🔐 Verificando autenticação admin...');
+      
+      const preAuth = sessionStorage.getItem('adminPreAuthenticated');
+      
+      if (preAuth) {
+        try {
+          const { timestamp } = JSON.parse(preAuth);
+          if (Date.now() - timestamp < 30 * 60 * 1000) {
+            console.log('✅ Pré-autenticação válida encontrada');
+            setAdminAuth({ isAuthenticated: true, attempts: 0, lockedUntil: null });
+            sessionStorage.removeItem('adminPreAuthenticated');
+            
+            sessionStorage.setItem('adminAuthenticated', JSON.stringify({
+              timestamp: Date.now()
+            }));
+            
+            // Agora as funções estão definidas, pode chamar
+            console.log('📊 Carregando dados do admin...');
+            return true; // Sucesso na autenticação
+          } else {
+            console.log('⏰ Pré-autenticação expirada');
+            sessionStorage.removeItem('adminPreAuthenticated');
+          }
+        } catch (error) {
+          console.error('❌ Erro na pré-autenticação:', error);
+          sessionStorage.removeItem('adminPreAuthenticated');
+        }
+      }
+
+      console.log('🚫 Acesso admin não autorizado, redirecionando...');
+      onNavigate('home');
+      return false;
+    };
+
+    checkAuthentication();
+  }, [onNavigate]);
+
+  // ===== CARREGAMENTO DE DADOS QUANDO AUTENTICADO =====
+  useEffect(() => {
+    if (adminAuth.isAuthenticated) {
+      console.log('📊 Admin autenticado, carregando dados...');
+      loadProducts();
+      loadPedidos();
+      loadEmpresasCadastradas();
+    }
+  }, [adminAuth.isAuthenticated, loadProducts, loadPedidos, loadEmpresasCadastradas]);
+
+  // Se não está autenticado, não renderiza nada (já redirecionou)
+  if (!adminAuth.isAuthenticated) {
+    return null;
+  }
 
   return (
     <div style={{
