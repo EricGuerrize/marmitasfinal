@@ -29,10 +29,12 @@ const ProsseguirPage = ({ onNavigate }) => {
     
     // VERIFICA SE É ADMIN PELOS CNPJs ADMINISTRATIVOS
     const adminCnpjs = [
-      '05336475000177', // CNPJ de teste
+      '05336475000177', // CNPJ de admin
       '11222333000144', // Outro CNPJ admin se necessário
       // Adicione outros CNPJs administrativos aqui
     ];
+
+  
     
     const isAdminUser = adminCnpjs.includes(sessao.cnpj);
     setIsAdmin(isAdminUser);
@@ -75,49 +77,21 @@ const ProsseguirPage = ({ onNavigate }) => {
       alert('Acesso não autorizado');
       return;
     }
-
-    // Rate limiting
-    const rateLimit = securityUtils.checkOperationLimit('admin_access');
-    if (!rateLimit.allowed) {
-      alert(`Muitas tentativas. Tente novamente em ${Math.ceil((rateLimit.resetTime - new Date()) / 1000 / 60)} minutos.`);
-      return;
-    }
-
-    const senhas = [
-      process.env.REACT_APP_ADMIN_PASSWORD || 'FitInBox2025!',
-      'admin2025!@#',
-      'fitinbox_admin_secure'
-    ];
-
-    const senhaInformada = prompt('🔐 Digite a senha administrativa:');
-    
-    if (senhaInformada === null) return;
-
-    // Sanitiza entrada
-    const senhaSanitizada = securityUtils.sanitizeInput(senhaInformada, { 
-      allowSpecialChars: true, 
-      maxLength: 50 
+  
+    // Se já foi identificado como admin pelo CNPJ, não pede senha
+    securityUtils.safeLog('Acesso admin autorizado via CNPJ', { 
+      cnpj: sessaoAtiva.cnpj,
+      empresa: sessaoAtiva.razaoSocial 
     });
-
-    // Verifica senha usando hash
-    const senhaValida = senhas.some(senha => {
-      const hashSenha = securityUtils.simpleHash(senha);
-      const hashInformada = securityUtils.simpleHash(senhaSanitizada);
-      return hashSenha === hashInformada;
-    });
-
-    if (senhaValida) {
-      securityUtils.safeLog('Acesso admin autorizado', { 
-        cnpj: sessaoAtiva.cnpj,
-        empresa: sessaoAtiva.razaoSocial 
-      });
-      onNavigate('admin');
-    } else {
-      securityUtils.safeLog('Tentativa de acesso admin negada', { 
-        cnpj: sessaoAtiva.cnpj 
-      });
-      alert('❌ Senha administrativa incorreta!');
-    }
+  
+    // Marca que já passou pela validação admin
+    sessionStorage.setItem('adminPreAuthenticated', JSON.stringify({
+      cnpj: sessaoAtiva.cnpj,
+      timestamp: Date.now(),
+      empresa: sessaoAtiva.razaoSocial
+    }));
+  
+    onNavigate('admin');
   };
 
   const handleLogout = () => {

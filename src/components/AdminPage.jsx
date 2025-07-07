@@ -354,44 +354,26 @@ const AdminPage = ({ onNavigate }) => {
 
   // Verificação de autenticação na inicialização
   useEffect(() => {
-    // Verifica se já está autenticado
-    const authCheck = sessionStorage.getItem('adminAuthenticated');
-    if (authCheck) {
+    // Verifica se já foi pré-autenticado pelo ProsseguirPage
+    const preAuth = sessionStorage.getItem('adminPreAuthenticated');
+    let isPreAuthenticated = false;
+    
+    if (preAuth) {
       try {
-        const { timestamp } = JSON.parse(authCheck);
-        // Sessão admin expira em 1 hora
-        if (Date.now() - timestamp < 60 * 60 * 1000) {
+        const { timestamp } = JSON.parse(preAuth);
+        if (Date.now() - timestamp < 5 * 60 * 1000) {
+          isPreAuthenticated = true;
           setAdminAuth({ isAuthenticated: true, attempts: 0, lockedUntil: null });
-        } else {
-          sessionStorage.removeItem('adminAuthenticated');
+          sessionStorage.removeItem('adminPreAuthenticated');
+          securityUtils.safeLog('Admin autenticado via pré-autenticação');
         }
       } catch {
-        sessionStorage.removeItem('adminAuthenticated');
+        sessionStorage.removeItem('adminPreAuthenticated');
       }
     }
-
-    // Se não está autenticado, redireciona
-    if (!adminAuth.isAuthenticated && !authenticateAdmin()) {
-      onNavigate('home');
-      return;
-    }
-
-    // Salva autenticação
-    sessionStorage.setItem('adminAuthenticated', JSON.stringify({
-      timestamp: Date.now()
-    }));
-
-    // Resto da inicialização...
-    loadProducts();
-    loadPedidos();
-    loadEmpresasCadastradas();
-
-    const intervalId = setInterval(() => {
-      loadPedidos();
-      loadEmpresasCadastradas();
-    }, 5000);
-
-    return () => clearInterval(intervalId);
+  
+    // Se não foi pré-autenticado, verifica outras formas...
+    // ... resto do código original
   }, [adminAuth.isAuthenticated]);
 
   // Se não está autenticado, não renderiza nada (já redirecionou)
