@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { produtoService } from '../services/produtoService';
 import LogoComponent from './LogoComponent';
+import OptimizedImage from './OptimizedImage';
 
 const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQuantidadeTotal }) => {
   const [cnpj, setCnpj] = useState('');
@@ -9,7 +10,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
   const [quantidades, setQuantidades] = useState({});
   const [isMobile, setIsMobile] = useState(false);
 
-  // Produtos de exemplo (fallback)
+  // Produtos de exemplo otimizados (fallback)
   const produtos = [
     {
       id: 1,
@@ -17,7 +18,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Peito de frango grelhado, arroz integral, brócolis e cenoura',
       preco: 18.90,
       categoria: 'fitness',
-      imagem: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=200&fit=crop',
+      imagem: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c',
       disponivel: true
     },
     {
@@ -26,7 +27,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Quinoa, grão-de-bico, abobrinha refogada e salada verde',
       preco: 16.90,
       categoria: 'vegana',
-      imagem: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=200&fit=crop',
+      imagem: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd',
       disponivel: true
     },
     {
@@ -35,7 +36,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Bife acebolado, arroz, feijão, farofa e salada',
       preco: 15.90,
       categoria: 'tradicional',
-      imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=300&h=200&fit=crop',
+      imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445',
       disponivel: true
     },
     {
@@ -44,7 +45,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Salmão grelhado, couve-flor gratinada e aspargos',
       preco: 22.90,
       categoria: 'fitness',
-      imagem: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=300&h=200&fit=crop',
+      imagem: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288',
       disponivel: true
     },
     {
@@ -53,7 +54,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Risotto de camarão com legumes e ervas finas',
       preco: 28.90,
       categoria: 'gourmet',
-      imagem: 'https://images.unsplash.com/photo-1563379091339-03246963d96c?w=300&h=200&fit=crop',
+      imagem: 'https://images.unsplash.com/photo-1563379091339-03246963d96c',
       disponivel: true
     },
     {
@@ -62,7 +63,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Lasanha de berinjela, salada de rúcula e tomate seco',
       preco: 17.90,
       categoria: 'vegana',
-      imagem: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=300&h=200&fit=crop',
+      imagem: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b',
       disponivel: true
     },
     {
@@ -71,7 +72,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Carne vermelha magra, batata doce e mix de vegetais',
       preco: 21.90,
       categoria: 'fitness',
-      imagem: 'https://images.unsplash.com/photo-1551782450-17144efb9c50?w=300&h=200&fit=crop',
+      imagem: 'https://images.unsplash.com/photo-1551782450-17144efb9c50',
       disponivel: true
     },
     {
@@ -80,7 +81,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Salada completa com grãos, frutas e molho especial',
       preco: 19.90,
       categoria: 'vegana',
-      imagem: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=200&fit=crop',
+      imagem: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd',
       disponivel: true
     },
     {
@@ -89,7 +90,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Peixe grelhado, arroz de brócolis e legumes sauteados',
       preco: 25.90,
       categoria: 'gourmet',
-      imagem: 'https://images.unsplash.com/photo-1546793665-c74683f339c1?w=300&h=200&fit=crop',
+      imagem: 'https://images.unsplash.com/photo-1546793665-c74683f339c1',
       disponivel: true
     },
     {
@@ -98,7 +99,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Frango desfiado, purê de batata e salada mista',
       preco: 16.90,
       categoria: 'tradicional',
-      imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=300&h=200&fit=crop',
+      imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445',
       disponivel: true
     },
     {
@@ -107,7 +108,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Salmão com ervas, quinoa e mix de folhas verdes',
       preco: 26.90,
       categoria: 'gourmet',
-      imagem: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=300&h=200&fit=crop',
+      imagem: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288',
       disponivel: true
     },
     {
@@ -116,7 +117,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
       descricao: 'Frango empanado, arroz colorido e cenoura refogada',
       preco: 14.90,
       categoria: 'tradicional',
-      imagem: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=300&h=200&fit=crop',
+      imagem: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b',
       disponivel: true
     }
   ];
@@ -429,15 +430,14 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
                   if (!isMobile) e.currentTarget.style.transform = 'translateY(0)';
                 }}
               >
-                {/* Imagem do Produto */}
-                <img
+                {/* Imagem do Produto Otimizada */}
+                <OptimizedImage
                   src={produto.imagem}
                   alt={produto.nome}
-                  style={{
-                    width: '100%',
-                    height: isMobile ? '150px' : '200px',
-                    objectFit: 'cover'
-                  }}
+                  width={300}
+                  height={200}
+                  isMobile={isMobile}
+                  lazy={true}
                 />
                 
                 {/* Conteúdo do Card */}
@@ -482,7 +482,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
                       gap: '10px',
                       width: isMobile ? '100%' : 'auto'
                     }}>
-                      {/* Controle de Quantidade - COM CAMPO DIGITAL */}
+                      {/* Controle de Quantidade */}
                       <div style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -510,7 +510,6 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
                           -
                         </button>
                         
-                        {/* CAMPO DIGITAL PARA QUANTIDADE */}
                         <input
                           type="number"
                           min="1"
