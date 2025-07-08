@@ -1,9 +1,14 @@
 // src/lib/supabase.js
 import { createClient } from '@supabase/supabase-js';
 
-// Suas credenciais do Supabase (já estão corretas)
-const supabaseUrl = 'https://yzzyrbpjefiprdnzfvrj.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6enlyYnBqZWZpcHJkbnpmdnJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4MzE1MzAsImV4cCI6MjA2NTQwNzUzMH0.ZM2k5doGyULAKVCeYUKwjKhTxjtF7lacVMNr0O967r0';
+// Credenciais via variáveis de ambiente
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
+
+// Validação das credenciais
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Supabase URL and anon key must be provided via environment variables');
+}
 
 // Cria o cliente
 export const supabase = createClient(supabaseUrl, supabaseKey);
