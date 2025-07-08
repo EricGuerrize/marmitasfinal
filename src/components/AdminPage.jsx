@@ -363,7 +363,7 @@ const AdminPage = ({ onNavigate }) => {
           descricao: securityUtils.sanitizeInput(productForm.descricao),
           preco: productForm.preco,
           categoria: productForm.categoria,
-          imagem: securityUtils.sanitizeInput(productForm.imagem),
+          imagem: productForm.imagem,
           disponivel: productForm.disponivel,
           estoque: productForm.estoque
         };
