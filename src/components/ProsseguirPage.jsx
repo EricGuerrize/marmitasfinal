@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
-import { securityUtils } from '../utils/securityUtils';
+// import { securityUtils } from '../utils/securityUtils'; // securityUtils pode não ser mais necessário aqui
 
 const ProsseguirPage = ({ onNavigate }) => {
   const [selectedOption, setSelectedOption] = useState('fazerPedido');
@@ -27,17 +27,9 @@ const ProsseguirPage = ({ onNavigate }) => {
     
     setSessaoAtiva(sessao);
     
-    // VERIFICA SE É ADMIN PELOS CNPJs ADMINISTRATIVOS
-    const adminCnpjs = [
-      '05336475000177', // CNPJ de admin
-      '11222333000144', // Outro CNPJ admin se necessário
-      // Adicione outros CNPJs administrativos aqui
-    ];
-
-  
-    
-    const isAdminUser = adminCnpjs.includes(sessao.cnpj);
-    setIsAdmin(isAdminUser);
+    // VERIFICA SE É ADMIN PELO CAMPO is_admin DO SUPABASE
+    // Assumindo que sessao.is_admin é um booleano retornado pelo Supabase
+    setIsAdmin(sessao.is_admin || false); 
     
     // Intercepta o botão voltar do navegador
     const handlePopState = (event) => {
@@ -236,7 +228,6 @@ const ProsseguirPage = ({ onNavigate }) => {
           <div style={{
             margin: '30px 0',
             textAlign: 'left',
-            display: 'flex',
             flexDirection: 'column',
             gap: '15px'
           }}>

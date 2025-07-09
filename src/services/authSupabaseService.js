@@ -1,31 +1,36 @@
-// src/services/authSupabaseService.js
+import { createClient } from '@supabase/supabase-js';
 
-// Funções auxiliares fora do objeto para evitar problemas com 'this'
+const supabaseUrl = 'https://yzzyrbpjefiprdnzfvrj.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6enlyYnBqZWZpcHJkbnpmdnJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4MzE1MzAsImV4cCI6MjA2NTQwNzUzMH0.ZM2k5doGyULAKVCeYUKwjKhTxjtF7lacVMNr0O967r0';
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Funções auxiliares (manter se ainda forem úteis, mas adaptar para Supabase)
 const validarCnpj = (cnpj) => {
-  const cnpjLimpo = cnpj.replace(/\D/g, '');
-  
+  const cnpjLimpo = cnpj.replace(/\D/g, "");
+
   if (cnpjLimpo.length !== 14) return false;
-  
+
   // Verifica se todos os dígitos são iguais
   if (/^(\d)\1{13}$/.test(cnpjLimpo)) return false;
-  
+
   // Validação dos dígitos verificadores
   const calcularDigito = (cnpj, pos) => {
     let soma = 0;
     let peso = pos === 12 ? 5 : 6;
-    
+
     for (let i = 0; i < pos; i++) {
       soma += parseInt(cnpj.charAt(i)) * peso;
       peso = peso === 2 ? 9 : peso - 1;
     }
-    
+
     const resto = soma % 11;
     return resto < 2 ? 0 : 11 - resto;
   };
-  
+
   const digito1 = calcularDigito(cnpjLimpo, 12);
   const digito2 = calcularDigito(cnpjLimpo, 13);
-  
+
   return (
     parseInt(cnpjLimpo.charAt(12)) === digito1 &&
     parseInt(cnpjLimpo.charAt(13)) === digito2
@@ -33,462 +38,250 @@ const validarCnpj = (cnpj) => {
 };
 
 const formatarCnpj = (cnpj) => {
-  const cnpjLimpo = cnpj.replace(/\D/g, '');
-  return cnpjLimpo.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+  const cnpjLimpo = cnpj.replace(/\D/g, "");
+  return cnpjLimpo.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, 
+    "$1.$2.$3/$4-$5"
+  );
 };
 
-const getEmpresasDatabase = () => {
-  try {
-    const empresas = localStorage.getItem('empresasDatabase');
-    return empresas ? JSON.parse(empresas) : [];
-  } catch (error) {
-    console.error('Erro ao acessar banco de empresas:', error);
-    return [];
-  }
-};
-
-const saveEmpresasDatabase = (empresas) => {
-  try {
-    localStorage.setItem('empresasDatabase', JSON.stringify(empresas));
-    return true;
-  } catch (error) {
-    console.error('Erro ao salvar banco de empresas:', error);
-    return false;
-  }
-};
-
-const buscarEmpresaPorCnpj = (cnpj) => {
-  const empresas = getEmpresasDatabase();
-  const cnpjLimpo = cnpj.replace(/\D/g, '');
-  return empresas.find(empresa => empresa.cnpj === cnpjLimpo);
-};
-
-const buscarDadosReceita = async (cnpj) => {
-  console.log('🔍 Buscando dados na Receita Federal para:', cnpj);
-  
-  // Simula delay da API
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // Dados simulados baseados no CNPJ
-  const dadosSimulados = {
-    '12345678000123': {
-      razao_social: 'EMPRESA TESTE LTDA',
-      nome_fantasia: 'Empresa Teste',
-      situacao: 'ATIVA',
-      telefone: '(11) 99999-9999'
-    },
-    '98765432000100': {
-      razao_social: 'COMERCIO DE ALIMENTOS LTDA',
-      nome_fantasia: 'Alimentos & Cia',
-      situacao: 'ATIVA',
-      telefone: '(11) 88888-8888'
-    },
-    '05336475000177': {
-      razao_social: 'H AZEVEDO DE ABREU',
-      nome_fantasia: 'H Azevedo',
-      situacao: 'ATIVA',
-      telefone: '(21) 77777-7777'
-    }
-  };
-  
-  // Se tem dados específicos, usa eles
-  if (dadosSimulados[cnpj]) {
-    return dadosSimulados[cnpj];
-  }
-  
-  // Senão, gera dados genéricos baseados no CNPJ
-  const nomes = [
-    'COMERCIO', 'INDUSTRIA', 'SERVICOS', 'ALIMENTOS', 'TECNOLOGIA',
-    'CONSULTORIA', 'LOGISTICA', 'MARKETING', 'CONSTRUCAO', 'EDUCACAO'
-  ];
-  
-  const tipos = ['LTDA', 'EIRELI', 'SA', 'ME', 'EPP'];
-  
-  const randomNome = nomes[parseInt(cnpj.substring(0, 2)) % nomes.length];
-  const randomTipo = tipos[parseInt(cnpj.substring(12, 14)) % tipos.length];
-  
-  return {
-    razao_social: `${randomNome} E PARTICIPACOES ${randomTipo}`,
-    nome_fantasia: `${randomNome.toLowerCase().replace(/^\w/, c => c.toUpperCase())} ${randomTipo}`,
-    situacao: 'ATIVA',
-    telefone: `(11) 9${cnpj.substring(0, 4)}-${cnpj.substring(4, 8)}`
-  };
-};
-
-// Objeto principal
 export const authSupabaseService = {
-  // Verifica se existe sessão ativa
-  verificarSessao: () => {
-    try {
-      const session = sessionStorage.getItem('userSession');
-      if (!session) return false;
-      
-      const parsed = JSON.parse(session);
-      const now = Date.now();
-      
-      // Verifica se a sessão não expirou (24 horas)
-      if (now > parsed.expiresAt) {
-        sessionStorage.removeItem('userSession');
-        return false;
-      }
-      
-      return parsed;
-    } catch (error) {
-      console.warn('Erro ao verificar sessão:', error);
-      return false;
-    }
-  },
-
   // Autenticar usuário
-  autenticar: async (cnpj, senha) => {
+  autenticar: async (email, senha) => {
     try {
-      console.log('🔐 Iniciando autenticação para CNPJ:', cnpj);
-      
-      // Simula delay de rede
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Remove formatação do CNPJ
-      const cnpjLimpo = cnpj.replace(/\D/g, '');
-      
-      // Validações básicas
-      if (!validarCnpj(cnpjLimpo)) {
+      console.log("🔐 Iniciando autenticação para email:", email);
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: senha,
+      });
+
+      if (error) {
+        console.error("❌ Erro de autenticação Supabase:", error.message);
         return {
           success: false,
-          error: 'CNPJ inválido'
-        };
-      }
-      
-      if (!senha || senha.length < 6) {
-        return {
-          success: false,
-          error: 'Senha deve ter pelo menos 6 caracteres'
-        };
-      }
-      
-      // Busca empresa no banco de dados mock
-      const empresa = buscarEmpresaPorCnpj(cnpjLimpo);
-      
-      if (!empresa) {
-        return {
-          success: false,
-          error: 'CNPJ não cadastrado. Faça seu cadastro primeiro.'
+          error: error.message || "Erro na autenticação. Verifique suas credenciais.",
         };
       }
 
-      if (!empresa.ativo) {
-        return {
-          success: false,
-          error: 'Empresa desativada. Entre em contato com o suporte.'
-        };
-      }
-      
-      // Verifica senha (em produção, use hash)
-      if (empresa.senha !== senha) {
-        // Incrementa tentativas de login inválidas
-        empresa.tentativas_login = (empresa.tentativas_login || 0) + 1;
-        empresa.ultimo_acesso_tentativa = new Date().toISOString();
-        
-        // Salva no banco
-        const empresas = getEmpresasDatabase();
-        const index = empresas.findIndex(e => e.cnpj === cnpjLimpo);
-        if (index >= 0) {
-          empresas[index] = empresa;
-          saveEmpresasDatabase(empresas);
+      if (data.user) {
+        // Buscar dados adicionais da tabela 'empresas'
+        const { data: empresaData, error: empresaError } = await supabase
+          .from("empresas")
+          .select("*, tipo_usuario") // Incluir tipo_usuario
+          .eq("user_id", data.user.id)
+          .single();
+
+        if (empresaError) {
+          console.error("❌ Erro ao buscar dados da empresa:", empresaError.message);
+          // Se não encontrar dados na tabela 'empresas', pode ser um usuário recém-criado ou problema de sincronização
+          return {
+            success: false,
+            error: "Usuário autenticado, mas dados da empresa não encontrados.",
+          };
         }
-        
+
+        const sessionData = {
+          id: data.user.id,
+          email: data.user.email,
+          cnpj: empresaData.cnpj,
+          cnpjFormatado: formatarCnpj(empresaData.cnpj),
+          razaoSocial: empresaData.razao_social,
+          nomeFantasia: empresaData.nome_fantasia,
+          nomeEmpresa: empresaData.nome_empresa,
+          tipoUsuario: empresaData.tipo_usuario, // Adicionado tipo_usuario
+          isAdmin: empresaData.tipo_usuario === "admin", // Define isAdmin com base no tipo_usuario
+          loginTime: Date.now(),
+          expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 horas
+        };
+
+        // Armazenar sessão no sessionStorage (opcional, Supabase já gerencia a sessão)
+        sessionStorage.setItem("userSession", JSON.stringify(sessionData));
+
+        console.log("✅ Login realizado com sucesso");
+        return {
+          success: true,
+          empresa: sessionData,
+        };
+      } else {
         return {
           success: false,
-          error: 'Senha incorreta'
+          error: "Nenhum usuário retornado após autenticação.",
         };
       }
-      
-      // Login bem-sucedido - atualiza dados da empresa
-      empresa.ultimo_acesso = new Date().toISOString();
-      empresa.tentativas_login = 0;
-      
-      // Salva no banco
-      const empresas = getEmpresasDatabase();
-      const index = empresas.findIndex(e => e.cnpj === cnpjLimpo);
-      if (index >= 0) {
-        empresas[index] = empresa;
-        saveEmpresasDatabase(empresas);
-      }
-      
-      // Cria sessão
-      const sessionData = {
-        id: empresa.id,
-        cnpj: cnpjLimpo,
-        cnpjFormatado: formatarCnpj(cnpjLimpo),
-        razaoSocial: empresa.razao_social,
-        nomeFantasia: empresa.nome_fantasia,
-        nomeEmpresa: empresa.nome_empresa,
-        email: empresa.email,
-        loginTime: Date.now(),
-        expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 horas
-      };
-      
-      sessionStorage.setItem('userSession', JSON.stringify(sessionData));
-      
-      // Salva informações para uso em outras páginas
-      sessionStorage.setItem('cnpj', formatarCnpj(cnpjLimpo));
-      if (empresa.nome_empresa) {
-        sessionStorage.setItem('nomeEmpresa', empresa.nome_empresa);
-      }
-      if (empresa.razao_social) {
-        sessionStorage.setItem('empresaInfo', empresa.razao_social);
-      }
-      
-      console.log('✅ Login realizado com sucesso');
-      return {
-        success: true,
-        empresa: sessionData
-      };
-        
     } catch (error) {
-      console.error('❌ Erro na autenticação:', error);
+      console.error("❌ Erro geral na autenticação:", error);
       return {
         success: false,
-        error: 'Erro de conexão. Tente novamente.'
+        error: "Erro de conexão. Tente novamente.",
       };
     }
   },
 
   // Registrar nova empresa
-  registrarEmpresa: async (cnpj, senha, dadosEmpresa) => {
+  registrarEmpresa: async (email, senha, dadosEmpresa) => {
     try {
-      console.log('📝 Iniciando cadastro para CNPJ:', cnpj);
-      
-      // Simula delay de rede
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Remove formatação do CNPJ
-      const cnpjLimpo = cnpj.replace(/\D/g, '');
-      
-      // Validações
-      if (!validarCnpj(cnpjLimpo)) {
+      console.log("📝 Iniciando cadastro para email:", email);
+
+      // 1. Registrar usuário no Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: email,
+        password: senha,
+      });
+
+      if (authError) {
+        console.error("❌ Erro no registro de autenticação Supabase:", authError.message);
         return {
           success: false,
-          error: 'CNPJ inválido. Verifique os números digitados.'
+          error: authError.message || "Erro no registro. Tente novamente.",
         };
       }
-      
-      if (!senha || senha.length < 6) {
-        return {
-          success: false,
-          error: 'Senha deve ter pelo menos 6 caracteres'
-        };
-      }
-      
-      // Verifica se CNPJ já existe
-      const empresaExistente = buscarEmpresaPorCnpj(cnpjLimpo);
-      if (empresaExistente) {
-        return {
-          success: false,
-          error: 'CNPJ já cadastrado. Tente fazer login ou recuperar a senha.'
-        };
-      }
-      
-      // Busca dados da empresa via API da Receita Federal (simulado)
-      const dadosReceita = await buscarDadosReceita(cnpjLimpo);
-      
-      // Cria nova empresa
-      const novaEmpresa = {
-        id: Date.now(),
-        cnpj: cnpjLimpo,
-        cnpj_formatado: formatarCnpj(cnpjLimpo),
-        senha: senha, // Em produção, use hash
-        razao_social: dadosReceita.razao_social,
-        nome_fantasia: dadosReceita.nome_fantasia,
-        nome_empresa: dadosEmpresa.nomeEmpresa || dadosReceita.nome_fantasia || dadosReceita.razao_social,
-        email: dadosEmpresa.email || null,
-        telefone: dadosReceita.telefone || null,
-        situacao: dadosReceita.situacao || 'ATIVA',
-        ativo: true,
-        data_cadastro: new Date().toISOString(),
-        ultimo_acesso: null,
-        tentativas_login: 0
-      };
-      
-      // Salva no banco de dados mock
-      const empresas = getEmpresasDatabase();
-      empresas.push(novaEmpresa);
-      
-      const salvou = saveEmpresasDatabase(empresas);
-      
-      if (!salvou) {
-        return {
-          success: false,
-          error: 'Erro ao salvar cadastro. Tente novamente.'
-        };
-      }
-      
-      console.log('✅ Cadastro realizado com sucesso para:', novaEmpresa.razao_social);
-      return {
-        success: true,
-        message: 'Empresa cadastrada com sucesso!',
-        empresa: {
-          cnpj: cnpjLimpo,
-          razaoSocial: novaEmpresa.razao_social,
-          nomeEmpresa: novaEmpresa.nome_empresa
+
+      if (authData.user) {
+        // 2. Inserir dados da empresa na tabela 'empresas'
+        const { data: empresaInsertData, error: empresaInsertError } = await supabase
+          .from("empresas")
+          .insert([
+            {
+              user_id: authData.user.id,
+              cnpj: dadosEmpresa.cnpj.replace(/\D/g, ""),
+              cnpj_formatado: formatarCnpj(dadosEmpresa.cnpj),
+              email: email,
+              nome_empresa: dadosEmpresa.nomeEmpresa || dadosEmpresa.nomeFantasia || dadosEmpresa.razaoSocial,
+              razao_social: dadosEmpresa.razaoSocial,
+              nome_fantasia: dadosEmpresa.nomeFantasia,
+              telefone: dadosEmpresa.telefone,
+              situacao: dadosEmpresa.situacao || "ATIVA",
+              tipo_usuario: dadosEmpresa.tipoUsuario || "cliente", // Default para 'cliente'
+              ativo: true,
+              email_confirmado: authData.user.email_confirmed_at ? true : false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+          ]);
+
+        if (empresaInsertError) {
+          console.error("❌ Erro ao inserir dados da empresa:", empresaInsertError.message);
+          // Se a inserção falhar, você pode querer reverter o registro de autenticação
+          await supabase.auth.admin.deleteUser(authData.user.id); // Reverte o registro de autenticação
+          return {
+            success: false,
+            error: "Erro ao salvar dados da empresa. Tente novamente.",
+          };
         }
-      };
-        
+
+        console.log("✅ Cadastro realizado com sucesso para:", email);
+        return {
+          success: true,
+          message: "Empresa cadastrada com sucesso!",
+          empresa: {
+            id: authData.user.id,
+            email: email,
+            cnpj: dadosEmpresa.cnpj,
+            razaoSocial: dadosEmpresa.razaoSocial,
+            nomeEmpresa: dadosEmpresa.nomeEmpresa,
+            tipoUsuario: dadosEmpresa.tipoUsuario || "cliente",
+          },
+        };
+      } else {
+        return {
+          success: false,
+          error: "Nenhum usuário retornado após o registro.",
+        };
+      }
     } catch (error) {
-      console.error('❌ Erro no cadastro:', error);
+      console.error("❌ Erro geral no registro:", error);
       return {
         success: false,
-        error: 'Erro de conexão. Tente novamente.'
+        error: "Erro de conexão. Tente novamente.",
       };
+    }
+  },
+
+  // Verifica se tem sessão ativa
+  verificarSessao: async () => {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error("❌ Erro ao obter sessão Supabase:", error.message);
+        return null;
+      }
+
+      if (session && session.user) {
+        // Buscar dados adicionais da tabela 'empresas'
+        const { data: empresaData, error: empresaError } = await supabase
+          .from("empresas")
+          .select("*, tipo_usuario")
+          .eq("user_id", session.user.id)
+          .single();
+
+        if (empresaError) {
+          console.error("❌ Erro ao buscar dados da empresa na sessão:", empresaError.message);
+          return null;
+        }
+
+        const sessionData = {
+          id: session.user.id,
+          email: session.user.email,
+          cnpj: empresaData.cnpj,
+          cnpjFormatado: formatarCnpj(empresaData.cnpj),
+          razaoSocial: empresaData.razao_social,
+          nomeFantasia: empresaData.nome_fantasia,
+          nomeEmpresa: empresaData.nome_empresa,
+          tipoUsuario: empresaData.tipo_usuario, // Adicionado tipo_usuario
+          isAdmin: empresaData.tipo_usuario === "admin", // Define isAdmin com base no tipo_usuario
+          loginTime: Date.now(),
+          expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 horas (apenas para compatibilidade, Supabase gerencia isso)
+        };
+        sessionStorage.setItem("userSession", JSON.stringify(sessionData)); // Manter para compatibilidade com ProsseguirPage
+        return sessionData;
+      }
+      return null;
+    } catch (error) {
+      console.warn("Erro ao verificar sessão:", error);
+      return null;
     }
   },
 
   // Logout
-  logout: () => {
+  logout: async () => {
     try {
-      sessionStorage.removeItem('userSession');
-      sessionStorage.removeItem('nomeEmpresa');
-      sessionStorage.removeItem('empresaInfo');
-      sessionStorage.removeItem('cnpj');
-      localStorage.removeItem('loginBlock');
-      console.log('🚪 Logout realizado');
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("❌ Erro no logout Supabase:", error.message);
+        return false;
+      }
+      sessionStorage.removeItem("userSession");
+      sessionStorage.removeItem("nomeEmpresa");
+      sessionStorage.removeItem("empresaInfo");
+      sessionStorage.removeItem("cnpj");
+      localStorage.removeItem("loginBlock");
+      console.log("🚪 Logout realizado");
       return true;
     } catch (error) {
-      console.warn('Erro no logout:', error);
+      console.warn("Erro no logout:", error);
       return false;
     }
   },
 
-  // Sistema de recuperação de senha por email
-  enviarCodigoRecuperacao: async (email) => {
-    try {
-      console.log('📧 Enviando código de recuperação para:', email);
-      
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Busca empresa por email
-      const empresas = getEmpresasDatabase();
-      const empresa = empresas.find(e => e.email && e.email.toLowerCase() === email.toLowerCase());
-      
-      if (!empresa) {
-        return {
-          success: false,
-          error: 'Email não encontrado em nossos registros.'
-        };
-      }
-      
-      // Gera código de 6 dígitos
-      const codigo = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      // Salva código temporariamente (em produção, salvaria no banco com expiração)
-      const codigoData = {
-        email: email,
-        codigo: codigo,
-        cnpj: empresa.cnpj,
-        gerado: Date.now(),
-        usado: false
-      };
-      
-      sessionStorage.setItem('codigoRecuperacao', JSON.stringify(codigoData));
-      
-      console.log('✅ Código de recuperação gerado:', codigo);
-      
-      return {
-        success: true,
-        message: 'Código enviado para seu email!',
-        codigo: codigo // Em produção, não retornaria o código
-      };
-      
-    } catch (error) {
-      console.error('❌ Erro ao enviar código:', error);
-      return {
-        success: false,
-        error: 'Erro ao enviar código. Tente novamente.'
-      };
-    }
+  // Funções utilitárias (manter se ainda forem úteis)
+  validarCnpj: validarCnpj,
+  formatarCnpj: formatarCnpj,
+
+  // Obter dados da sessão atual (adaptado para usar verificarSessao)
+  obterSessao: async () => {
+    return await authSupabaseService.verificarSessao();
   },
 
-  // Confirmar código e alterar senha
-  confirmarCodigoEAlterarSenha: async (email, codigo, novaSenha) => {
-    try {
-      console.log('🔑 Confirmando código para alterar senha');
-      
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Recupera código salvo
-      const codigoSalvo = sessionStorage.getItem('codigoRecuperacao');
-      if (!codigoSalvo) {
-        return {
-          success: false,
-          error: 'Código expirado. Solicite um novo código.'
-        };
-      }
-      
-      const codigoData = JSON.parse(codigoSalvo);
-      
-      // Valida código
-      if (codigoData.email !== email || 
-          codigoData.codigo !== codigo || 
-          codigoData.usado ||
-          Date.now() - codigoData.gerado > 15 * 60 * 1000) { // 15 minutos
-        return {
-          success: false,
-          error: 'Código inválido ou expirado.'
-        };
-      }
-      
-      // Atualiza senha da empresa
-      const empresas = getEmpresasDatabase();
-      const empresaIndex = empresas.findIndex(e => e.cnpj === codigoData.cnpj);
-      
-      if (empresaIndex === -1) {
-        return {
-          success: false,
-          error: 'Empresa não encontrada.'
-        };
-      }
-      
-      empresas[empresaIndex].senha = novaSenha; // Em produção, use hash
-      empresas[empresaIndex].tentativas_login = 0;
-      
-      saveEmpresasDatabase(empresas);
-      
-      // Marca código como usado
-      codigoData.usado = true;
-      sessionStorage.setItem('codigoRecuperacao', JSON.stringify(codigoData));
-      
-      console.log('✅ Senha alterada com sucesso');
-      
-      return {
-        success: true,
-        message: 'Senha alterada com sucesso!'
-      };
-      
-    } catch (error) {
-      console.error('❌ Erro ao alterar senha:', error);
-      return {
-        success: false,
-        error: 'Erro ao alterar senha. Tente novamente.'
-      };
-    }
-  },
-
-  // Utilitário para mascarar email
-  mascarEmail: (email) => {
-    if (!email || !email.includes('@')) return email;
-    
-    const [usuario, dominio] = email.split('@');
-    const usuarioMascarado = usuario.length > 3 
-      ? usuario.substring(0, 2) + '*'.repeat(usuario.length - 3) + usuario.slice(-1)
-      : usuario.substring(0, 1) + '*'.repeat(usuario.length - 1);
-    
-    return `${usuarioMascarado}@${dominio}`;
-  },
-
-  // Listar empresas (para admin)
+  // Funções para admin (adaptar para usar Supabase)
   listarEmpresas: async () => {
     try {
-      const empresas = getEmpresasDatabase();
-      return empresas.map(empresa => ({
+      const { data, error } = await supabase.from("empresas").select("*");
+      if (error) {
+        console.error("Erro ao listar empresas:", error.message);
+        return [];
+      }
+      return data.map(empresa => ({
         id: empresa.id,
         cnpj: empresa.cnpj,
         cnpj_formatado: empresa.cnpj_formatado,
@@ -499,60 +292,78 @@ export const authSupabaseService = {
         telefone: empresa.telefone,
         situacao: empresa.situacao,
         ativo: empresa.ativo,
-        data_cadastro: empresa.data_cadastro,
+        data_cadastro: empresa.created_at,
         ultimo_acesso: empresa.ultimo_acesso,
-        tentativas_login: empresa.tentativas_login || 0
+        tentativas_login: empresa.tentativas_login || 0,
+        tipo_usuario: empresa.tipo_usuario,
       }));
     } catch (error) {
-      console.error('Erro ao listar empresas:', error);
+      console.error("Erro ao listar empresas:", error);
       return [];
     }
   },
 
-  // Ativar/desativar empresa (para admin)
   toggleEmpresaAtiva: async (empresaId, ativo) => {
     try {
-      const empresas = getEmpresasDatabase();
-      const empresaIndex = empresas.findIndex(e => e.id === empresaId);
-      
-      if (empresaIndex === -1) {
+      const { data, error } = await supabase
+        .from("empresas")
+        .update({ ativo: ativo, updated_at: new Date().toISOString() })
+        .eq("id", empresaId);
+
+      if (error) {
+        console.error("Erro ao alterar status da empresa:", error.message);
         return {
           success: false,
-          error: 'Empresa não encontrada'
+          error: "Erro ao alterar status da empresa",
         };
       }
-      
-      empresas[empresaIndex].ativo = ativo;
-      saveEmpresasDatabase(empresas);
-      
+
       return {
         success: true,
-        message: `Empresa ${ativo ? 'ativada' : 'desativada'} com sucesso!`
+        message: `Empresa ${ativo ? "ativada" : "desativada"} com sucesso!`,
       };
-      
     } catch (error) {
-      console.error('Erro ao alterar status da empresa:', error);
+      console.error("Erro ao alterar status da empresa:", error);
       return {
         success: false,
-        error: 'Erro ao alterar status da empresa'
+        error: "Erro ao alterar status da empresa",
       };
     }
   },
 
-  // Funções utilitárias também expostas no objeto para compatibilidade
-  validarCnpj: validarCnpj,
-  formatarCnpj: formatarCnpj,
-
-  // Obter dados da sessão atual
-  obterSessao: () => {
+  // Funções de recuperação de senha (adaptar para Supabase)
+  enviarCodigoRecuperacao: async (email) => {
     try {
-      const session = sessionStorage.getItem('userSession');
-      if (!session) return null;
-      
-      return JSON.parse(session);
+      console.log("📧 Enviando código de recuperação para:", email);
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, { 
+        redirectTo: window.location.origin + 
+        '/update-password' // Ou a URL da sua página de redefinição de senha
+      });
+
+      if (error) {
+        console.error("❌ Erro ao enviar código de recuperação Supabase:", error.message);
+        return {
+          success: false,
+          error: error.message || "Erro ao enviar código. Verifique o email.",
+        };
+      }
+
+      console.log("✅ Link de recuperação enviado para o email:", email);
+      return {
+        success: true,
+        message: "Link de recuperação enviado para seu email!",
+      };
     } catch (error) {
-      console.warn('Erro ao obter sessão:', error);
-      return null;
+      console.error("❌ Erro geral ao enviar código:", error);
+      return {
+        success: false,
+        error: "Erro de conexão. Tente novamente.",
+      };
     }
-  }
+  },
+
+  // Esta função não será mais necessária se usar o fluxo de reset de senha do Supabase
+  // confirmarCodigoEAlterarSenha: async (email, codigo, novaSenha) => { ... }
 };
+
+
