@@ -468,43 +468,165 @@ const HomePage = ({ onNavigate }) => {
             </button>
           </div>
 
-          {/* Campo CNPJ */}
-          <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '8px',
-              fontWeight: 'bold',
-              color: '#009245'
-            }}>
-              CNPJ
-            </label>
-            <input
-              type="text"
-              value={cnpj}
-              onChange={handleCnpjChange}
-              onKeyPress={handleKeyPress}
-              placeholder="00.000.000/0000-00"
-              maxLength="18"
-              disabled={fazendoLogin || isBlocked}
-              style={{
-                width: '100%',
-                padding: '14px',
-                border: '2px solid #ddd',
-                borderRadius: '8px',
-                fontSize: '16px',
-                outline: 'none',
-                boxSizing: 'border-box',
-                opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
-                transition: 'border-color 0.3s ease'
-              }}
-              onFocus={(e) => e.target.style.borderColor = '#009245'}
-              onBlur={(e) => e.target.style.borderColor = '#ddd'}
-            />
-          </div>
+          {/* Início do Formulário de Login */}
+          {modo === 'login' && (
+            <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }} onKeyPress={handleKeyPress}>
+              {/* Campo CNPJ */}
+              <div style={{ marginBottom: '20px', textAlign: 'left' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: 'bold',
+                  color: '#009245'
+                }}>
+                  CNPJ
+                </label>
+                <input
+                  type="text"
+                  value={cnpj}
+                  onChange={handleCnpjChange}
+                  placeholder="00.000.000/0000-00"
+                  maxLength="18"
+                  disabled={fazendoLogin || isBlocked}
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    border: '2px solid #ddd',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
+                    transition: 'border-color 0.3s ease'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#009245'}
+                  onBlur={(e) => e.target.style.borderColor = '#ddd'}
+                />
+              </div>
 
-          {/* Campo Email (APENAS NO CADASTRO - OPCIONAL) */}
+              {/* Campo Senha */}
+              <div style={{ marginBottom: '20px', textAlign: 'left' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: 'bold',
+                  color: '#009245'
+                }}>
+                  Senha
+                </label>
+                <input
+                  type="password"
+                  value={senha}
+                  onChange={(e) => setSenha(e.target.value)}
+                  placeholder="Digite sua senha"
+                  disabled={fazendoLogin || isBlocked}
+                  maxLength="50"
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    border: '2px solid #ddd',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
+                    transition: 'border-color 0.3s ease'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#009245'}
+                  onBlur={(e) => e.target.style.borderColor = '#ddd'}
+                />
+              </div>
+
+              {/* Indicador de tentativas (apenas no modo login) */}
+              {loginAttempts > 0 && !isBlocked && (
+                <div style={{
+                  backgroundColor: '#fff3cd',
+                  color: '#856404',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  marginBottom: '20px',
+                  fontSize: '14px',
+                  textAlign: 'center'
+                }}>
+                  ⚠️ Tentativas restantes: {5 - loginAttempts}
+                </div>
+              )}
+
+              {/* Botão de Ação */}
+              <button
+                type="submit"
+                disabled={fazendoLogin || isBlocked}
+                style={{
+                  backgroundColor: (fazendoLogin || isBlocked) ? '#ccc' : '#f38e3c',
+                  color: 'white',
+                  border: 'none',
+                  padding: '16px',
+                  width: '100%',
+                  borderRadius: '8px',
+                  fontSize: '18px',
+                  fontWeight: 'bold',
+                  cursor: (fazendoLogin || isBlocked) ? 'not-allowed' : 'pointer',
+                  marginBottom: '20px',
+                  opacity: (fazendoLogin || isBlocked) ? 0.7 : 1,
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 4px 12px rgba(243,142,60,0.3)'
+                }}
+                onMouseEnter={(e) => {
+                  if (!fazendoLogin && !isBlocked) {
+                    e.target.style.backgroundColor = '#e67e22';
+                    e.target.style.transform = 'translateY(-2px)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!fazendoLogin && !isBlocked) {
+                    e.target.style.backgroundColor = '#f38e3c';
+                    e.target.style.transform = 'translateY(0)';
+                  }
+                }}
+              >
+                {isBlocked ? 'ACESSO BLOQUEADO' :
+                 fazendoLogin ? 'ENTRANDO...' : 'ENTRAR'}
+              </button>
+            </form>
+          )}
+
+          {/* Início do Formulário de Cadastro */}
           {modo === 'cadastro' && (
-            <>
+            <form onSubmit={(e) => { e.preventDefault(); handleCadastro(); }} onKeyPress={handleKeyPress}>
+              {/* Campo CNPJ */}
+              <div style={{ marginBottom: '20px', textAlign: 'left' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: 'bold',
+                  color: '#009245'
+                }}>
+                  CNPJ
+                </label>
+                <input
+                  type="text"
+                  value={cnpj}
+                  onChange={handleCnpjChange}
+                  placeholder="00.000.000/0000-00"
+                  maxLength="18"
+                  disabled={fazendoLogin || isBlocked}
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    border: '2px solid #ddd',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
+                    transition: 'border-color 0.3s ease'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#009245'}
+                  onBlur={(e) => e.target.style.borderColor = '#ddd'}
+                />
+              </div>
+
+              {/* Campo Email (APENAS NO CADASTRO - OPCIONAL) */}
               <div style={{ marginBottom: '20px', textAlign: 'left' }}>
                 <label style={{
                   display: 'block',
@@ -518,7 +640,6 @@ const HomePage = ({ onNavigate }) => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  onKeyPress={handleKeyPress}
                   placeholder="empresa@exemplo.com"
                   disabled={fazendoLogin || isBlocked}
                   style={{
@@ -554,7 +675,6 @@ const HomePage = ({ onNavigate }) => {
                   type="text"
                   value={nomeEmpresa}
                   onChange={(e) => setNomeEmpresa(e.target.value)}
-                  onKeyPress={handleKeyPress}
                   placeholder="Ex: Minha Empresa Ltda"
                   disabled={fazendoLogin || isBlocked}
                   maxLength="100"
@@ -576,132 +696,110 @@ const HomePage = ({ onNavigate }) => {
                   Nome fantasia ou razão social para identificação nos pedidos
                 </small>
               </div>
-            </>
-          )}
 
-          {/* Campo Senha */}
-          <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: '8px',
-              fontWeight: 'bold',
-              color: '#009245'
-            }}>
-              Senha {modo === 'cadastro' && '(mínimo 6 caracteres)'}
-            </label>
-            <input
-              type="password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Digite sua senha"
-              disabled={fazendoLogin || isBlocked}
-              maxLength="50"
-              style={{
-                width: '100%',
-                padding: '14px',
-                border: '2px solid #ddd',
-                borderRadius: '8px',
-                fontSize: '16px',
-                outline: 'none',
-                boxSizing: 'border-box',
-                opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
-                transition: 'border-color 0.3s ease'
-              }}
-              onFocus={(e) => e.target.style.borderColor = '#009245'}
-              onBlur={(e) => e.target.style.borderColor = '#ddd'}
-            />
-          </div>
+              {/* Campo Senha */}
+              <div style={{ marginBottom: '20px', textAlign: 'left' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: 'bold',
+                  color: '#009245'
+                }}>
+                  Senha (mínimo 6 caracteres)
+                </label>
+                <input
+                  type="password"
+                  value={senha}
+                  onChange={(e) => setSenha(e.target.value)}
+                  placeholder="Digite sua senha"
+                  disabled={fazendoLogin || isBlocked}
+                  maxLength="50"
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    border: '2px solid #ddd',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
+                    transition: 'border-color 0.3s ease'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#009245'}
+                  onBlur={(e) => e.target.style.borderColor = '#ddd'}
+                />
+              </div>
 
-          {/* Campo Confirmar Senha (só no cadastro) */}
-          {modo === 'cadastro' && (
-            <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '8px',
-                fontWeight: 'bold',
-                color: '#009245'
-              }}>
-                Confirmar Senha
-              </label>
-              <input
-                type="password"
-                value={confirmarSenha}
-                onChange={(e) => setConfirmarSenha(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Confirme sua senha"
+              {/* Campo Confirmar Senha (só no cadastro) */}
+              <div style={{ marginBottom: '20px', textAlign: 'left' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: 'bold',
+                  color: '#009245'
+                }}>
+                  Confirmar Senha
+                </label>
+                <input
+                  type="password"
+                  value={confirmarSenha}
+                  onChange={(e) => setConfirmarSenha(e.target.value)}
+                  placeholder="Confirme sua senha"
+                  disabled={fazendoLogin || isBlocked}
+                  maxLength="50"
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    border: '2px solid #ddd',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
+                    transition: 'border-color 0.3s ease'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#009245'}
+                  onBlur={(e) => e.target.style.borderColor = '#ddd'}
+                />
+              </div>
+
+              {/* Botão de Ação */}
+              <button
+                type="submit"
                 disabled={fazendoLogin || isBlocked}
-                maxLength="50"
                 style={{
+                  backgroundColor: (fazendoLogin || isBlocked) ? '#ccc' : '#f38e3c',
+                  color: 'white',
+                  border: 'none',
+                  padding: '16px',
                   width: '100%',
-                  padding: '14px',
-                  border: '2px solid #ddd',
                   borderRadius: '8px',
-                  fontSize: '16px',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                  opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
-                  transition: 'border-color 0.3s ease'
+                  fontSize: '18px',
+                  fontWeight: 'bold',
+                  cursor: (fazendoLogin || isBlocked) ? 'not-allowed' : 'pointer',
+                  marginBottom: '20px',
+                  opacity: (fazendoLogin || isBlocked) ? 0.7 : 1,
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 4px 12px rgba(243,142,60,0.3)'
                 }}
-                onFocus={(e) => e.target.style.borderColor = '#009245'}
-                onBlur={(e) => e.target.style.borderColor = '#ddd'}
-              />
-            </div>
+                onMouseEnter={(e) => {
+                  if (!fazendoLogin && !isBlocked) {
+                    e.target.style.backgroundColor = '#e67e22';
+                    e.target.style.transform = 'translateY(-2px)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!fazendoLogin && !isBlocked) {
+                    e.target.style.backgroundColor = '#f38e3c';
+                    e.target.style.transform = 'translateY(0)';
+                  }
+                }}
+              >
+                {isBlocked ? 'ACESSO BLOQUEADO' :
+                 fazendoLogin ? 'CADASTRANDO...' : 'CADASTRAR'}
+              </button>
+            </form>
           )}
-
-          {/* Indicador de tentativas (apenas no modo login) */}
-          {modo === 'login' && loginAttempts > 0 && !isBlocked && (
-            <div style={{
-              backgroundColor: '#fff3cd',
-              color: '#856404',
-              padding: '12px',
-              borderRadius: '8px',
-              marginBottom: '20px',
-              fontSize: '14px',
-              textAlign: 'center'
-            }}>
-              ⚠️ Tentativas restantes: {5 - loginAttempts}
-            </div>
-          )}
-
-          {/* Botão de Ação */}
-          <button
-            onClick={modo === 'login' ? handleLogin : handleCadastro}
-            disabled={fazendoLogin || isBlocked}
-            style={{
-              backgroundColor: (fazendoLogin || isBlocked) ? '#ccc' : '#f38e3c',
-              color: 'white',
-              border: 'none',
-              padding: '16px',
-              width: '100%',
-              borderRadius: '8px',
-              fontSize: '18px',
-              fontWeight: 'bold',
-              cursor: (fazendoLogin || isBlocked) ? 'not-allowed' : 'pointer',
-              marginBottom: '20px',
-              opacity: (fazendoLogin || isBlocked) ? 0.7 : 1,
-              transition: 'all 0.3s ease',
-              boxShadow: '0 4px 12px rgba(243,142,60,0.3)'
-            }}
-            onMouseEnter={(e) => {
-              if (!fazendoLogin && !isBlocked) {
-                e.target.style.backgroundColor = '#e67e22';
-                e.target.style.transform = 'translateY(-2px)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!fazendoLogin && !isBlocked) {
-                e.target.style.backgroundColor = '#f38e3c';
-                e.target.style.transform = 'translateY(0)';
-              }
-            }}
-          >
-            {isBlocked ? 'ACESSO BLOQUEADO' :
-             fazendoLogin ?
-              (modo === 'login' ? 'ENTRANDO...' : 'CADASTRANDO...') :
-              (modo === 'login' ? 'ENTRAR' : 'CADASTRAR')
-            }
-          </button>
 
           {/* Links para alternar modo e esqueci senha */}
           <div style={{
