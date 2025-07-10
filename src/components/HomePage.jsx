@@ -15,6 +15,7 @@ const HomePage = ({ onNavigate }) => {
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockTimeRemaining, setBlockTimeRemaining] = useState(0);
+  const [checkingSession, setCheckingSession] = useState(true);
 
   // Detecta se é mobile
   useEffect(() => {
@@ -28,13 +29,25 @@ const HomePage = ({ onNavigate }) => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Verifica se já tem sessão ativa
+  // ✅ CORRIGIDO: Verifica se já tem sessão ativa (async)
   useEffect(() => {
-    const sessaoAtiva = authSupabaseService.verificarSessao();
-    if (sessaoAtiva) {
-      onNavigate('prosseguir');
-    }
+    const verificarSessaoExistente = async () => {
+      try {
+        setCheckingSession(true);
+        const sessaoAtiva = await authSupabaseService.verificarSessao();
+        if (sessaoAtiva) {
+          console.log('✅ Sessão existente encontrada, redirecionando...');
+          onNavigate('prosseguir');
+          return;
+        }
+      } catch (error) {
+        console.error('Erro ao verificar sessão existente:', error);
+      } finally {
+        setCheckingSession(false);
+      }
+    };
 
+    verificarSessaoExistente();
     checkBlockStatus();
   }, [onNavigate]);
 
@@ -109,7 +122,7 @@ const HomePage = ({ onNavigate }) => {
     securityUtils.safeLog('Login bloqueado por tentativas excessivas', { attempts });
   };
 
-  // FUNÇÃO DE LOGIN MELHORADA COM SEGURANÇA
+  // ✅ CORRIGIDO: FUNÇÃO DE LOGIN PARA CNPJ
   const handleLogin = async () => {
     if (isBlocked) {
       alert(`Muitas tentativas incorretas. Tente novamente em ${blockTimeRemaining} minutos.`);
@@ -150,15 +163,19 @@ const HomePage = ({ onNavigate }) => {
     setFazendoLogin(true);
 
     try {
-      const resultado = await authSupabaseService.autenticar(cnpjSanitizado, senhaSanitizada);
+      console.log('🔐 Tentando login via CNPJ:', cnpjSanitizado);
+      
+      // ✅ CORRIGIDO: Usar autenticarCnpj em vez de autenticar
+      const resultado = await authSupabaseService.autenticarCnpj(cnpjSanitizado, senhaSanitizada);
 
       if (resultado.success) {
         setLoginAttempts(0);
         localStorage.removeItem('loginBlock');
         
-        if (resultado.empresa && resultado.empresa.nomeEmpresa) {
-          sessionStorage.setItem('nomeEmpresa', resultado.empresa.nomeEmpresa);
-        }
+        console.log('✅ Login realizado com sucesso:', {
+          empresa: resultado.empresa.nomeEmpresa,
+          isAdmin: resultado.empresa.isAdmin
+        });
         
         securityUtils.safeLog('Login realizado com sucesso');
         onNavigate('prosseguir');
@@ -175,10 +192,12 @@ const HomePage = ({ onNavigate }) => {
         
         securityUtils.safeLog('Tentativa de login falhou', { 
           attempts: newAttempts,
-          cnpj: cnpjSanitizado 
+          cnpj: cnpjSanitizado,
+          error: resultado.error
         });
       }
     } catch (error) {
+      console.error('❌ Erro de conexão no login:', error);
       securityUtils.safeLog('Erro de conexão no login', { error: error.message });
       alert('Erro de conexão. Tente novamente.');
     } finally {
@@ -220,8 +239,11 @@ const HomePage = ({ onNavigate }) => {
     }
 
     const dadosEmpresa = {
+      cnpj: cnpj,
       email: email ? securityUtils.sanitizeInput(email.trim(), { maxLength: 100 }) : null,
-      nomeEmpresa: nomeEmpresa ? securityUtils.sanitizeInput(nomeEmpresa.trim(), { maxLength: 100 }) : null
+      nomeEmpresa: nomeEmpresa ? securityUtils.sanitizeInput(nomeEmpresa.trim(), { maxLength: 100 }) : null,
+      razaoSocial: nomeEmpresa ? securityUtils.sanitizeInput(nomeEmpresa.trim(), { maxLength: 100 }) : null,
+      nomeFantasia: nomeEmpresa ? securityUtils.sanitizeInput(nomeEmpresa.trim(), { maxLength: 100 }) : null
     };
 
     if ((dadosEmpresa.email && securityUtils.detectInjectionAttempt(dadosEmpresa.email)) ||
@@ -233,7 +255,9 @@ const HomePage = ({ onNavigate }) => {
     setFazendoLogin(true);
 
     try {
-      const resultado = await authSupabaseService.registrarEmpresa(cnpj, senha, dadosEmpresa);
+      console.log('📝 Tentando cadastro para CNPJ:', cnpj);
+      
+      const resultado = await authSupabaseService.registrarEmpresa(email || '', senha, dadosEmpresa);
 
       if (resultado.success) {
         alert('Cadastro realizado com sucesso! Agora você pode fazer login.');
@@ -248,6 +272,7 @@ const HomePage = ({ onNavigate }) => {
         securityUtils.safeLog('Erro no cadastro', { error: resultado.error });
       }
     } catch (error) {
+      console.error('❌ Erro inesperado no cadastro:', error);
       alert('Erro inesperado. Tente novamente.');
       securityUtils.safeLog('Erro inesperado no cadastro', { error: error.message });
     } finally {
@@ -265,14 +290,40 @@ const HomePage = ({ onNavigate }) => {
     }
   };
 
-  const handleMeusPedidos = () => {
-    const sessaoAtiva = authSupabaseService.verificarSessao();
-    if (!sessaoAtiva) {
+  // ✅ CORRIGIDO: handleMeusPedidos async
+  const handleMeusPedidos = async () => {
+    try {
+      const sessaoAtiva = await authSupabaseService.verificarSessao();
+      if (!sessaoAtiva) {
+        alert('Faça login para acessar seus pedidos');
+        return;
+      }
+      onNavigate('prosseguir');
+    } catch (error) {
+      console.error('Erro ao verificar sessão:', error);
       alert('Faça login para acessar seus pedidos');
-      return;
     }
-    onNavigate('prosseguir');
   };
+
+  // ✅ ADICIONAR: Loading state para verificação de sessão
+  if (checkingSession) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        fontFamily: 'Arial, sans-serif',
+        backgroundColor: '#009245',
+        color: 'white',
+        flexDirection: 'column',
+        gap: '20px'
+      }}>
+        <div style={{ fontSize: '48px' }}>🔄</div>
+        <div style={{ fontSize: '18px' }}>Verificando sessão...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
