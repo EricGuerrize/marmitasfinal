@@ -49,10 +49,12 @@ const formatarCnpj = (cnpj) => {
   return cnpjLimpo.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
 };
 
-export const authSupabaseService = {
+const authSupabaseService = {
   // Login padrão via email/senha usando Supabase Auth
   login: async (email, senha) => {
     try {
+      console.log('🔐 Iniciando login via email:', email);
+
       // Login usando Supabase Auth nativo
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -63,11 +65,11 @@ export const authSupabaseService = {
         console.error("❌ Erro de autenticação:", error.message);
         return { 
           success: false, 
-          message: error.message || "Erro desconhecido ao fazer login."
+          error: error.message || "Erro desconhecido ao fazer login."
         };
       }
 
-      // Buscar dados extras da empresa (opcional)
+      // Buscar dados extras da empresa
       const { data: empresaData, error: empresaError } = await supabase
         .from("empresas")
         .select("*")
@@ -78,7 +80,7 @@ export const authSupabaseService = {
         console.error("❌ Erro ao buscar empresa:", empresaError.message);
         return { 
           success: false, 
-          message: "Dados da empresa não encontrados" 
+          error: "Dados da empresa não encontrados" 
         };
       }
 
@@ -98,14 +100,16 @@ export const authSupabaseService = {
       console.error("❌ Erro no login:", error);
       return {
         success: false,
-        message: error.message || "Erro desconhecido ao fazer login."
+        error: error.message || "Erro desconhecido ao fazer login."
       };
     }
   },
 
-  // ✅ ALTERADO: Registro usando apenas Supabase Auth (sem senha_hash)
+  // Registro usando apenas Supabase Auth (sem senha_hash)
   registrarEmpresa: async (email, senha, dadosEmpresa) => {
     try {
+      console.log('📝 Iniciando registro de empresa:', email);
+
       // 1. Registrar usuário via Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -128,7 +132,7 @@ export const authSupabaseService = {
 
       console.log('✅ Usuário criado via Supabase Auth:', authData.user.id);
 
-      // 2. Inserir apenas dados extras na tabela empresas (sem senha_hash)
+      // 2. Inserir apenas dados extras na tabela empresas
       const { error: empresaError } = await supabase.from("empresas").insert({
         user_id: authData.user.id,
         cnpj: dadosEmpresa.cnpj.replace(/\D/g, ""),
@@ -268,4 +272,5 @@ export const authSupabaseService = {
   formatarCnpj
 };
 
-export default authSupabaseService;
+export { authSupabaseService };
+export default authSupabaseService; 
