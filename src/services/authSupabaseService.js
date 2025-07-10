@@ -1,11 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://yzzyrbpjefiprdnzfvrj.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6enlyYnBqZWZpcHJkbnpmdnJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4MzE1MzAsImV4cCI6MjA2NTQwNzUzMH0.ZM2k5doGyULAKVCeYUKwjKhTxjtF7lacVMNr0O967r0';
+// ✅ CORRETO - usar variáveis de ambiente
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Supabase URL and anon key must be provided via environment variables');
+}
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Funções auxiliares (manter se ainda forem úteis, mas adaptar para Supabase)
+// Funções auxiliares
 const validarCnpj = (cnpj) => {
   const cnpjLimpo = cnpj.replace(/\D/g, "");
 
@@ -45,7 +50,80 @@ const formatarCnpj = (cnpj) => {
 };
 
 export const authSupabaseService = {
-  // Autenticar usuário
+  // ✅ NOVA FUNÇÃO: Autenticar via CNPJ + Senha (para admin)
+  autenticarCnpj: async (cnpj, senha) => {
+    try {
+      console.log("🔐 Iniciando autenticação via CNPJ:", cnpj);
+      
+      const cnpjLimpo = cnpj.replace(/\D/g, "");
+      
+      // Buscar empresa por CNPJ
+      const { data: empresaData, error: empresaError } = await supabase
+        .from("empresas")
+        .select("*")
+        .eq("cnpj", cnpjLimpo)
+        .single();
+
+      if (empresaError || !empresaData) {
+        console.error("❌ CNPJ não encontrado:", empresaError?.message);
+        return {
+          success: false,
+          error: "CNPJ não cadastrado",
+        };
+      }
+
+      // Verificar senha usando bcrypt
+      const { data: senhaValida, error: senhaError } = await supabase.rpc(
+        'verificar_senha', 
+        { 
+          senha_input: senha,
+          senha_hash: empresaData.senha_hash 
+        }
+      );
+
+      if (senhaError || !senhaValida) {
+        console.error("❌ Senha inválida:", senhaError?.message);
+        return {
+          success: false,
+          error: "Senha incorreta",
+        };
+      }
+
+      const sessionData = {
+        id: empresaData.id,
+        email: empresaData.email,
+        cnpj: empresaData.cnpj,
+        cnpjFormatado: empresaData.cnpj_formatado,
+        razaoSocial: empresaData.razao_social,
+        nomeFantasia: empresaData.nome_fantasia,
+        nomeEmpresa: empresaData.nome_empresa,
+        tipoUsuario: empresaData.tipo_usuario,
+        isAdmin: empresaData.tipo_usuario === "admin",
+        loginTime: Date.now(),
+        expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 horas
+      };
+
+      // Armazenar sessão
+      sessionStorage.setItem("userSession", JSON.stringify(sessionData));
+      sessionStorage.setItem("cnpj", empresaData.cnpj_formatado);
+      sessionStorage.setItem("nomeEmpresa", empresaData.nome_empresa);
+
+      console.log("✅ Login via CNPJ realizado com sucesso");
+      return {
+        success: true,
+        empresa: sessionData,
+      };
+
+    } catch (error) {
+      console.error("❌ Erro geral na autenticação via CNPJ:", error);
+      return {
+        success: false,
+        error: "Erro de conexão. Tente novamente.",
+      };
+    }
+  },
+
+  // Autenticar usuário via email (mantido para clientes normais)
   autenticar: async (email, senha) => {
     try {
       console.log("🔐 Iniciando autenticação para email:", email);
@@ -67,13 +145,12 @@ export const authSupabaseService = {
         // Buscar dados adicionais da tabela 'empresas'
         const { data: empresaData, error: empresaError } = await supabase
           .from("empresas")
-          .select("*, tipo_usuario") // Incluir tipo_usuario
+          .select("*, tipo_usuario")
           .eq("user_id", data.user.id)
           .single();
 
         if (empresaError) {
           console.error("❌ Erro ao buscar dados da empresa:", empresaError.message);
-          // Se não encontrar dados na tabela 'empresas', pode ser um usuário recém-criado ou problema de sincronização
           return {
             success: false,
             error: "Usuário autenticado, mas dados da empresa não encontrados.",
@@ -88,13 +165,13 @@ export const authSupabaseService = {
           razaoSocial: empresaData.razao_social,
           nomeFantasia: empresaData.nome_fantasia,
           nomeEmpresa: empresaData.nome_empresa,
-          tipoUsuario: empresaData.tipo_usuario, // Adicionado tipo_usuario
-          isAdmin: empresaData.tipo_usuario === "admin", // Define isAdmin com base no tipo_usuario
+          tipoUsuario: empresaData.tipo_usuario,
+          isAdmin: empresaData.tipo_usuario === "admin",
           loginTime: Date.now(),
           expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 horas
         };
 
-        // Armazenar sessão no sessionStorage (opcional, Supabase já gerencia a sessão)
+        // Armazenar sessão
         sessionStorage.setItem("userSession", JSON.stringify(sessionData));
 
         console.log("✅ Login realizado com sucesso");
@@ -117,7 +194,7 @@ export const authSupabaseService = {
     }
   },
 
-  // Registrar nova empresa
+  // Registrar nova empresa (mantido)
   registrarEmpresa: async (email, senha, dadosEmpresa) => {
     try {
       console.log("📝 Iniciando cadastro para email:", email);
@@ -151,7 +228,7 @@ export const authSupabaseService = {
               nome_fantasia: dadosEmpresa.nomeFantasia,
               telefone: dadosEmpresa.telefone,
               situacao: dadosEmpresa.situacao || "ATIVA",
-              tipo_usuario: dadosEmpresa.tipoUsuario || "cliente", // Default para 'cliente'
+              tipo_usuario: dadosEmpresa.tipoUsuario || "cliente",
               ativo: true,
               email_confirmado: authData.user.email_confirmed_at ? true : false,
               created_at: new Date().toISOString(),
@@ -161,8 +238,6 @@ export const authSupabaseService = {
 
         if (empresaInsertError) {
           console.error("❌ Erro ao inserir dados da empresa:", empresaInsertError.message);
-          // Se a inserção falhar, você pode querer reverter o registro de autenticação
-          await supabase.auth.admin.deleteUser(authData.user.id); // Reverte o registro de autenticação
           return {
             success: false,
             error: "Erro ao salvar dados da empresa. Tente novamente.",
@@ -197,9 +272,21 @@ export const authSupabaseService = {
     }
   },
 
-  // Verifica se tem sessão ativa
+  // ✅ CORRIGIDO: Verifica sessão (funciona com sessão salva)
   verificarSessao: async () => {
     try {
+      // Primeiro verifica se tem sessão salva
+      const sessaoSalva = sessionStorage.getItem("userSession");
+      if (sessaoSalva) {
+        const sessionData = JSON.parse(sessaoSalva);
+        
+        // Verifica se não expirou
+        if (sessionData.expiresAt && Date.now() < sessionData.expiresAt) {
+          return sessionData;
+        }
+      }
+
+      // Se não tem sessão salva, verifica Auth do Supabase
       const { data: { session }, error } = await supabase.auth.getSession();
 
       if (error) {
@@ -228,12 +315,13 @@ export const authSupabaseService = {
           razaoSocial: empresaData.razao_social,
           nomeFantasia: empresaData.nome_fantasia,
           nomeEmpresa: empresaData.nome_empresa,
-          tipoUsuario: empresaData.tipo_usuario, // Adicionado tipo_usuario
-          isAdmin: empresaData.tipo_usuario === "admin", // Define isAdmin com base no tipo_usuario
+          tipoUsuario: empresaData.tipo_usuario,
+          isAdmin: empresaData.tipo_usuario === "admin",
           loginTime: Date.now(),
-          expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 horas (apenas para compatibilidade, Supabase gerencia isso)
+          expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 horas
         };
-        sessionStorage.setItem("userSession", JSON.stringify(sessionData)); // Manter para compatibilidade com ProsseguirPage
+        
+        sessionStorage.setItem("userSession", JSON.stringify(sessionData));
         return sessionData;
       }
       return null;
@@ -243,19 +331,21 @@ export const authSupabaseService = {
     }
   },
 
-  // Logout
+  // Logout (mantido)
   logout: async () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error("❌ Erro no logout Supabase:", error.message);
-        return false;
       }
+      
+      // Limpar todos os dados de sessão
       sessionStorage.removeItem("userSession");
       sessionStorage.removeItem("nomeEmpresa");
       sessionStorage.removeItem("empresaInfo");
       sessionStorage.removeItem("cnpj");
       localStorage.removeItem("loginBlock");
+      
       console.log("🚪 Logout realizado");
       return true;
     } catch (error) {
@@ -264,16 +354,15 @@ export const authSupabaseService = {
     }
   },
 
-  // Funções utilitárias (manter se ainda forem úteis)
+  // Funções utilitárias
   validarCnpj: validarCnpj,
   formatarCnpj: formatarCnpj,
 
-  // Obter dados da sessão atual (adaptado para usar verificarSessao)
+  // Demais funções mantidas...
   obterSessao: async () => {
     return await authSupabaseService.verificarSessao();
   },
 
-  // Funções para admin (adaptar para usar Supabase)
   listarEmpresas: async () => {
     try {
       const { data, error } = await supabase.from("empresas").select("*");
@@ -331,13 +420,11 @@ export const authSupabaseService = {
     }
   },
 
-  // Funções de recuperação de senha (adaptar para Supabase)
   enviarCodigoRecuperacao: async (email) => {
     try {
       console.log("📧 Enviando código de recuperação para:", email);
       const { data, error } = await supabase.auth.resetPasswordForEmail(email, { 
-        redirectTo: window.location.origin + 
-        '/update-password' // Ou a URL da sua página de redefinição de senha
+        redirectTo: window.location.origin + '/update-password'
       });
 
       if (error) {
@@ -361,9 +448,4 @@ export const authSupabaseService = {
       };
     }
   },
-
-  // Esta função não será mais necessária se usar o fluxo de reset de senha do Supabase
-  // confirmarCodigoEAlterarSenha: async (email, codigo, novaSenha) => { ... }
 };
-
-
