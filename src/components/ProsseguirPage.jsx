@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
-// import { securityUtils } from '../utils/securityUtils'; // securityUtils pode não ser mais necessário aqui
 
 const ProsseguirPage = ({ onNavigate }) => {
   const [selectedOption, setSelectedOption] = useState('fazerPedido');
   const [sessaoAtiva, setSessaoAtiva] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Detecta se é mobile
   useEffect(() => {
@@ -17,19 +17,41 @@ const ProsseguirPage = ({ onNavigate }) => {
   }, []);
 
   useEffect(() => {
-    // Verifica se tem sessão ativa
-    const sessao = authSupabaseService.verificarSessao();
-    if (!sessao) {
-      alert('Sessão expirada. Faça login novamente.');
-      onNavigate('home');
-      return;
-    }
-    
-    setSessaoAtiva(sessao);
-    
-    // VERIFICA SE É ADMIN PELO CAMPO is_admin DO SUPABASE
-    // Assumindo que sessao.is_admin é um booleano retornado pelo Supabase
-    setIsAdmin(sessao.is_admin || false); 
+    // ✅ CORRIGIDO: Função async para verificar sessão
+    const verificarSessaoAtiva = async () => {
+      try {
+        setLoading(true);
+        
+        // ✅ CORRIGIDO: Await na função async
+        const sessao = await authSupabaseService.verificarSessao();
+        
+        if (!sessao) {
+          alert('Sessão expirada. Faça login novamente.');
+          onNavigate('home');
+          return;
+        }
+        
+        setSessaoAtiva(sessao);
+        
+        // ✅ CORRIGIDO: Usar isAdmin em vez de is_admin
+        setIsAdmin(sessao.isAdmin || false); 
+        
+        console.log('📋 Sessão verificada:', {
+          cnpj: sessao.cnpjFormatado,
+          empresa: sessao.nomeEmpresa,
+          isAdmin: sessao.isAdmin
+        });
+        
+      } catch (error) {
+        console.error('❌ Erro ao verificar sessão:', error);
+        alert('Erro ao verificar sessão. Faça login novamente.');
+        onNavigate('home');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    verificarSessaoAtiva();
     
     // Intercepta o botão voltar do navegador
     const handlePopState = (event) => {
@@ -58,32 +80,66 @@ const ProsseguirPage = ({ onNavigate }) => {
     } else if (selectedOption === 'consultarPedidos') {
       onNavigate('consultar-pedido');
     } else if (selectedOption === 'painelAdmin') {
-      // VALIDAÇÃO ADICIONAL DE SEGURANÇA PARA ADMIN
+      // ✅ CORRIGIDO: Validação adicional de segurança para admin
       handleAdminAccess();
     }
   };
 
   const handleAdminAccess = () => {
-    console.log('Acesso admin autorizado via CNPJ:', {
-      cnpj: sessaoAtiva.cnpj,
-      empresa: sessaoAtiva.razaoSocial 
+    // ✅ CORRIGIDO: Validação dupla de segurança
+    if (!isAdmin || !sessaoAtiva.isAdmin) {
+      alert('Acesso negado. Você não tem privilégios de administrador.');
+      return;
+    }
+
+    console.log('✅ Acesso admin autorizado:', {
+      cnpj: sessaoAtiva.cnpjFormatado,
+      empresa: sessaoAtiva.nomeEmpresa,
+      tipoUsuario: sessaoAtiva.tipoUsuario
     });
   
+    // ✅ CORRIGIDO: Salvar dados corretos da sessão
     sessionStorage.setItem('adminPreAuthenticated', JSON.stringify({
-      cnpj: sessaoAtiva.cnpj,
+      cnpj: sessaoAtiva.cnpjFormatado,
       timestamp: Date.now(),
-      empresa: sessaoAtiva.razaoSocial
+      empresa: sessaoAtiva.nomeEmpresa,
+      tipoUsuario: sessaoAtiva.tipoUsuario
     }));
   
     onNavigate('admin');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (window.confirm('Tem certeza que deseja sair?')) {
-      authSupabaseService.logout();
-      onNavigate('home');
+      try {
+        // ✅ CORRIGIDO: Await no logout
+        await authSupabaseService.logout();
+        onNavigate('home');
+      } catch (error) {
+        console.error('Erro no logout:', error);
+        // Mesmo com erro, redireciona para home
+        onNavigate('home');
+      }
     }
   };
+
+  // ✅ CORRIGIDO: Loading state
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        fontFamily: 'Arial, sans-serif',
+        flexDirection: 'column',
+        gap: '20px'
+      }}>
+        <div style={{ fontSize: '48px' }}>🔄</div>
+        <div style={{ fontSize: '18px', color: '#666' }}>Verificando sessão...</div>
+      </div>
+    );
+  }
 
   if (!sessaoAtiva) {
     return (
@@ -92,9 +148,12 @@ const ProsseguirPage = ({ onNavigate }) => {
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
-        fontFamily: 'Arial, sans-serif'
+        fontFamily: 'Arial, sans-serif',
+        flexDirection: 'column',
+        gap: '20px'
       }}>
-        Verificando sessão...
+        <div style={{ fontSize: '48px' }}>❌</div>
+        <div style={{ fontSize: '18px', color: '#666' }}>Sessão não encontrada</div>
       </div>
     );
   }
