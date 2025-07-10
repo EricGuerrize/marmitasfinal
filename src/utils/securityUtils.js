@@ -212,6 +212,19 @@ export const securityUtils = {
   },
 
   /**
+ * Força uso de HTTPS (client-side verification)
+ */
+enforceHTTPS: () => {
+  if (typeof window !== 'undefined' && 
+      window.location.protocol === 'http:' && 
+      !window.location.hostname.includes('localhost')) {
+    window.location.href = window.location.href.replace('http:', 'https:');
+    return false;
+  }
+  return true;
+},
+
+  /**
    * Hash simples (usado para comparação de senhas)
    */
   simpleHash: (str, salt = '') => {
