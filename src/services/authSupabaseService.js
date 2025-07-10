@@ -177,10 +177,10 @@ export const authSupabaseService = {
     }
   },
 
-  // Registro de nova empresa
+  // ✅ ALTERADO: Registro usando apenas Supabase Auth (sem senha_hash)
   registrarEmpresa: async (email, senha, dadosEmpresa) => {
     try {
-      // 1. Registrar usuário
+      // 1. Registrar usuário via Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password: senha,
@@ -191,9 +191,18 @@ export const authSupabaseService = {
         }
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        console.error("❌ Erro no signUp:", authError.message);
+        throw authError;
+      }
 
-      // 2. Criar registro da empresa
+      if (!authData.user) {
+        throw new Error("Usuário não foi criado");
+      }
+
+      console.log('✅ Usuário criado via Supabase Auth:', authData.user.id);
+
+      // 2. Inserir apenas dados extras na tabela empresas (sem senha_hash)
       const { error: empresaError } = await supabase.from("empresas").insert({
         user_id: authData.user.id,
         cnpj: dadosEmpresa.cnpj.replace(/\D/g, ""),
@@ -206,17 +215,24 @@ export const authSupabaseService = {
         tipo_usuario: "cliente",
         ativo: true,
         created_at: new Date().toISOString()
+        // ✅ REMOVIDO: senha_hash (gerenciada pelo Supabase Auth)
       });
 
-      if (empresaError) throw empresaError;
+      if (empresaError) {
+        console.error("❌ Erro ao inserir empresa:", empresaError.message);
+        throw empresaError;
+      }
+
+      console.log('✅ Empresa cadastrada com sucesso');
 
       return { 
         success: true,
-        message: "Cadastro realizado com sucesso! Verifique seu email."
+        message: "Cadastro realizado com sucesso! Verifique seu email para confirmar a conta.",
+        userId: authData.user.id
       };
 
     } catch (error) {
-      console.error("Erro no registro:", error.message);
+      console.error("❌ Erro no registro:", error.message);
       return { 
         success: false,
         error: error.message || "Erro no cadastro"
