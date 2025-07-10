@@ -50,98 +50,24 @@ const formatarCnpj = (cnpj) => {
 };
 
 export const authSupabaseService = {
-  // ✅ CORRIGIDO: Autenticação via CNPJ (verificação de senha bcrypt)
-  autenticarCnpj: async (cnpj, senha) => {
+  // Login padrão via email/senha usando Supabase Auth
+  login: async (email, senha) => {
     try {
-      console.log('🔐 Iniciando autenticação via CNPJ:', cnpj);
-      
-      const cnpjLimpo = cnpj.replace(/\D/g, "");
-      
-      if (!validarCnpj(cnpjLimpo)) {
-        return { success: false, error: "CNPJ inválido" };
-      }
-
-      // 1. Buscar empresa por CNPJ
-      const { data: empresaData, error: empresaError } = await supabase
-        .from("empresas")
-        .select("*")
-        .eq("cnpj", cnpjLimpo)
-        .single();
-
-      if (empresaError || !empresaData) {
-        console.error("❌ CNPJ não encontrado:", empresaError?.message);
-        return { success: false, error: "CNPJ não cadastrado" };
-      }
-
-      console.log('📋 Empresa encontrada:', {
-        nome: empresaData.nome_empresa,
-        tipo: empresaData.tipo_usuario
+      // Login usando Supabase Auth nativo
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password: senha
       });
-
-      // 2. ✅ CORRIGIDO: Verificar senha usando função SQL bcrypt
-      const { data: senhaValida, error: senhaError } = await supabase.rpc(
-        'verificar_senha', 
-        { 
-          senha_input: senha,
-          senha_hash: empresaData.senha_hash 
-        }
-      );
-
-      if (senhaError) {
-        console.error("❌ Erro ao verificar senha:", senhaError.message);
-        return { success: false, error: "Erro ao verificar senha" };
-      }
-
-      if (!senhaValida) {
-        console.error("❌ Senha incorreta");
-        return { success: false, error: "Senha incorreta" };
-      }
-
-      // 3. ✅ CORRIGIDO: Criar sessão manual (não usar Supabase Auth)
-      const sessionData = {
-        id: empresaData.id,
-        email: empresaData.email,
-        cnpj: empresaData.cnpj,
-        cnpjFormatado: empresaData.cnpj_formatado,
-        razaoSocial: empresaData.razao_social,
-        nomeFantasia: empresaData.nome_fantasia,
-        nomeEmpresa: empresaData.nome_empresa,
-        tipoUsuario: empresaData.tipo_usuario,
-        isAdmin: empresaData.tipo_usuario === "admin",
-        loginTime: new Date().toISOString(),
-        expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 horas
-        loginMethod: 'cnpj' // Identificar tipo de login
-      };
-
-      // Armazenar sessão
-      sessionStorage.setItem("userSession", JSON.stringify(sessionData));
-      sessionStorage.setItem("cnpj", empresaData.cnpj_formatado);
-      sessionStorage.setItem("nomeEmpresa", empresaData.nome_empresa);
-
-      console.log('✅ Login via CNPJ realizado com sucesso:', {
-        empresa: sessionData.nomeEmpresa,
-        isAdmin: sessionData.isAdmin
-      });
-
-      return { success: true, empresa: sessionData };
-
-    } catch (error) {
-      console.error("❌ Erro geral na autenticação via CNPJ:", error);
-      return { success: false, error: "Erro de conexão. Tente novamente." };
-    }
-  },
-
-  // Autenticação padrão (email/senha) - para clientes com Supabase Auth
-  autenticar: async (email, senha) => {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
 
       if (error) {
-        console.error("Erro de autenticação:", error.message);
-        return { success: false, error: error.message };
+        console.error("❌ Erro de autenticação:", error.message);
+        return { 
+          success: false, 
+          message: error.message || "Erro desconhecido ao fazer login."
+        };
       }
 
-      // Buscar dados da empresa
+      // Buscar dados extras da empresa (opcional)
       const { data: empresaData, error: empresaError } = await supabase
         .from("empresas")
         .select("*")
@@ -149,31 +75,31 @@ export const authSupabaseService = {
         .single();
 
       if (empresaError) {
-        console.error("Erro ao buscar empresa:", empresaError.message);
-        return { success: false, error: "Dados da empresa não encontrados" };
+        console.error("❌ Erro ao buscar empresa:", empresaError.message);
+        return { 
+          success: false, 
+          message: "Dados da empresa não encontrados" 
+        };
       }
 
-      const sessionData = {
-        id: data.user.id,
-        email: data.user.email,
-        cnpj: empresaData.cnpj,
-        cnpjFormatado: formatarCnpj(empresaData.cnpj),
-        razaoSocial: empresaData.razao_social,
-        nomeFantasia: empresaData.nome_fantasia,
-        nomeEmpresa: empresaData.nome_empresa,
-        tipoUsuario: empresaData.tipo_usuario,
-        isAdmin: empresaData.tipo_usuario === "admin",
-        loginTime: new Date().toISOString(),
-        expiresAt: Date.now() + (24 * 60 * 60 * 1000),
-        loginMethod: 'email' // Identificar tipo de login
+      console.log('✅ Login realizado com sucesso:', {
+        user: data.user.email,
+        empresa: empresaData.nome_empresa
+      });
+
+      return {
+        success: true,
+        session: data.session,
+        user: data.user,
+        empresa: empresaData
       };
 
-      sessionStorage.setItem("userSession", JSON.stringify(sessionData));
-      return { success: true, empresa: sessionData };
-
     } catch (error) {
-      console.error("Erro na autenticação:", error);
-      return { success: false, error: "Erro no servidor" };
+      console.error("❌ Erro no login:", error);
+      return {
+        success: false,
+        message: error.message || "Erro desconhecido ao fazer login."
+      };
     }
   },
 
@@ -215,7 +141,6 @@ export const authSupabaseService = {
         tipo_usuario: "cliente",
         ativo: true,
         created_at: new Date().toISOString()
-        // ✅ REMOVIDO: senha_hash (gerenciada pelo Supabase Auth)
       });
 
       if (empresaError) {
@@ -240,69 +165,48 @@ export const authSupabaseService = {
     }
   },
 
-  // ✅ CORRIGIDO: Verificação de sessão (funciona para ambos os tipos de login)
+  // Verificação de sessão via Supabase Auth
   verificarSessao: async () => {
     try {
-      // 1. Verificar sessão local primeiro
-      const sessaoLocal = sessionStorage.getItem("userSession");
-      if (sessaoLocal) {
-        const sessionData = JSON.parse(sessaoLocal);
-        if (sessionData.expiresAt > Date.now()) {
-          console.log('📋 Sessão local válida encontrada:', {
-            empresa: sessionData.nomeEmpresa,
-            isAdmin: sessionData.isAdmin,
-            metodo: sessionData.loginMethod
-          });
-          return sessionData;
-        } else {
-          // Sessão expirou
-          sessionStorage.removeItem("userSession");
-        }
-      }
-
-      // 2. Verificar sessão Supabase Auth (apenas para clientes normais)
-      const { data: { session }, error } = await supabase.auth.getSession();
+      // Verificar sessão Supabase Auth
+      const { data, error } = await supabase.auth.getSession();
+      
       if (error) {
-        console.error("Erro ao obter sessão Supabase:", error.message);
+        console.error("❌ Erro ao obter sessão:", error.message);
         return null;
       }
 
-      if (session && session.user) {
-        // 3. Buscar dados da empresa
-        const { data: empresaData, error: empresaError } = await supabase
-          .from("empresas")
-          .select("*")
-          .eq("user_id", session.user.id)
-          .single();
-
-        if (empresaError) {
-          console.error("Erro ao buscar empresa na sessão:", empresaError.message);
-          return null;
-        }
-
-        const sessionData = {
-          id: session.user.id,
-          email: session.user.email,
-          cnpj: empresaData.cnpj,
-          cnpjFormatado: formatarCnpj(empresaData.cnpj),
-          razaoSocial: empresaData.razao_social,
-          nomeFantasia: empresaData.nome_fantasia,
-          nomeEmpresa: empresaData.nome_empresa,
-          tipoUsuario: empresaData.tipo_usuario,
-          isAdmin: empresaData.tipo_usuario === "admin",
-          loginTime: new Date().toISOString(),
-          expiresAt: Date.now() + (24 * 60 * 60 * 1000),
-          loginMethod: 'email'
-        };
-
-        sessionStorage.setItem("userSession", JSON.stringify(sessionData));
-        return sessionData;
+      const { session } = data;
+      
+      if (!session) {
+        return null;
       }
 
-      return null;
+      // Buscar dados da empresa
+      const { data: empresaData, error: empresaError } = await supabase
+        .from("empresas")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .single();
+
+      if (empresaError) {
+        console.error("❌ Erro ao buscar empresa na sessão:", empresaError.message);
+        return null;
+      }
+
+      console.log('✅ Sessão válida encontrada:', {
+        user: session.user.email,
+        empresa: empresaData.nome_empresa
+      });
+
+      return {
+        session,
+        user: session.user,
+        empresa: empresaData
+      };
 
     } catch (error) {
-      console.error("Erro ao verificar sessão:", error);
+      console.error("❌ Erro ao verificar sessão:", error);
       return null;
     }
   },
@@ -310,20 +214,19 @@ export const authSupabaseService = {
   // Logout
   logout: async () => {
     try {
-      // Logout do Supabase Auth (se existir sessão)
-      await supabase.auth.signOut();
+      // Logout do Supabase Auth
+      const { error } = await supabase.auth.signOut();
       
-      // Limpar storage local
-      sessionStorage.removeItem("userSession");
-      sessionStorage.removeItem("cnpj");
-      sessionStorage.removeItem("nomeEmpresa");
-      sessionStorage.removeItem("empresaInfo");
-      localStorage.removeItem("loginBlock");
+      if (error) {
+        console.error("❌ Erro no logout:", error.message);
+        return false;
+      }
       
-      console.log("🚪 Logout realizado com sucesso");
+      console.log("✅ Logout realizado com sucesso");
       return true;
+      
     } catch (error) {
-      console.error("Erro no logout:", error);
+      console.error("❌ Erro no logout:", error);
       return false;
     }
   },
@@ -339,7 +242,7 @@ export const authSupabaseService = {
       return { success: true, message: "Link de recuperação enviado para seu email!" };
 
     } catch (error) {
-      console.error("Erro ao enviar código:", error.message);
+      console.error("❌ Erro ao enviar código:", error.message);
       return { success: false, error: error.message };
     }
   },
@@ -355,7 +258,7 @@ export const authSupabaseService = {
       return { success: true };
 
     } catch (error) {
-      console.error("Erro ao atualizar senha:", error.message);
+      console.error("❌ Erro ao atualizar senha:", error.message);
       return { success: false, error: error.message };
     }
   },
@@ -364,3 +267,5 @@ export const authSupabaseService = {
   validarCnpj,
   formatarCnpj
 };
+
+export default authSupabaseService;
