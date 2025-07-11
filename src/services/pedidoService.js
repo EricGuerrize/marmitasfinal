@@ -1,5 +1,6 @@
-import supabase from '../lib/supabase';
+import createSupabaseClient from '../lib/supabase';
 import { cnpjService } from './cnpjService';
+const supabase = createSupabaseClient();
 
 export const pedidoService = {
   
