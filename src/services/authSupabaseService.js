@@ -127,12 +127,11 @@ const authSupabaseService = {
 
       const cnpjLimpo = cnpj.replace(/\D/g, "");
       
-      // BUSCAR EMPRESA DIRETAMENTE NA TABELA (NÃO USAR SUPABASE AUTH)
+      // BUSCAR EMPRESA DIRETAMENTE NA TABELA (sem filtro ativo)
       const { data: empresa, error } = await supabase
         .from('empresas')
         .select('*')
         .eq('cnpj', cnpjLimpo)
-        .eq('ativo', true)
         .single();
 
       if (error || !empresa) {
@@ -211,13 +210,15 @@ const authSupabaseService = {
       // Hash da senha
       const senhaHash = await hashSenha(senha);
 
-      // Preparar dados para inserção (APENAS campos básicos)
+      // Preparar dados para inserção (ESTRUTURA COMPLETA)
       const dadosInsercao = {
         cnpj: cnpjLimpo,
-        senha_hash: senhaHash
+        cnpj_formatado: formatarCnpj(dadosEmpresa.cnpj),
+        senha_hash: senhaHash,
+        ativo: true
       };
 
-      // Adicionar campos opcionais apenas se preenchidos
+      // Adicionar campos opcionais
       if (email && email.trim()) {
         dadosInsercao.email = email.trim();
       }
@@ -228,8 +229,7 @@ const authSupabaseService = {
         dadosInsercao.nome_fantasia = dadosEmpresa.nomeEmpresa.trim();
       }
 
-      // Adicionar CNPJ formatado
-      dadosInsercao.cnpj_formatado = formatarCnpj(dadosEmpresa.cnpj);
+      console.log('📝 Dados completos para inserção:', { ...dadosInsercao, senha_hash: '[OCULTA]' });
 
       console.log('📝 Dados para inserção:', { ...dadosInsercao, senha_hash: '[OCULTA]' });
 
