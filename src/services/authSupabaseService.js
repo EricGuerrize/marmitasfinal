@@ -211,20 +211,25 @@ const authSupabaseService = {
       // Hash da senha
       const senhaHash = await hashSenha(senha);
 
-      // Preparar dados para inserção (apenas campos que existem na tabela)
+      // Preparar dados para inserção (APENAS campos básicos)
       const dadosInsercao = {
         cnpj: cnpjLimpo,
-        cnpj_formatado: formatarCnpj(dadosEmpresa.cnpj),
-        email: email || null,
-        nome_empresa: dadosEmpresa.nomeEmpresa || dadosEmpresa.razaoSocial || null,
-        razao_social: dadosEmpresa.razaoSocial || dadosEmpresa.nomeEmpresa || null,
-        nome_fantasia: dadosEmpresa.nomeFantasia || dadosEmpresa.nomeEmpresa || null,
-        telefone: dadosEmpresa.telefone || null,
-        senha_hash: senhaHash,
-        tipo_usuario: "cliente",
-        ativo: true,
-        tentativas_login: 0
+        senha_hash: senhaHash
       };
+
+      // Adicionar campos opcionais apenas se preenchidos
+      if (email && email.trim()) {
+        dadosInsercao.email = email.trim();
+      }
+      
+      if (dadosEmpresa.nomeEmpresa && dadosEmpresa.nomeEmpresa.trim()) {
+        dadosInsercao.nome_empresa = dadosEmpresa.nomeEmpresa.trim();
+        dadosInsercao.razao_social = dadosEmpresa.nomeEmpresa.trim();
+        dadosInsercao.nome_fantasia = dadosEmpresa.nomeEmpresa.trim();
+      }
+
+      // Adicionar CNPJ formatado
+      dadosInsercao.cnpj_formatado = formatarCnpj(dadosEmpresa.cnpj);
 
       console.log('📝 Dados para inserção:', { ...dadosInsercao, senha_hash: '[OCULTA]' });
 
