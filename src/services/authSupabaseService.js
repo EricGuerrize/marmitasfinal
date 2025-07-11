@@ -187,14 +187,21 @@ const authSupabaseService = {
 
       const cnpjLimpo = dadosEmpresa.cnpj.replace(/\D/g, "");
       
-      // Verifica se CNPJ já existe
-      const { data: empresaExistente } = await supabase
+      // Verifica se CNPJ já existe (sem .single() para evitar erro 406)
+      const { data: empresasExistentes, error: checkError } = await supabase
         .from('empresas')
         .select('cnpj')
-        .eq('cnpj', cnpjLimpo)
-        .single();
+        .eq('cnpj', cnpjLimpo);
 
-      if (empresaExistente) {
+      if (checkError) {
+        console.error("❌ Erro ao verificar CNPJ existente:", checkError);
+        return { 
+          success: false, 
+          error: "Erro ao verificar CNPJ" 
+        };
+      }
+
+      if (empresasExistentes && empresasExistentes.length > 0) {
         return { 
           success: false, 
           error: "CNPJ já cadastrado no sistema" 
@@ -204,49 +211,63 @@ const authSupabaseService = {
       // Hash da senha
       const senhaHash = await hashSenha(senha);
 
-      // Inserir empresa diretamente na tabela
+      // Preparar dados para inserção (apenas campos que existem na tabela)
+      const dadosInsercao = {
+        cnpj: cnpjLimpo,
+        cnpj_formatado: formatarCnpj(dadosEmpresa.cnpj),
+        email: email || null,
+        nome_empresa: dadosEmpresa.nomeEmpresa || dadosEmpresa.razaoSocial || null,
+        razao_social: dadosEmpresa.razaoSocial || dadosEmpresa.nomeEmpresa || null,
+        nome_fantasia: dadosEmpresa.nomeFantasia || dadosEmpresa.nomeEmpresa || null,
+        telefone: dadosEmpresa.telefone || null,
+        senha_hash: senhaHash,
+        tipo_usuario: "cliente",
+        ativo: true,
+        tentativas_login: 0
+      };
+
+      console.log('📝 Dados para inserção:', { ...dadosInsercao, senha_hash: '[OCULTA]' });
+
+      // Inserir empresa diretamente na tabela (sem .single() no final)
       const { data: novaEmpresa, error: empresaError } = await supabase
         .from("empresas")
-        .insert({
-          cnpj: cnpjLimpo,
-          cnpj_formatado: formatarCnpj(dadosEmpresa.cnpj),
-          email: email || null,
-          nome_empresa: dadosEmpresa.nomeEmpresa || dadosEmpresa.razaoSocial,
-          razao_social: dadosEmpresa.razaoSocial || dadosEmpresa.nomeEmpresa,
-          nome_fantasia: dadosEmpresa.nomeFantasia || dadosEmpresa.nomeEmpresa,
-          telefone: dadosEmpresa.telefone || null,
-          senha_hash: senhaHash, // Salva hash da senha
-          tipo_usuario: "cliente",
-          ativo: true,
-          created_at: new Date().toISOString(),
-          tentativas_login: 0
-        })
-        .select()
-        .single();
+        .insert(dadosInsercao)
+        .select();
 
       if (empresaError) {
-        console.error("❌ Erro ao inserir empresa:", empresaError.message);
+        console.error("❌ Erro ao inserir empresa:", empresaError);
+        
+        // Tratamento de erros específicos
+        if (empresaError.code === '23505') {
+          return { success: false, error: "CNPJ já cadastrado" };
+        }
+        
         return { 
           success: false, 
-          error: empresaError.message.includes('duplicate') 
-            ? "CNPJ já cadastrado" 
-            : "Erro ao cadastrar empresa" 
+          error: `Erro ao cadastrar: ${empresaError.message || 'Erro desconhecido'}` 
         };
       }
 
-      console.log('✅ Empresa cadastrada com sucesso:', novaEmpresa.cnpj_formatado);
+      if (!novaEmpresa || novaEmpresa.length === 0) {
+        return { 
+          success: false, 
+          error: "Erro: empresa não foi criada" 
+        };
+      }
+
+      console.log('✅ Empresa cadastrada com sucesso:', novaEmpresa[0].cnpj_formatado);
 
       return { 
         success: true,
         message: "Cadastro realizado com sucesso! Agora você pode fazer login.",
-        empresa: novaEmpresa
+        empresa: novaEmpresa[0]
       };
 
     } catch (error) {
-      console.error("❌ Erro no registro:", error.message);
+      console.error("❌ Erro no registro:", error);
       return { 
         success: false,
-        error: "Erro no cadastro"
+        error: `Erro no cadastro: ${error.message || 'Erro desconhecido'}`
       };
     }
   },
