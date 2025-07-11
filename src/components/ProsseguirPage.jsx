@@ -8,7 +8,6 @@ const ProsseguirPage = ({ onNavigate }) => {
   const [isMobile, setIsMobile] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Detecta se é mobile
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
     checkMobile();
@@ -17,12 +16,9 @@ const ProsseguirPage = ({ onNavigate }) => {
   }, []);
 
   useEffect(() => {
-    // ✅ CORRIGIDO: Função async para verificar sessão
     const verificarSessaoAtiva = async () => {
       try {
         setLoading(true);
-        
-        // ✅ CORRIGIDO: Await na função async
         const sessao = await authSupabaseService.verificarSessao();
         
         if (!sessao) {
@@ -32,8 +28,6 @@ const ProsseguirPage = ({ onNavigate }) => {
         }
         
         setSessaoAtiva(sessao);
-        
-        // ✅ CORRIGIDO: Usar isAdmin em vez de is_admin
         setIsAdmin(sessao.isAdmin || false); 
         
         console.log('📋 Sessão verificada:', {
@@ -53,7 +47,6 @@ const ProsseguirPage = ({ onNavigate }) => {
 
     verificarSessaoAtiva();
     
-    // Intercepta o botão voltar do navegador
     const handlePopState = (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -80,13 +73,11 @@ const ProsseguirPage = ({ onNavigate }) => {
     } else if (selectedOption === 'consultarPedidos') {
       onNavigate('consultar-pedido');
     } else if (selectedOption === 'painelAdmin') {
-      // ✅ CORRIGIDO: Validação adicional de segurança para admin
       handleAdminAccess();
     }
   };
 
   const handleAdminAccess = () => {
-    // ✅ CORRIGIDO: Validação dupla de segurança
     if (!isAdmin || !sessaoAtiva.isAdmin) {
       alert('Acesso negado. Você não tem privilégios de administrador.');
       return;
@@ -98,7 +89,6 @@ const ProsseguirPage = ({ onNavigate }) => {
       tipoUsuario: sessaoAtiva.tipoUsuario
     });
   
-    // ✅ CORRIGIDO: Salvar dados corretos da sessão
     sessionStorage.setItem('adminPreAuthenticated', JSON.stringify({
       cnpj: sessaoAtiva.cnpjFormatado,
       timestamp: Date.now(),
@@ -112,18 +102,15 @@ const ProsseguirPage = ({ onNavigate }) => {
   const handleLogout = async () => {
     if (window.confirm('Tem certeza que deseja sair?')) {
       try {
-        // ✅ CORRIGIDO: Await no logout
         await authSupabaseService.logout();
         onNavigate('home');
       } catch (error) {
         console.error('Erro no logout:', error);
-        // Mesmo com erro, redireciona para home
         onNavigate('home');
       }
     }
   };
 
-  // ✅ CORRIGIDO: Loading state
   if (loading) {
     return (
       <div style={{
@@ -165,7 +152,6 @@ const ProsseguirPage = ({ onNavigate }) => {
       backgroundColor: '#f5f5f5',
       minHeight: '100vh'
     }}>
-      {/* Header */}
       <div style={{
         background: 'white',
         display: 'flex',
@@ -240,7 +226,6 @@ const ProsseguirPage = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Container */}
       <div style={{
         display: 'flex',
         justifyContent: 'center',
@@ -283,14 +268,13 @@ const ProsseguirPage = ({ onNavigate }) => {
             </p>
           </div>
           
-          {/* Options Container */}
           <div style={{
             margin: '30px 0',
             textAlign: 'left',
+            display: 'flex',
             flexDirection: 'column',
             gap: '15px'
           }}>
-            {/* Option 1 - Fazer Pedido */}
             <div style={{
               display: 'flex',
               alignItems: 'flex-start',
@@ -366,7 +350,6 @@ const ProsseguirPage = ({ onNavigate }) => {
               </div>
             </div>
             
-            {/* Option 2 - Consultar Pedidos */}
             <div style={{
               display: 'flex',
               alignItems: 'flex-start',
@@ -442,7 +425,6 @@ const ProsseguirPage = ({ onNavigate }) => {
               </div>
             </div>
 
-            {/* Option 3 - Painel Admin (só aparece para admins) */}
             {isAdmin && (
               <div style={{
                 display: 'flex',
@@ -535,7 +517,6 @@ const ProsseguirPage = ({ onNavigate }) => {
             )}
           </div>
           
-          {/* Continue Button */}
           <button 
             onClick={prosseguir}
             style={{
@@ -564,7 +545,6 @@ const ProsseguirPage = ({ onNavigate }) => {
             {selectedOption === 'painelAdmin' ? '🔐 Acessar Painel Admin' : 'Continuar'}
           </button>
 
-          {/* Informações da Sessão */}
           <div style={{
             marginTop: '30px',
             padding: '15px',

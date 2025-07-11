@@ -8,7 +8,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
   const [observacoes, setObservacoes] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   
-  // Hook personalizado para CEP
   const { 
     endereco, 
     loading: buscandoCep, 
@@ -18,10 +17,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     formatarEnderecoCompleto
   } = useCep();
 
-  // Hook de notificações
   const { success, error: showError } = useNotification();
 
-  // Detecta se é mobile
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth <= 768);
@@ -34,11 +31,9 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
   }, []);
 
   useEffect(() => {
-    // Recupera informações do sessionStorage - APENAS CNPJ
     const cnpjInfo = sessionStorage.getItem('cnpj') || '';
     setCnpj(cnpjInfo);
     
-    // Intercepta o botão voltar do navegador
     const handlePopState = (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -55,14 +50,12 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     };
   }, [onNavigate]);
 
-  // Mostra notificação quando CEP é encontrado
   useEffect(() => {
     if (endereco.cidade && endereco.rua && !buscandoCep) {
       success('Endereço encontrado! Verifique se está correto.', 3000);
     }
   }, [endereco.cidade, endereco.rua, buscandoCep, success]);
 
-  // Mostra erro de CEP
   useEffect(() => {
     if (erroCep) {
       showError(`Erro no CEP: ${erroCep}`);
@@ -82,7 +75,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     return calcularSubtotal() + calcularTaxaEntrega();
   };
 
-  // MUDANÇA: vai para resumo-pedido em vez de checkout
   const finalizarPedido = () => {
     if (carrinho.length === 0) {
       showError('Carrinho está vazio!');
@@ -101,7 +93,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       return;
     }
 
-    // Salva dados do pedido
     const pedido = {
       itens: carrinho,
       subtotal: calcularSubtotal(),
@@ -128,7 +119,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     }
   };
 
-  // NOVA FUNÇÃO: Input manual de quantidade
   const handleQuantidadeInput = (itemId, valor) => {
     const novaQuantidade = parseInt(valor) || 0;
     if (novaQuantidade >= 0 && novaQuantidade <= 999) {
@@ -144,7 +134,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         backgroundColor: '#f5f5f5',
         minHeight: '100vh'
       }}>
-        {/* Header */}
         <div style={{
           background: 'white',
           display: 'flex',
@@ -193,7 +182,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           </div>
         </div>
 
-        {/* Carrinho Vazio */}
         <div style={{
           display: 'flex',
           justifyContent: 'center',
@@ -252,7 +240,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       backgroundColor: '#f5f5f5',
       minHeight: '100vh'
     }}>
-      {/* Header */}
       <div style={{
         background: 'white',
         display: 'flex',
@@ -301,7 +288,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         </div>
       </div>
 
-      {/* Container Principal */}
       <div style={{
         maxWidth: '1000px',
         margin: '0 auto',
@@ -310,7 +296,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
         gap: isMobile ? '25px' : '30px'
       }}>
-        {/* Coluna Esquerda - Itens do Carrinho */}
         <div>
           <div style={{
             display: 'flex',
@@ -344,7 +329,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             </button>
           </div>
 
-          {/* Lista de Itens */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             {carrinho.map(item => (
               <div
@@ -396,7 +380,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   </div>
                 </div>
 
-                {/* CONTROLES DE QUANTIDADE COM INPUT MANUAL */}
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -420,7 +403,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                     -
                   </button>
                   
-                  {/* INPUT MANUAL DE QUANTIDADE */}
                   <input
                     type="number"
                     min="1"
@@ -486,7 +468,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             ))}
           </div>
 
-          {/* Endereço de Entrega */}
           <div style={{
             backgroundColor: 'white',
             padding: isMobile ? '18px' : '22px',
@@ -500,7 +481,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               fontSize: isMobile ? '18px' : '20px'
             }}>📍 Endereço de Entrega</h3>
             
-            {/* CEP com busca automática */}
             <div style={{ marginBottom: '18px' }}>
               <label style={{ 
                 display: 'block', 
@@ -733,7 +713,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             </div>
           </div>
 
-          {/* Observações - CAMPO MENOR */}
           <div style={{
             backgroundColor: 'white',
             padding: isMobile ? '18px' : '22px',
@@ -772,7 +751,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           </div>
         </div>
 
-        {/* Coluna Direita - Resumo do Pedido */}
         <div>
           <div style={{
             backgroundColor: 'white',
@@ -788,7 +766,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               fontSize: isMobile ? '20px' : '22px'
             }}>📊 Resumo do Pedido</h2>
             
-            {/* Aviso pedido mínimo */}
             <div style={{
               backgroundColor: calcularQuantidadeTotal() < 30 ? '#fff3cd' : '#d4edda',
               padding: '18px',

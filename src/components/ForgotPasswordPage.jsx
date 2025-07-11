@@ -41,7 +41,6 @@ const ForgotPasswordPage = ({ onNavigate }) => {
       if (res.success) {
         setMetodoEscolhido('email');
         setEtapa('email');
-        // EM DESENVOLVIMENTO - mostra o código
         if (res.codigo) {
           setCodigoExibido(res.codigo);
         }
@@ -59,13 +58,11 @@ const ForgotPasswordPage = ({ onNavigate }) => {
     if (!cnpj.trim()) { setError('Por favor, informe o CNPJ'); return; }
     setLoading(true); setError('');
     try {
-      // Simulação de perguntas baseadas no CNPJ
       const cnpjLimpo = cnpj.replace(/\D/g, '');
       if (!authSupabaseService.validarCnpj(cnpjLimpo)) {
         throw new Error('CNPJ inválido');
       }
 
-      // Perguntas genéricas baseadas no CNPJ
       const perguntasGenericas = [
         {
           id: 1,
@@ -91,7 +88,6 @@ const ForgotPasswordPage = ({ onNavigate }) => {
       setMetodoEscolhido('perguntas');
       setEtapa('perguntas');
       
-      // Prepara respostas vazias
       const iniciais = {};
       perguntasGenericas.forEach(p => { iniciais[p.id] = ''; });
       setRespostas(iniciais);
@@ -124,7 +120,6 @@ const ForgotPasswordPage = ({ onNavigate }) => {
   };
 
   const confirmarPerguntas = async () => {
-    // Verifica respostas
     let acertos = 0;
     for (const pergunta of perguntas) {
       const resposta = respostas[pergunta.id]?.trim().toLowerCase();
@@ -144,7 +139,6 @@ const ForgotPasswordPage = ({ onNavigate }) => {
     
     setLoading(true); setError('');
     try {
-      // Simula alteração de senha - em produção, validaria no backend
       await new Promise(resolve => setTimeout(resolve, 2000));
       setEtapa('sucesso');
     } catch {
@@ -172,7 +166,6 @@ const ForgotPasswordPage = ({ onNavigate }) => {
       margin: 0, fontFamily: 'Arial, sans-serif',
       backgroundColor: '#f5f5f5', minHeight: '100vh'
     }}>
-      {/* Header */}
       <div style={{
         background: 'white', display: 'flex',
         justifyContent: 'space-between', alignItems: 'center',
@@ -197,7 +190,6 @@ const ForgotPasswordPage = ({ onNavigate }) => {
         >Voltar ao Login</button>
       </div>
 
-      {/* Main */}
       <div style={{
         display: 'flex', justifyContent: 'center', alignItems: 'center',
         minHeight: 'calc(100vh - 80px)',
@@ -208,8 +200,6 @@ const ForgotPasswordPage = ({ onNavigate }) => {
           borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
           width: '100%', maxWidth: '500px'
         }}>
-
-          {/* Escolha do método */}
           {etapa === 'metodo' && (
             <>
               <div style={{ textAlign: 'center', marginBottom: '30px' }}>
@@ -324,7 +314,6 @@ const ForgotPasswordPage = ({ onNavigate }) => {
             </>
           )}
 
-          {/* Verificação por Email */}
           {etapa === 'email' && (
             <>
               <div style={{ textAlign: 'center', marginBottom: '30px' }}>
@@ -338,7 +327,6 @@ const ForgotPasswordPage = ({ onNavigate }) => {
                 </p>
               </div>
 
-              {/* DESENVOLVIMENTO - Mostra código */}
               {codigoExibido && (
                 <div style={{
                   backgroundColor: '#fff3cd', color: '#856404',
@@ -386,6 +374,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
                   value={novaSenha}
                   onChange={e => setNovaSenha(e.target.value)}
                   placeholder="Digite sua nova senha"
+                  autoComplete="new-password"
                   style={{
                     width: '100%', padding: '12px',
                     border: '1px solid #ddd', borderRadius: '5px',
@@ -406,6 +395,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
                   value={confirmarSenha}
                   onChange={e => setConfirmarSenha(e.target.value)}
                   placeholder="Digite novamente sua nova senha"
+                  autoComplete="new-password"
                   style={{
                     width: '100%', padding: '12px',
                     border: '1px solid #ddd', borderRadius: '5px',
@@ -459,7 +449,6 @@ const ForgotPasswordPage = ({ onNavigate }) => {
             </>
           )}
 
-          {/* Perguntas de Segurança */}
           {etapa === 'perguntas' && (
             <>
               <div style={{ textAlign: 'center', marginBottom: '30px' }}>
@@ -513,6 +502,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
                   value={novaSenha}
                   onChange={e => setNovaSenha(e.target.value)}
                   placeholder="Digite sua nova senha"
+                  autoComplete="new-password"
                   style={{
                     width: '100%', padding: '12px',
                     border: '1px solid #ddd', borderRadius: '5px',
@@ -531,6 +521,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
                   value={confirmarSenha}
                   onChange={e => setConfirmarSenha(e.target.value)}
                   placeholder="Digite novamente sua nova senha"
+                  autoComplete="new-password"
                   style={{
                     width: '100%', padding: '12px',
                     border: '1px solid #ddd', borderRadius: '5px',
@@ -584,7 +575,6 @@ const ForgotPasswordPage = ({ onNavigate }) => {
             </>
           )}
 
-          {/* Sucesso */}
           {etapa === 'sucesso' && (
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '64px', marginBottom: '20px' }}>✅</div>
@@ -609,7 +599,6 @@ const ForgotPasswordPage = ({ onNavigate }) => {
               </button>
             </div>
           )}
-
         </div>
       </div>
     </div>

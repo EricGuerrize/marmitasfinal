@@ -3,6 +3,7 @@ import { cnpjService } from './cnpjService';
 
 export const pedidoService = {
   
+  // Banco de dados mock para pedidos (mantido para compatibilidade)
   getPedidosDatabase: () => {
     try {
       const pedidos = localStorage.getItem('pedidosDatabase');
@@ -23,12 +24,23 @@ export const pedidoService = {
     }
   },
 
+  // Criar um novo pedido
   criarPedido: async (dadosPedido) => {
     try {
       console.log('📝 Criando novo pedido:', dadosPedido);
       
+      // Garante CNPJ limpo e valida
       const empresaCnpj = cnpjService.removerMascaraCnpj(dadosPedido.cnpj);
-      
+      const validacaoCnpj = cnpjService.validarCnpj(empresaCnpj);
+      if (!validacaoCnpj.valido) {
+        console.error('❌ CNPJ inválido:', validacaoCnpj.erro);
+        return {
+          success: false,
+          error: validacaoCnpj.erro
+        };
+      }
+
+      // Buscar empresa pelo CNPJ para obter empresa_id
       const { data: empresa, error: empresaError } = await supabase
         .from('empresas')
         .select('id, nome_empresa')
@@ -37,8 +49,11 @@ export const pedidoService = {
         .single();
 
       if (empresaError || !empresa) {
-        console.error('❌ Empresa não encontrada:', empresaError?.message);
-        return { success: false, error: 'CNPJ não cadastrado ou empresa inativa' };
+        console.error('❌ Empresa não encontrada:', empresaError?.message || 'CNPJ não cadastrado');
+        return {
+          success: false,
+          error: 'CNPJ não cadastrado ou empresa inativa'
+        };
       }
 
       const novoPedido = {
@@ -51,14 +66,16 @@ export const pedidoService = {
         taxa_entrega: dadosPedido.taxaEntrega,
         total: dadosPedido.total,
         endereco_entrega: dadosPedido.enderecoEntrega,
-        observacoes: dadosPedido.observacoes,
+        observacoes: dadosPedido.observacoes || '',
         status: 'enviado',
         data_pedido: new Date().toISOString(),
         data_atualizacao: new Date().toISOString(),
+        metodo_pagamento: dadosPedido.metodoPagamento || 'pix',
         origem: 'supabase',
-        metodo_pagamento: dadosPedido.metodoPagamento || 'pix'
+        previsao_entrega: dadosPedido.previsaoEntrega || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // +1 dia
       };
 
+      // Salva no Supabase
       const { data, error } = await supabase
         .from('pedidos')
         .insert(novoPedido)
@@ -66,20 +83,25 @@ export const pedidoService = {
         .single();
 
       if (error) {
-        console.error('❌ Erro ao criar pedido:', error.message);
-        return { success: false, error: 'Erro ao criar pedido. Tente novamente.' };
+        console.error('❌ Erro ao criar pedido no Supabase:', error.message);
+        return {
+          success: false,
+          error: 'Erro ao criar pedido. Tente novamente.'
+        };
       }
 
+      // Salva no localStorage para compatibilidade
       const pedidos = this.getPedidosDatabase();
       pedidos.push({ id: data.id, ...novoPedido });
       this.savePedidosDatabase(pedidos);
 
+      // Atualiza pedidosAdmin para compatibilidade
       const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
       pedidosAdmin.push({
         id: data.id,
         numero: novoPedido.numero,
         cliente: novoPedido.empresa_nome,
-        cnpj: empresaCnpj,
+        empresa_cnpj: novoPedido.empresa_cnpj,
         total: novoPedido.total,
         status: novoPedido.status,
         data: novoPedido.data_pedido,
@@ -89,20 +111,31 @@ export const pedidoService = {
       });
       localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
 
-      console.log('✅ Pedido criado:', novoPedido.numero);
-      return { success: true, pedido: data, message: 'Pedido criado com sucesso!' };
+      console.log('✅ Pedido criado com sucesso:', novoPedido.numero);
+
+      return {
+        success: true,
+        pedido: data,
+        message: 'Pedido criado com sucesso!'
+      };
     } catch (error) {
       console.error('❌ Erro ao criar pedido:', error);
-      return { success: false, error: 'Erro ao criar pedido. Tente novamente.' };
+      return {
+        success: false,
+        error: 'Erro ao criar pedido. Tente novamente.'
+      };
     }
   },
 
+  // Buscar pedidos por empresa
   buscarPedidosPorEmpresa: async (cnpj) => {
     try {
       console.log('🔍 Buscando pedidos para CNPJ:', cnpj);
       
+      // Garante CNPJ limpo
       const empresaCnpj = cnpjService.removerMascaraCnpj(cnpj);
 
+      // Busca no Supabase
       const { data: pedidos, error } = await supabase
         .from('pedidos')
         .select('*')
@@ -110,11 +143,12 @@ export const pedidoService = {
         .order('data_pedido', { ascending: false });
 
       if (error) {
-        console.error('❌ Erro ao buscar pedidos:', error.message);
+        console.error('❌ Erro ao buscar pedidos no Supabase:', error.message);
         return [];
       }
 
       console.log(`✅ Encontrados ${pedidos.length} pedidos`);
+
       return pedidos.map(pedido => ({
         id: pedido.id,
         numero: pedido.numero,
@@ -124,7 +158,9 @@ export const pedidoService = {
         itens: pedido.itens,
         enderecoEntrega: pedido.endereco_entrega,
         observacoes: pedido.observacoes,
-        origem: 'supabase'
+        metodoPagamento: pedido.metodo_pagamento,
+        previsaoEntrega: pedido.previsao_entrega,
+        origem: pedido.origem
       }));
     } catch (error) {
       console.error('❌ Erro ao buscar pedidos:', error);
@@ -132,22 +168,31 @@ export const pedidoService = {
     }
   },
 
+  // Atualizar status do pedido
   atualizarStatusPedido: async (pedidoId, novoStatus) => {
     try {
-      console.log('🔄 Atualizando status do pedido:', pedidoId, novoStatus);
+      console.log('🔄 Atualizando status do pedido:', pedidoId, 'para:', novoStatus);
 
+      // Atualiza no Supabase
       const { data, error } = await supabase
         .from('pedidos')
-        .update({ status: novoStatus, data_atualizacao: new Date().toISOString() })
+        .update({ 
+          status: novoStatus, 
+          data_atualizacao: new Date().toISOString() 
+        })
         .eq('id', pedidoId)
         .select()
         .single();
 
       if (error) {
-        console.error('❌ Erro ao atualizar status:', error.message);
-        return { success: false, error: 'Pedido não encontrado' };
+        console.error('❌ Erro ao atualizar status no Supabase:', error.message);
+        return {
+          success: false,
+          error: 'Pedido não encontrado'
+        };
       }
 
+      // Atualiza no localStorage para compatibilidade
       const pedidos = this.getPedidosDatabase();
       const pedidoIndex = pedidos.findIndex(p => p.id === pedidoId);
       if (pedidoIndex >= 0) {
@@ -156,6 +201,7 @@ export const pedidoService = {
         this.savePedidosDatabase(pedidos);
       }
 
+      // Atualiza também no formato admin
       const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
       const adminIndex = pedidosAdmin.findIndex(p => p.id === pedidoId);
       if (adminIndex >= 0) {
@@ -163,14 +209,23 @@ export const pedidoService = {
         localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
       }
 
-      console.log('✅ Status atualizado');
-      return { success: true, pedido: data, message: 'Status atualizado com sucesso!' };
+      console.log('✅ Status atualizado com sucesso');
+
+      return {
+        success: true,
+        pedido: data,
+        message: 'Status atualizado com sucesso!'
+      };
     } catch (error) {
       console.error('❌ Erro ao atualizar status:', error);
-      return { success: false, error: 'Erro ao atualizar status do pedido' };
+      return {
+        success: false,
+        error: 'Erro ao atualizar status do pedido'
+      };
     }
   },
 
+  // Buscar pedido por número
   buscarPedidoPorNumero: async (numero) => {
     try {
       const { data: pedido, error } = await supabase
@@ -180,7 +235,10 @@ export const pedidoService = {
         .single();
 
       if (error || !pedido) {
-        return { success: false, error: 'Pedido não encontrado' };
+        return {
+          success: false,
+          error: 'Pedido não encontrado'
+        };
       }
 
       return {
@@ -188,7 +246,7 @@ export const pedidoService = {
         pedido: {
           id: pedido.id,
           numero: pedido.numero,
-          cnpj: pedido.empresa_cnpj,
+          empresa_cnpj: pedido.empresa_cnpj,
           empresa_nome: pedido.empresa_nome,
           total: pedido.total,
           status: pedido.status,
@@ -196,15 +254,21 @@ export const pedidoService = {
           itens: pedido.itens,
           enderecoEntrega: pedido.endereco_entrega,
           observacoes: pedido.observacoes,
-          origem: 'supabase'
+          metodoPagamento: pedido.metodo_pagamento,
+          previsaoEntrega: pedido.previsao_entrega,
+          origem: pedido.origem
         }
       };
     } catch (error) {
       console.error('Erro ao buscar pedido:', error);
-      return { success: false, error: 'Erro ao buscar pedido' };
+      return {
+        success: false,
+        error: 'Erro ao buscar pedido'
+      };
     }
   },
 
+  // Listar todos os pedidos (para admin)
   listarTodosPedidos: async () => {
     try {
       const { data: pedidos, error } = await supabase
@@ -220,13 +284,13 @@ export const pedidoService = {
       return pedidos.map(pedido => ({
         id: pedido.id,
         numero: pedido.numero,
-        cnpj: pedido.empresa_cnpj,
+        empresa_cnpj: pedido.empresa_cnpj,
         empresa_nome: pedido.empresa_nome,
         total: pedido.total,
         status: pedido.status,
         data: pedido.data_pedido,
         itens_count: pedido.itens ? pedido.itens.length : 0,
-        origem: pedido.origem || 'supabase'
+        origem: pedido.origem
       }));
     } catch (error) {
       console.error('Erro ao listar pedidos:', error);
@@ -234,6 +298,7 @@ export const pedidoService = {
     }
   },
 
+  // Obter estatísticas de pedidos
   obterEstatisticas: async () => {
     try {
       const { data: pedidos, error } = await supabase
@@ -242,12 +307,22 @@ export const pedidoService = {
 
       if (error) {
         console.error('Erro ao obter estatísticas:', error);
-        return { totalPedidos: 0, pedidosHoje: 0, totalVendas: 0, statusCount: {}, ticketMedio: 0 };
+        return {
+          totalPedidos: 0,
+          pedidosHoje: 0,
+          totalVendas: 0,
+          statusCount: {},
+          ticketMedio: 0
+        };
       }
 
       const hoje = new Date().toDateString();
-      const pedidosHoje = pedidos.filter(p => new Date(p.data_pedido).toDateString() === hoje);
+      const pedidosHoje = pedidos.filter(p => 
+        new Date(p.data_pedido).toDateString() === hoje
+      );
+
       const totalVendas = pedidos.reduce((sum, p) => sum + (p.total || 0), 0);
+
       const statusCount = pedidos.reduce((acc, p) => {
         acc[p.status] = (acc[p.status] || 0) + 1;
         return acc;
@@ -256,16 +331,23 @@ export const pedidoService = {
       return {
         totalPedidos: pedidos.length,
         pedidosHoje: pedidosHoje.length,
-        totalVendas,
-        statusCount,
+        totalVendas: totalVendas,
+        statusCount: statusCount,
         ticketMedio: pedidos.length > 0 ? totalVendas / pedidos.length : 0
       };
     } catch (error) {
       console.error('Erro ao obter estatísticas:', error);
-      return { totalPedidos: 0, pedidosHoje: 0, totalVendas: 0, statusCount: {}, ticketMedio: 0 };
+      return {
+        totalPedidos: 0,
+        pedidosHoje: 0,
+        totalVendas: 0,
+        statusCount: {},
+        ticketMedio: 0
+      };
     }
   },
 
+  // Cancelar pedido
   cancelarPedido: async (pedidoId, motivo = '') => {
     try {
       console.log('❌ Cancelando pedido:', pedidoId);
@@ -283,9 +365,13 @@ export const pedidoService = {
 
       if (error) {
         console.error('❌ Erro ao cancelar pedido:', error);
-        return { success: false, error: 'Erro ao cancelar pedido' };
+        return {
+          success: false,
+          error: 'Erro ao cancelar pedido'
+        };
       }
 
+      // Atualiza localStorage para compatibilidade
       const pedidos = this.getPedidosDatabase();
       const pedidoIndex = pedidos.findIndex(p => p.id === pedidoId);
       if (pedidoIndex >= 0) {
@@ -295,6 +381,7 @@ export const pedidoService = {
         this.savePedidosDatabase(pedidos);
       }
 
+      // Atualiza também no formato admin
       const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
       const adminIndex = pedidosAdmin.findIndex(p => p.id === pedidoId);
       if (adminIndex >= 0) {
@@ -302,10 +389,16 @@ export const pedidoService = {
         localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
       }
 
-      return { success: true, message: 'Pedido cancelado com sucesso!' };
+      return {
+        success: true,
+        message: 'Pedido cancelado com sucesso!'
+      };
     } catch (error) {
       console.error('❌ Erro ao cancelar pedido:', error);
-      return { success: false, error: 'Erro ao cancelar pedido' };
+      return {
+        success: false,
+        error: 'Erro ao cancelar pedido'
+      };
     }
   }
 };
