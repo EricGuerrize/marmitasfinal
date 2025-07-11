@@ -29,7 +29,7 @@ const HomePage = ({ onNavigate }) => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // ✅ CORRIGIDO: Verifica se já tem sessão ativa (async)
+  // ✅ Verifica se já tem sessão ativa (async)
   useEffect(() => {
     const verificarSessaoExistente = async () => {
       try {
@@ -122,26 +122,39 @@ const HomePage = ({ onNavigate }) => {
     securityUtils.safeLog('Login bloqueado por tentativas excessivas', { attempts });
   };
 
-  // ✅ CORRIGIDO: FUNÇÃO DE LOGIN PARA CNPJ
+  // ✅ FUNÇÃO DE LOGIN PARA CNPJ
   const handleLogin = async (cnpj, senha) => {
     try {
       if (!cnpj || !senha) {
         console.error('❌ Erro de conexão no login: CNPJ ou senha não informados');
+        alert('Por favor, informe o CNPJ e a senha.');
         return;
       }
-      console.log('Tentando login com CNPJ:', cnpj);
+
+      const cnpjLimpo = cnpj.replace(/\D/g, '');
+      if (cnpjLimpo.length !== 14) {
+        alert('CNPJ inválido. Por favor, insira um CNPJ válido (14 dígitos).');
+        return;
+      }
+
+      const emailGerado = `${cnpjLimpo}@fitinbox.com`;
+      console.log('Tentando login com email gerado:', emailGerado);
+
+      setFazendoLogin(true);
       const result = await authSupabaseService.autenticarCnpj(cnpj, senha);
-      if (!result.success) throw new Error(result.error);
+      if (!result.success) throw new Error(result.error || 'Falha na autenticação.');
       console.log('Login bem-sucedido:', result);
-      onNavigate('prosseguir'); // Redireciona após sucesso
+      onNavigate('prosseguir');
     } catch (error) {
       console.error('❌ Erro de conexão no login:', error.message);
-      alert(`Erro ao fazer login: ${error.message}`);
+      alert(`Erro ao fazer login: ${error.message.includes('Invalid login credentials') ? 'Credenciais inválidas. Verifique o CNPJ e a senha ou redefina sua senha.' : error.message}`);
       if (loginAttempts + 1 >= 5) {
         blockLogin(loginAttempts + 1);
       } else {
         setLoginAttempts(loginAttempts + 1);
       }
+    } finally {
+      setFazendoLogin(false);
     }
   };
 
@@ -230,7 +243,7 @@ const HomePage = ({ onNavigate }) => {
     }
   };
 
-  // ✅ CORRIGIDO: handleMeusPedidos async
+  // ✅ handleMeusPedidos async
   const handleMeusPedidos = async () => {
     try {
       const sessaoAtiva = await authSupabaseService.verificarSessao();
@@ -245,7 +258,7 @@ const HomePage = ({ onNavigate }) => {
     }
   };
 
-  // ✅ ADICIONAR: Loading state para verificação de sessão
+  // Loading state para verificação de sessão
   if (checkingSession) {
     return (
       <div style={{
@@ -428,6 +441,7 @@ const HomePage = ({ onNavigate }) => {
                   placeholder="00.000.000/0000-00"
                   maxLength="18"
                   disabled={fazendoLogin || isBlocked}
+                  autoComplete="username"
                   style={{
                     width: '100%',
                     padding: '14px',
@@ -461,6 +475,7 @@ const HomePage = ({ onNavigate }) => {
                   placeholder="Digite sua senha"
                   disabled={fazendoLogin || isBlocked}
                   maxLength="50"
+                  autoComplete="current-password"
                   style={{
                     width: '100%',
                     padding: '14px',
@@ -550,6 +565,7 @@ const HomePage = ({ onNavigate }) => {
                   placeholder="00.000.000/0000-00"
                   maxLength="18"
                   disabled={fazendoLogin || isBlocked}
+                  autoComplete="username"
                   style={{
                     width: '100%',
                     padding: '14px',
@@ -582,6 +598,7 @@ const HomePage = ({ onNavigate }) => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="empresa@exemplo.com"
                   disabled={fazendoLogin || isBlocked}
+                  autoComplete="email"
                   style={{
                     width: '100%',
                     padding: '14px',
@@ -618,6 +635,7 @@ const HomePage = ({ onNavigate }) => {
                   placeholder="Ex: Minha Empresa Ltda"
                   disabled={fazendoLogin || isBlocked}
                   maxLength="100"
+                  autoComplete="organization"
                   style={{
                     width: '100%',
                     padding: '14px',
@@ -654,6 +672,7 @@ const HomePage = ({ onNavigate }) => {
                   placeholder="Digite sua senha"
                   disabled={fazendoLogin || isBlocked}
                   maxLength="50"
+                  autoComplete="new-password"
                   style={{
                     width: '100%',
                     padding: '14px',
@@ -687,6 +706,7 @@ const HomePage = ({ onNavigate }) => {
                   placeholder="Confirme sua senha"
                   disabled={fazendoLogin || isBlocked}
                   maxLength="50"
+                  autoComplete="new-password"
                   style={{
                     width: '100%',
                     padding: '14px',
