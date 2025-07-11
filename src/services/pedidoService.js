@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import supabase from '../lib/supabase';
 import { cnpjService } from './cnpjService';
 
 export const pedidoService = {

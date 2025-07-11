@@ -123,85 +123,25 @@ const HomePage = ({ onNavigate }) => {
   };
 
   // ✅ CORRIGIDO: FUNÇÃO DE LOGIN PARA CNPJ
-  const handleLogin = async () => {
-    if (isBlocked) {
-      alert(`Muitas tentativas incorretas. Tente novamente em ${blockTimeRemaining} minutos.`);
-      return;
-    }
-
-    if (!cnpj.trim()) {
-      alert('Por favor, informe o CNPJ');
-      return;
-    }
-
-    if (!senha.trim()) {
-      alert('Por favor, informe a senha');
-      return;
-    }
-
-    if (!securityUtils.validateOrigin()) {
-      alert('Origem não autorizada');
-      return;
-    }
-
-    const cnpjSanitizado = securityUtils.sanitizeInput(cnpj, { 
-      allowSpecialChars: true, 
-      maxLength: 18 
-    });
-    const senhaSanitizada = securityUtils.sanitizeInput(senha, { 
-      allowSpecialChars: true, 
-      maxLength: 50 
-    });
-
-    if (securityUtils.detectInjectionAttempt(cnpjSanitizado) || 
-        securityUtils.detectInjectionAttempt(senhaSanitizada)) {
-      alert('Dados inválidos detectados');
-      securityUtils.safeLog('Tentativa de injeção detectada', { cnpj: cnpjSanitizado });
-      return;
-    }
-
-    setFazendoLogin(true);
-
+  const handleLogin = async (cnpj, senha) => {
     try {
-      console.log('🔐 Tentando login via CNPJ:', cnpjSanitizado);
-      
-      // ✅ CORRIGIDO: Usar autenticarCnpj em vez de autenticar
-      const resultado = await authSupabaseService.autenticarCnpj(cnpjSanitizado, senhaSanitizada);
-
-      if (resultado.success) {
-        setLoginAttempts(0);
-        localStorage.removeItem('loginBlock');
-        
-        console.log('✅ Login realizado com sucesso:', {
-          empresa: resultado.empresa.nomeEmpresa,
-          isAdmin: resultado.empresa.isAdmin
-        });
-        
-        securityUtils.safeLog('Login realizado com sucesso');
-        onNavigate('prosseguir');
-      } else {
-        const newAttempts = loginAttempts + 1;
-        setLoginAttempts(newAttempts);
-        
-        if (newAttempts >= 5) {
-          blockLogin(newAttempts);
-          alert('Muitas tentativas incorretas. Acesso bloqueado por 30 minutos.');
-        } else {
-          alert(`${resultado.error}. Tentativas restantes: ${5 - newAttempts}`);
-        }
-        
-        securityUtils.safeLog('Tentativa de login falhou', { 
-          attempts: newAttempts,
-          cnpj: cnpjSanitizado,
-          error: resultado.error
-        });
+      if (!cnpj || !senha) {
+        console.error('❌ Erro de conexão no login: CNPJ ou senha não informados');
+        return;
       }
+      console.log('Tentando login com CNPJ:', cnpj);
+      const result = await authSupabaseService.autenticarCnpj(cnpj, senha);
+      if (!result.success) throw new Error(result.error);
+      console.log('Login bem-sucedido:', result);
+      onNavigate('prosseguir'); // Redireciona após sucesso
     } catch (error) {
-      console.error('❌ Erro de conexão no login:', error);
-      securityUtils.safeLog('Erro de conexão no login', { error: error.message });
-      alert('Erro de conexão. Tente novamente.');
-    } finally {
-      setFazendoLogin(false);
+      console.error('❌ Erro de conexão no login:', error.message);
+      alert(`Erro ao fazer login: ${error.message}`);
+      if (loginAttempts + 1 >= 5) {
+        blockLogin(loginAttempts + 1);
+      } else {
+        setLoginAttempts(loginAttempts + 1);
+      }
     }
   };
 
@@ -283,7 +223,7 @@ const HomePage = ({ onNavigate }) => {
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !fazendoLogin && !isBlocked) {
       if (modo === 'login') {
-        handleLogin();
+        handleLogin(cnpj, senha);
       } else {
         handleCadastro();
       }
@@ -470,7 +410,7 @@ const HomePage = ({ onNavigate }) => {
 
           {/* Início do Formulário de Login */}
           {modo === 'login' && (
-            <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }} onKeyPress={handleKeyPress}>
+            <form onSubmit={(e) => { e.preventDefault(); handleLogin(cnpj, senha); }} onKeyPress={handleKeyPress}>
               {/* Campo CNPJ */}
               <div style={{ marginBottom: '20px', textAlign: 'left' }}>
                 <label style={{
