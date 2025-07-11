@@ -215,7 +215,8 @@ const authSupabaseService = {
         cnpj: cnpjLimpo,
         cnpj_formatado: formatarCnpj(dadosEmpresa.cnpj),
         senha_hash: senhaHash,
-        ativo: true
+        ativo: true,
+        tipo_usuario: 'cliente'
       };
 
       // Adicionar campos opcionais
