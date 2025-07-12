@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
 import { securityUtils } from '../utils/securityUtils';
 import LogoComponent from './LogoComponent';
@@ -17,24 +17,36 @@ const HomePage = ({ onNavigate }) => {
   const [blockTimeRemaining, setBlockTimeRemaining] = useState(0);
   const [checkingSession, setCheckingSession] = useState(true);
 
-  // Detecta se é mobile
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-
-    return () => window.removeEventListener('resize', checkMobile);
+  // ✅ Detecta mobile com debounce
+  const checkMobile = useCallback(() => {
+    setIsMobile(window.innerWidth <= 768);
   }, []);
 
-  // ✅ Verifica se já tem sessão ativa (async)
+  useEffect(() => {
+    checkMobile();
+    let timeoutId;
+    const handleResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(checkMobile, 150);
+    };
+
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(timeoutId);
+    };
+  }, [checkMobile]);
+
+  // ✅ Verifica sessão existente (async com timeout)
   useEffect(() => {
     const verificarSessaoExistente = async () => {
+      let timeout; // Declaração movida para o escopo externo
       try {
         setCheckingSession(true);
-        const sessaoAtiva = await authSupabaseService.verificarSessao();
+        const controller = new AbortController();
+        timeout = setTimeout(() => controller.abort(), 5000);
+
+        const sessaoAtiva = await authSupabaseService.verificarSessao({ signal: controller.signal });
         if (sessaoAtiva) {
           console.log('✅ Sessão existente encontrada, redirecionando...');
           onNavigate('prosseguir');
@@ -42,20 +54,30 @@ const HomePage = ({ onNavigate }) => {
         }
       } catch (error) {
         console.error('Erro ao verificar sessão existente:', error);
+        if (error.name !== 'AbortError') {
+          console.warn('Verificação de sessão falhou, prosseguindo sem redirecionamento.');
+        }
       } finally {
         setCheckingSession(false);
+        clearTimeout(timeout); // Agora funciona porque está no escopo
       }
     };
 
     verificarSessaoExistente();
-    checkBlockStatus();
   }, [onNavigate]);
 
-  // Verifica status de bloqueio
-  const checkBlockStatus = () => {
-    const blockData = localStorage.getItem('loginBlock');
-    if (blockData) {
+  // ✅ Verifica status de bloqueio
+  useEffect(() => {
+    const checkBlockStatus = () => {
       try {
+        const blockData = localStorage.getItem('loginBlock');
+        if (!blockData) {
+          setLoginAttempts(0);
+          setIsBlocked(false);
+          setBlockTimeRemaining(0);
+          return;
+        }
+
         const { blockedUntil, attempts } = JSON.parse(blockData);
         const now = Date.now();
         
@@ -64,33 +86,37 @@ const HomePage = ({ onNavigate }) => {
           setIsBlocked(true);
           setBlockTimeRemaining(remaining);
           setLoginAttempts(attempts);
-          
-          const timer = setInterval(() => {
-            const newRemaining = Math.ceil((blockedUntil - Date.now()) / 1000 / 60);
-            if (newRemaining <= 0) {
-              setIsBlocked(false);
-              setBlockTimeRemaining(0);
-              setLoginAttempts(0);
-              localStorage.removeItem('loginBlock');
-              clearInterval(timer);
-            } else {
-              setBlockTimeRemaining(newRemaining);
-            }
-          }, 60000);
-          
-          return () => clearInterval(timer);
         } else {
           localStorage.removeItem('loginBlock');
+          setIsBlocked(false);
+          setBlockTimeRemaining(0);
           setLoginAttempts(0);
         }
-      } catch {
+      } catch (error) {
+        console.error('Erro ao verificar status de bloqueio:', error);
         localStorage.removeItem('loginBlock');
+        setIsBlocked(false);
+        setBlockTimeRemaining(0);
+        setLoginAttempts(0);
       }
-    }
-  };
+    };
 
-  // Função para aplicar máscara de CNPJ
-  const applyCnpjMask = (value) => {
+    checkBlockStatus();
+
+    let intervalId;
+    if (isBlocked && blockTimeRemaining > 0) {
+      intervalId = setInterval(() => {
+        requestAnimationFrame(checkBlockStatus);
+      }, 30000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isBlocked, blockTimeRemaining]);
+
+  // ✅ Função de máscara CNPJ memoizada
+  const applyCnpjMask = useCallback((value) => {
     const onlyNumbers = value.replace(/\D/g, '');
     const limited = onlyNumbers.slice(0, 14);
 
@@ -99,31 +125,33 @@ const HomePage = ({ onNavigate }) => {
       .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
       .replace(/\.(\d{3})(\d)/, '.$1/$2')
       .replace(/(\d{4})(\d)/, '$1-$2');
-  };
+  }, []);
 
-  const handleCnpjChange = (e) => {
+  const handleCnpjChange = useCallback((e) => {
     const maskedValue = applyCnpjMask(e.target.value);
     setCnpj(maskedValue);
-  };
+  }, [applyCnpjMask]);
 
-  // Bloqueia tentativas de login
-  const blockLogin = (attempts) => {
-    const blockTime = 30 * 60 * 1000; // 30 minutos
+  // ✅ Bloqueia tentativas de login
+  const blockLogin = useCallback(async (attempts) => {
+    const blockTime = 30 * 60 * 1000;
     const blockedUntil = Date.now() + blockTime;
     
-    localStorage.setItem('loginBlock', JSON.stringify({
-      blockedUntil,
-      attempts
-    }));
-    
-    setIsBlocked(true);
-    setBlockTimeRemaining(30);
-    
-    securityUtils.safeLog('Login bloqueado por tentativas excessivas', { attempts });
-  };
+    try {
+      setTimeout(() => {
+        localStorage.setItem('loginBlock', JSON.stringify({ blockedUntil, attempts }));
+      }, 0);
+      setIsBlocked(true);
+      setBlockTimeRemaining(30);
+      securityUtils.safeLog('Login bloqueado por tentativas excessivas', { attempts });
+    } catch (error) {
+      console.error('Erro ao bloquear login:', error);
+    }
+  }, []);
 
-  // ✅ FUNÇÃO DE LOGIN PARA CNPJ
-  const handleLogin = async (cnpj, senha) => {
+  // ✅ FUNÇÃO DE LOGIN otimizada
+  const handleLogin = useCallback(async (cnpj, senha) => {
+    let timeout; // Declaração movida para o escopo externo
     try {
       if (!cnpj || !senha) {
         console.error('❌ Erro de conexão no login: CNPJ ou senha não informados');
@@ -141,58 +169,58 @@ const HomePage = ({ onNavigate }) => {
       console.log('Tentando login com email gerado:', emailGerado);
 
       setFazendoLogin(true);
-      const result = await authSupabaseService.autenticarCnpj(cnpj, senha);
-      if (!result.success) throw new Error(result.error || 'Falha na autenticação.');
+      const controller = new AbortController();
+      timeout = setTimeout(() => controller.abort(), 5000);
+
+      const result = await authSupabaseService.autenticarCnpj(cnpj, senha, { signal: controller.signal });
+      if (!result.success) throw new Error(result.error || 'Falha na autenticação');
+      
       console.log('Login bem-sucedido:', result);
       onNavigate('prosseguir');
     } catch (error) {
       console.error('❌ Erro de conexão no login:', error.message);
-      alert(`Erro ao fazer login: ${error.message.includes('Invalid login credentials') ? 'Credenciais inválidas. Verifique o CNPJ e a senha ou redefina sua senha.' : error.message}`);
+      alert(`Erro ao fazer login: ${error.name === 'AbortError' ? 'Tempo esgotado. Tente novamente.' : error.message.includes('Invalid login credentials') ? 'Credenciais inválidas. Verifique o CNPJ e a senha ou redefina sua senha.' : error.message}`);
+      
       if (loginAttempts + 1 >= 5) {
-        blockLogin(loginAttempts + 1);
+        await blockLogin(loginAttempts + 1);
       } else {
-        setLoginAttempts(loginAttempts + 1);
+        setLoginAttempts(prev => prev + 1);
       }
     } finally {
+      clearTimeout(timeout); // Agora funciona porque está no escopo
       setFazendoLogin(false);
     }
-  };
+  }, [loginAttempts, blockLogin, onNavigate]);
 
-  // FUNÇÃO DE CADASTRO MELHORADA
-  const handleCadastro = async () => {
-    // Validações básicas
+  // ✅ FUNÇÃO DE CADASTRO otimizada
+  const handleCadastro = useCallback(async () => {
     if (!cnpj.trim()) {
       alert('Por favor, informe o CNPJ');
       return;
     }
-
     if (!senha.trim()) {
       alert('Por favor, informe a senha');
       return;
     }
-
     if (senha.length < 6) {
       alert('Senha deve ter pelo menos 6 caracteres');
       return;
     }
-
     if (senha !== confirmarSenha) {
       alert('Senhas não conferem');
       return;
     }
-
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       alert('Email inválido');
       return;
     }
-
     if (!securityUtils.validateOrigin()) {
       alert('Origem não autorizada');
       return;
     }
 
     const dadosEmpresa = {
-      cnpj: cnpj,
+      cnpj,
       email: email ? securityUtils.sanitizeInput(email.trim(), { maxLength: 100 }) : null,
       nomeEmpresa: nomeEmpresa ? securityUtils.sanitizeInput(nomeEmpresa.trim(), { maxLength: 100 }) : null,
       razaoSocial: nomeEmpresa ? securityUtils.sanitizeInput(nomeEmpresa.trim(), { maxLength: 100 }) : null,
@@ -209,7 +237,6 @@ const HomePage = ({ onNavigate }) => {
 
     try {
       console.log('📝 Tentando cadastro para CNPJ:', cnpj);
-      
       const resultado = await authSupabaseService.registrarEmpresa(email || '', senha, dadosEmpresa);
 
       if (resultado.success) {
@@ -231,20 +258,22 @@ const HomePage = ({ onNavigate }) => {
     } finally {
       setFazendoLogin(false);
     }
-  };
+  }, [cnpj, senha, confirmarSenha, email, nomeEmpresa]);
 
-  const handleKeyPress = (e) => {
+  // ✅ handleKeyPress otimizado
+  const handleKeyPress = useCallback((e) => {
     if (e.key === 'Enter' && !fazendoLogin && !isBlocked) {
+      e.preventDefault();
       if (modo === 'login') {
         handleLogin(cnpj, senha);
       } else {
         handleCadastro();
       }
     }
-  };
+  }, [fazendoLogin, isBlocked, modo, cnpj, senha, handleLogin, handleCadastro]);
 
-  // ✅ handleMeusPedidos async
-  const handleMeusPedidos = async () => {
+  // ✅ handleMeusPedidos async otimizado
+  const handleMeusPedidos = useCallback(async () => {
     try {
       const sessaoAtiva = await authSupabaseService.verificarSessao();
       if (!sessaoAtiva) {
@@ -256,9 +285,21 @@ const HomePage = ({ onNavigate }) => {
       console.error('Erro ao verificar sessão:', error);
       alert('Faça login para acessar seus pedidos');
     }
-  };
+  }, [onNavigate]);
 
-  // Loading state para verificação de sessão
+  // ✅ Memoização do botão style
+  const buttonStyle = useMemo(() => ({
+    backgroundColor: '#f38e3c',
+    border: 'none',
+    padding: isMobile ? '8px 12px' : '10px 20px',
+    color: 'white',
+    fontWeight: 'bold',
+    borderRadius: '5px',
+    cursor: 'pointer',
+    fontSize: isMobile ? '14px' : '16px',
+    transition: 'all 0.3s ease'
+  }), [isMobile]);
+
   if (checkingSession) {
     return (
       <div style={{
@@ -287,7 +328,6 @@ const HomePage = ({ onNavigate }) => {
       color: 'white',
       minHeight: '100vh'
     }}>
-      {/* Header */}
       <header style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -295,23 +335,10 @@ const HomePage = ({ onNavigate }) => {
         padding: isMobile ? '10px 15px' : '10px 20px',
         backgroundColor: 'white'
       }}>
-        <LogoComponent
-          size={isMobile ? 'small' : 'medium'}
-          showText={true}
-        />
+        <LogoComponent size={isMobile ? 'small' : 'medium'} showText={true} />
         <button
           onClick={handleMeusPedidos}
-          style={{
-            backgroundColor: '#f38e3c',
-            border: 'none',
-            padding: isMobile ? '8px 12px' : '10px 20px',
-            color: 'white',
-            fontWeight: 'bold',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            fontSize: isMobile ? '14px' : '16px',
-            transition: 'all 0.3s ease'
-          }}
+          style={buttonStyle}
           onMouseEnter={(e) => e.target.style.backgroundColor = '#e67e22'}
           onMouseLeave={(e) => e.target.style.backgroundColor = '#f38e3c'}
         >
@@ -319,11 +346,7 @@ const HomePage = ({ onNavigate }) => {
         </button>
       </header>
 
-      {/* Hero Section */}
-      <section style={{
-        textAlign: 'center',
-        padding: isMobile ? '30px 15px' : '40px 20px'
-      }}>
+      <section style={{ textAlign: 'center', padding: isMobile ? '30px 15px' : '40px 20px' }}>
         <h1 style={{
           fontSize: isMobile ? '2em' : '2.5em',
           fontWeight: 'normal',
@@ -334,20 +357,13 @@ const HomePage = ({ onNavigate }) => {
           Sua <strong>Alimentação</strong> <br />
           <strong>Nosso</strong> Compromisso
         </h1>
-        <p style={{
-          marginTop: '20px',
-          fontSize: isMobile ? '1.1em' : '1.2em'
-        }}>
+        <p style={{ marginTop: '20px', fontSize: isMobile ? '1.1em' : '1.2em' }}>
           ÁREA DO FORNECEDOR
         </p>
-        <p style={{
-          fontSize: isMobile ? '1.1em' : '1.2em',
-          margin: isMobile ? '10px 10px 0 10px' : '0'
-        }}>
+        <p style={{ fontSize: isMobile ? '1.1em' : '1.2em', margin: isMobile ? '10px 10px 0 10px' : '0' }}>
           {modo === 'login' ? 'Acesse sua conta' : 'Crie sua conta'}
         </p>
 
-        {/* Form de Login/Cadastro */}
         <div style={{
           margin: '30px auto',
           width: isMobile ? '95%' : '80%',
@@ -358,7 +374,6 @@ const HomePage = ({ onNavigate }) => {
           color: '#333',
           boxShadow: '0 8px 25px rgba(0,0,0,0.2)'
         }}>
-          {/* Aviso de bloqueio */}
           {isBlocked && (
             <div style={{
               backgroundColor: '#f8d7da',
@@ -375,7 +390,6 @@ const HomePage = ({ onNavigate }) => {
             </div>
           )}
 
-          {/* Toggle Login/Cadastro */}
           <div style={{
             display: 'flex',
             marginBottom: '25px',
@@ -421,17 +435,10 @@ const HomePage = ({ onNavigate }) => {
             </button>
           </div>
 
-          {/* Início do Formulário de Login */}
           {modo === 'login' && (
             <form onSubmit={(e) => { e.preventDefault(); handleLogin(cnpj, senha); }} onKeyPress={handleKeyPress}>
-              {/* Campo CNPJ */}
               <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontWeight: 'bold',
-                  color: '#009245'
-                }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
                   CNPJ
                 </label>
                 <input
@@ -458,14 +465,8 @@ const HomePage = ({ onNavigate }) => {
                 />
               </div>
 
-              {/* Campo Senha */}
               <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontWeight: 'bold',
-                  color: '#009245'
-                }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
                   Senha
                 </label>
                 <input
@@ -492,7 +493,6 @@ const HomePage = ({ onNavigate }) => {
                 />
               </div>
 
-              {/* Indicador de tentativas (apenas no modo login) */}
               {loginAttempts > 0 && !isBlocked && (
                 <div style={{
                   backgroundColor: '#fff3cd',
@@ -507,7 +507,6 @@ const HomePage = ({ onNavigate }) => {
                 </div>
               )}
 
-              {/* Botão de Ação */}
               <button
                 type="submit"
                 disabled={fazendoLogin || isBlocked}
@@ -539,23 +538,15 @@ const HomePage = ({ onNavigate }) => {
                   }
                 }}
               >
-                {isBlocked ? 'ACESSO BLOQUEADO' :
-                 fazendoLogin ? 'ENTRANDO...' : 'ENTRAR'}
+                {isBlocked ? 'ACESSO BLOQUEADO' : fazendoLogin ? 'ENTRANDO...' : 'ENTRAR'}
               </button>
             </form>
           )}
 
-          {/* Início do Formulário de Cadastro */}
           {modo === 'cadastro' && (
             <form onSubmit={(e) => { e.preventDefault(); handleCadastro(); }} onKeyPress={handleKeyPress}>
-              {/* Campo CNPJ */}
               <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontWeight: 'bold',
-                  color: '#009245'
-                }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
                   CNPJ
                 </label>
                 <input
@@ -582,14 +573,8 @@ const HomePage = ({ onNavigate }) => {
                 />
               </div>
 
-              {/* Campo Email (APENAS NO CADASTRO - OPCIONAL) */}
               <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontWeight: 'bold',
-                  color: '#009245'
-                }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
                   Email (opcional)
                 </label>
                 <input
@@ -618,14 +603,8 @@ const HomePage = ({ onNavigate }) => {
                 </small>
               </div>
 
-              {/* CAMPO NOME DA EMPRESA */}
               <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontWeight: 'bold',
-                  color: '#009245'
-                }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
                   Nome da Empresa (recomendado)
                 </label>
                 <input
@@ -655,14 +634,8 @@ const HomePage = ({ onNavigate }) => {
                 </small>
               </div>
 
-              {/* Campo Senha */}
               <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontWeight: 'bold',
-                  color: '#009245'
-                }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
                   Senha (mínimo 6 caracteres)
                 </label>
                 <input
@@ -689,14 +662,8 @@ const HomePage = ({ onNavigate }) => {
                 />
               </div>
 
-              {/* Campo Confirmar Senha (só no cadastro) */}
               <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontWeight: 'bold',
-                  color: '#009245'
-                }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
                   Confirmar Senha
                 </label>
                 <input
@@ -723,7 +690,6 @@ const HomePage = ({ onNavigate }) => {
                 />
               </div>
 
-              {/* Botão de Ação */}
               <button
                 type="submit"
                 disabled={fazendoLogin || isBlocked}
@@ -755,19 +721,12 @@ const HomePage = ({ onNavigate }) => {
                   }
                 }}
               >
-                {isBlocked ? 'ACESSO BLOQUEADO' :
-                 fazendoLogin ? 'CADASTRANDO...' : 'CADASTRAR'}
+                {isBlocked ? 'ACESSO BLOQUEADO' : fazendoLogin ? 'CADASTRANDO...' : 'CADASTRAR'}
               </button>
             </form>
           )}
 
-          {/* Links para alternar modo e esqueci senha */}
-          <div style={{
-            marginTop: '20px',
-            textAlign: 'center',
-            fontSize: '14px',
-            color: '#666'
-          }}>
+          <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '14px', color: '#666' }}>
             {modo === 'login' && !isBlocked && (
               <>
                 <button
@@ -829,7 +788,6 @@ const HomePage = ({ onNavigate }) => {
             )}
           </div>
 
-          {/* Aviso sobre email (só no cadastro) */}
           {modo === 'cadastro' && (
             <div style={{
               backgroundColor: '#e7f3ff',
@@ -854,15 +812,8 @@ const HomePage = ({ onNavigate }) => {
         </div>
       </section>
 
-      {/* Info Section */}
-      <section style={{
-        padding: isMobile ? '30px 15px' : '40px 20px',
-        textAlign: 'center'
-      }}>
-        <h2 style={{
-          fontSize: isMobile ? '1.6em' : '1.8em',
-          marginBottom: '30px'
-        }}>
+      <section style={{ padding: isMobile ? '30px 15px' : '40px 20px', textAlign: 'center' }}>
+        <h2 style={{ fontSize: isMobile ? '1.6em' : '1.8em', marginBottom: '30px' }}>
           Como Funciona
         </h2>
         <div style={{
@@ -897,15 +848,10 @@ const HomePage = ({ onNavigate }) => {
           }}
           >
             <div style={{ fontSize: '48px', marginBottom: '15px' }}>🔐</div>
-            <h3 style={{
-              marginTop: '10px',
-              fontSize: '1.1em'
-            }}>
+            <h3 style={{ marginTop: '10px', fontSize: '1.1em' }}>
               1. Acesso Seguro
             </h3>
-            <p style={{
-              fontSize: '0.9em'
-            }}>
+            <p style={{ fontSize: '0.9em' }}>
               Faça login com segurança usando seu CNPJ
             </p>
           </div>
@@ -934,15 +880,10 @@ const HomePage = ({ onNavigate }) => {
           }}
           >
             <div style={{ fontSize: '48px', marginBottom: '15px' }}>🍽️</div>
-            <h3 style={{
-              marginTop: '10px',
-              fontSize: '1.1em'
-            }}>
+            <h3 style={{ marginTop: '10px', fontSize: '1.1em' }}>
               2. Escolha Produtos
             </h3>
-            <p style={{
-              fontSize: '0.9em'
-            }}>
+            <p style={{ fontSize: '0.9em' }}>
               Veja produtos disponíveis para sua empresa
             </p>
           </div>
@@ -971,22 +912,16 @@ const HomePage = ({ onNavigate }) => {
           }}
           >
             <div style={{ fontSize: '48px', marginBottom: '15px' }}>🚚</div>
-            <h3 style={{
-              marginTop: '10px',
-              fontSize: '1.1em'
-            }}>
+            <h3 style={{ marginTop: '10px', fontSize: '1.1em' }}>
               3. Receba em Casa
             </h3>
-            <p style={{
-              fontSize: '0.9em'
-            }}>
+            <p style={{ fontSize: '0.9em' }}>
               Entrega rápida e segura no seu endereço
             </p>
           </div>
         </div>
       </section>
 
-      {/* Footer com Informações da Empresa */}
       <footer style={{
         backgroundColor: '#2c3e50',
         color: 'white',
@@ -1001,13 +936,8 @@ const HomePage = ({ onNavigate }) => {
           gap: '30px',
           textAlign: isMobile ? 'center' : 'left'
         }}>
-          {/* Coluna 1: Logo e Descrição */}
           <div>
-            <LogoComponent 
-              size="small"
-              showText={true}
-              style={{ color: 'white' }}
-            />
+            <LogoComponent size="small" showText={true} style={{ color: 'white' }} />
             <p style={{
               marginTop: '15px',
               color: '#bdc3c7',
@@ -1018,80 +948,46 @@ const HomePage = ({ onNavigate }) => {
             </p>
           </div>
 
-          {/* Coluna 2: Contato */}
           <div>
-            <h4 style={{
-              color: '#f38e3c',
-              marginBottom: '15px',
-              fontSize: '18px'
-            }}>
+            <h4 style={{ color: '#f38e3c', marginBottom: '15px', fontSize: '18px' }}>
               📞 Contato
             </h4>
             <div style={{ color: '#bdc3c7', lineHeight: '1.8', fontSize: '14px' }}>
               <div style={{ marginBottom: '8px' }}>
-                <strong>📱 WhatsApp:</strong><br />
-                (21) 2196429-8123
+                <strong>📱 WhatsApp:</strong><br />(21) 2196429-8123
               </div>
               <div style={{ marginBottom: '8px' }}>
-                <strong>📧 Email:</strong><br />
-                Fitinboxcg@hotmail.com
+                <strong>📧 Email:</strong><br />Fitinboxcg@hotmail.com
               </div>
               <div style={{ marginBottom: '8px' }}>
-                <strong>🕒 Horário:</strong><br />
-                Segunda a Sexta: 8h às 18h
+                <strong>🕒 Horário:</strong><br />Segunda a Sexta: 8h às 18h
               </div>
               <div>
-                <strong>📍 Localização:</strong><br />
-                Rio de Janeiro/RJ
+                <strong>📍 Localização:</strong><br />Rio de Janeiro/RJ
               </div>
             </div>
           </div>
 
-          {/* Coluna 3: Informações Legais */}
           <div>
-            <h4 style={{
-              color: '#f38e3c',
-              marginBottom: '15px',
-              fontSize: '18px'
-            }}>
+            <h4 style={{ color: '#f38e3c', marginBottom: '15px', fontSize: '18px' }}>
               📋 Informações
             </h4>
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '8px',
-              fontSize: '14px'
-            }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
               <div style={{ color: '#bdc3c7' }}>
-                <strong>🏢 Razão Social:</strong><br />
-                Fit In Box Alimentação Ltda
+                <strong>🏢 Razão Social:</strong><br />Fit In Box Alimentação Ltda
               </div>
               <div style={{ color: '#bdc3c7' }}>
-                <strong>⭐ Qualidade:</strong><br />
-                Ingredientes frescos e selecionados
+                <strong>⭐ Qualidade:</strong><br />Ingredientes frescos e selecionados
               </div>
               <div style={{ color: '#bdc3c7' }}>
-                <strong>🚀 Atendimento:</strong><br />
-                Rápido e personalizado
+                <strong>🚀 Atendimento:</strong><br />Rápido e personalizado
               </div>
             </div>
           </div>
         </div>
 
-        {/* Divisor */}
-        <div style={{
-          borderTop: '1px solid #34495e',
-          marginTop: '30px',
-          paddingTop: '20px'
-        }}>
-          {/* Links Úteis */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            flexWrap: 'wrap',
-            gap: '20px',
-            marginBottom: '20px'
-          }}>
+        <div style={{ borderTop: '1px solid #34495e', marginTop: '30px', paddingTop: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '20px' }}>
             <button
               onClick={handleMeusPedidos}
               style={{
@@ -1149,12 +1045,7 @@ const HomePage = ({ onNavigate }) => {
             </button>
           </div>
 
-          {/* Copyright */}
-          <div style={{
-            textAlign: 'center',
-            color: '#7f8c8d',
-            fontSize: '12px'
-          }}>
+          <div style={{ textAlign: 'center', color: '#7f8c8d', fontSize: '12px' }}>
             © 2025 Fit In Box Alimentação Ltda. Todos os direitos reservados.
           </div>
         </div>
