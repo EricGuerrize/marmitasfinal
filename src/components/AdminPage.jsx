@@ -2,23 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
 import ImageUpload from './ImageUpload';
 
-// Utilitários de segurança
-const securityUtils = {
-  sanitizeInput: (input) => {
-    if (!input || typeof input !== 'string') return '';
-    return input
-      .replace(/[<>\"']/g, '') // Remove caracteres perigosos
-      .trim()
-      .slice(0, 500); // Limita tamanho
-  },
-  
-  safeLog: (message, data = null) => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[ADMIN] ${message}`, data);
-    }
-  }
-};
-
 const AdminPage = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [produtos, setProdutos] = useState([]);
@@ -27,13 +10,8 @@ const AdminPage = ({ onNavigate }) => {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
-  
-  // SISTEMA DE AUTENTICAÇÃO ADMIN MELHORADO
-  const [adminAuth, setAdminAuth] = useState({
-    isAuthenticated: false,
-    attempts: 0,
-    lockedUntil: null
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
   
   const [productForm, setProductForm] = useState({
     nome: '',
@@ -63,8 +41,7 @@ const AdminPage = ({ onNavigate }) => {
     { value: 'cancelado', label: 'Cancelado', color: '#dc3545', icon: '❌' }
   ];
 
-  // ===== FUNÇÕES DEFINIDAS COM useCallback PARA EVITAR PROBLEMAS DE HOISTING =====
-
+  // Funções de carregamento
   const loadEmpresasCadastradas = useCallback(async () => {
     try {
       const empresas = await authSupabaseService.listarEmpresas();
@@ -172,296 +149,151 @@ const AdminPage = ({ onNavigate }) => {
       }
     ];
     
-    saveProductsSecure(produtosIniciais);
+    localStorage.setItem('adminProdutos', JSON.stringify(produtosIniciais));
+    setProdutos(produtosIniciais);
   }, []);
 
-  // Verifica se admin está bloqueado
-  const checkAdminLock = () => {
-    const lockData = localStorage.getItem('adminLock');
-    if (lockData) {
-      try {
-        const { lockedUntil } = JSON.parse(lockData);
-        if (new Date() < new Date(lockedUntil)) {
-          const remainingMinutes = Math.ceil((new Date(lockedUntil) - new Date()) / 1000 / 60);
-          return {
-            isLocked: true,
-            remainingMinutes
-          };
-        } else {
-          localStorage.removeItem('adminLock');
+  // Verificação de autenticação simplificada
+  const checkAdminAuth = useCallback(async () => {
+    try {
+      console.log('🔐 Verificando autenticação admin...');
+      
+      // Verifica se veio do ProsseguirPage com pré-auth
+      const preAuth = sessionStorage.getItem('adminPreAuthenticated');
+      if (preAuth) {
+        try {
+          const { timestamp } = JSON.parse(preAuth);
+          if (Date.now() - timestamp < 30 * 60 * 1000) { // 30 min
+            console.log('✅ Pré-autenticação válida');
+            sessionStorage.removeItem('adminPreAuthenticated');
+            setIsAuthenticated(true);
+            return true;
+          }
+        } catch (error) {
+          console.error('Erro na pré-autenticação:', error);
         }
-      } catch {
-        localStorage.removeItem('adminLock');
-      }
-    }
-    return { isLocked: false };
-  };
-
-  // Bloqueio temporário após tentativas
-  const lockAdmin = (minutes = 30) => {
-    const lockedUntil = new Date(Date.now() + minutes * 60 * 1000);
-    localStorage.setItem('adminLock', JSON.stringify({ lockedUntil }));
-  };
-
-  // Autenticação admin melhorada
-  const authenticateAdmin = () => {
-    const lockCheck = checkAdminLock();
-    if (lockCheck.isLocked) {
-      alert(`Acesso bloqueado. Tente novamente em ${lockCheck.remainingMinutes} minutos.`);
-      return false;
-    }
-
-    // Múltiplas senhas possíveis (para diferentes ambientes)
-    const validPasswords = [
-      process.env.REACT_APP_ADMIN_PASSWORD || 'FitInBox2025!',
-      'admin2025!@#',
-      'fitinbox_admin_secure'
-    ];
-
-    const senha = prompt('Digite a senha do administrador:');
-    
-    if (senha === null) return false; // Cancelou
-
-    // Validação da senha
-    const isValid = validPasswords.some(validPassword => {
-      // Hash simples para comparação (ainda é client-side, mas melhor que texto puro)
-      const inputHash = btoa(senha + 'fitinbox_salt');
-      const validHash = btoa(validPassword + 'fitinbox_salt');
-      return inputHash === validHash;
-    });
-
-    if (isValid) {
-      setAdminAuth({
-        isAuthenticated: true,
-        attempts: 0,
-        lockedUntil: null
-      });
-      
-      // Remove lock se existir
-      localStorage.removeItem('adminLock');
-      
-      // Log seguro (não mostra senha)
-      securityUtils.safeLog('Admin autenticado com sucesso');
-      return true;
-    } else {
-      const attempts = (adminAuth.attempts || 0) + 1;
-      setAdminAuth(prev => ({ ...prev, attempts }));
-
-      if (attempts >= 3) {
-        lockAdmin(30); // Bloqueia por 30 minutos após 3 tentativas
-        alert('Muitas tentativas incorretas. Acesso bloqueado por 30 minutos.');
-      } else {
-        alert(`Senha incorreta! Tentativas restantes: ${3 - attempts}`);
+        sessionStorage.removeItem('adminPreAuthenticated');
       }
 
-      securityUtils.safeLog(`Tentativa de acesso admin falhou. Tentativas: ${attempts}`);
+      // Verifica se tem sessão válida do sistema principal
+      const sessao = await authSupabaseService.verificarSessao();
+      if (sessao && sessao.isAdmin) {
+        console.log('✅ Admin autenticado via sessão principal');
+        setIsAuthenticated(true);
+        return true;
+      }
+
+      console.log('🚫 Acesso não autorizado');
+      return false;
+      
+    } catch (error) {
+      console.error('❌ Erro na verificação de auth:', error);
       return false;
     }
+  }, []);
+
+  // Logout simplificado
+  const handleLogout = async () => {
+    if (window.confirm('Tem certeza que deseja sair do painel admin?')) {
+      try {
+        setLoading(true);
+        await authSupabaseService.logout();
+        sessionStorage.removeItem('adminPreAuthenticated');
+        onNavigate('home');
+      } catch (error) {
+        console.error('Erro no logout:', error);
+        onNavigate('home');
+      }
+    }
   };
 
-  // Middleware de proteção para ações sensíveis
-  const requireAuth = (action) => {
-    if (!adminAuth.isAuthenticated) {
-      alert('Sessão expirada. Faça login novamente.');
-      onNavigate('home');
-      return false;
-    }
-    return action();
-  };
-
-  // Logout admin
-  const logoutAdmin = () => {
-    setAdminAuth({
-      isAuthenticated: false,
-      attempts: 0,
-      lockedUntil: null
-    });
-    onNavigate('home');
-    securityUtils.safeLog('Admin logout realizado');
-  };
-
-  // Validação de produtos com sanitização
-  const validateAndSanitizeProduct = (product) => {
-    const errors = [];
-    
-    if (!product.nome?.trim()) {
-      errors.push('Nome é obrigatório');
-    }
-    
-    if (!product.descricao?.trim()) {
-      errors.push('Descrição é obrigatória');
-    }
-    
+  // Validação simples de produto
+  const validateProduct = (product) => {
+    if (!product.nome?.trim()) throw new Error('Nome é obrigatório');
+    if (!product.descricao?.trim()) throw new Error('Descrição é obrigatória');
     if (!product.preco || isNaN(product.preco) || product.preco <= 0) {
-      errors.push('Preço deve ser um número maior que zero');
+      throw new Error('Preço deve ser um número maior que zero');
     }
+    if (!product.imagem?.trim()) throw new Error('URL da imagem é obrigatória');
     
-    if (!product.imagem?.trim()) {
-      errors.push('URL da imagem é obrigatória');
-    }
-
-    // Validação de URL da imagem
     try {
       new URL(product.imagem);
     } catch {
-      errors.push('URL da imagem inválida');
+      throw new Error('URL da imagem inválida');
     }
-
-    if (errors.length > 0) {
-      throw new Error(errors.join(', '));
-    }
-
-    // Sanitização
-    return {
-      ...product,
-      nome: securityUtils.sanitizeInput(product.nome.trim()),
-      descricao: securityUtils.sanitizeInput(product.descricao.trim()),
-      preco: parseFloat(product.preco),
-      categoria: securityUtils.sanitizeInput(product.categoria),
-      imagem: securityUtils.sanitizeInput(product.imagem.trim()),
-      disponivel: Boolean(product.disponivel),
-      estoque: parseInt(product.estoque) || 100
-    };
   };
 
-  // Função para salvar produtos com validação
-  const saveProductsSecure = (newProducts) => {
-    return requireAuth(() => {
-      try {
-        // Validação da estrutura
-        if (!Array.isArray(newProducts)) {
-          throw new Error('Formato de produtos inválido');
-        }
-
-        // Valida cada produto
-        const validatedProducts = newProducts.map(validateAndSanitizeProduct);
-
-        localStorage.setItem('adminProdutos', JSON.stringify(validatedProducts));
-        setProdutos(validatedProducts);
-        
-        securityUtils.safeLog('Produtos salvos com sucesso', { 
-          count: validatedProducts.length 
-        });
-        
-        return true;
-      } catch (error) {
-        securityUtils.safeLog('Erro ao salvar produtos:', error.message);
-        alert(`Erro ao salvar produtos: ${error.message}`);
-        return false;
-      }
-    });
-  };
-
-  // Função para adicionar/editar produto com segurança
-  const handleProductSubmitSecure = async (e) => {
+  // Funções de produto simplificadas
+  const handleProductSubmit = async (e) => {
     e.preventDefault();
     
-    return requireAuth(() => {
-      try {
-        const sanitizedForm = {
-          nome: securityUtils.sanitizeInput(productForm.nome),
-          descricao: securityUtils.sanitizeInput(productForm.descricao),
-          preco: productForm.preco,
-          categoria: productForm.categoria,
-          imagem: productForm.imagem,
-          disponivel: productForm.disponivel,
-          estoque: productForm.estoque
-        };
-
-        const validatedProduct = validateAndSanitizeProduct(sanitizedForm);
-        
-        let produtosAtualizados;
-        
-        if (editingProduct) {
-          const novoProduto = {
-            ...editingProduct,
-            ...validatedProduct
-          };
-          
-          produtosAtualizados = produtos.map(p => 
-            p.id === editingProduct.id ? novoProduto : p
-          );
-          
-          alert('Produto atualizado com sucesso!');
-          setEditingProduct(null);
-        } else {
-          const novoId = produtos.length > 0 ? Math.max(...produtos.map(p => p.id)) + 1 : 1;
-          
-          const novoProduto = {
-            id: novoId,
-            ...validatedProduct
-          };
-          
-          produtosAtualizados = [...produtos, novoProduto];
-          alert('Produto adicionado com sucesso!');
-        }
-        
-        if (saveProductsSecure(produtosAtualizados)) {
-          // Reset form apenas se salvou com sucesso
-          setProductForm({
-            nome: '',
-            descricao: '',
-            preco: '',
-            categoria: 'fitness',
-            imagem: '',
-            disponivel: true,
-            estoque: 100
-          });
-          
-          setShowAddProduct(false);
-        }
-        
-      } catch (error) {
-        securityUtils.safeLog('Erro ao processar produto:', error.message);
-        alert(`Erro ao processar produto: ${error.message}`);
-      }
-    });
-  };
-
-  // Função para deletar produto com confirmação dupla
-  const deleteProductSecure = (id) => {
-    return requireAuth(() => {
-      const produto = produtos.find(p => p.id === id);
-      if (!produto) {
-        alert('Produto não encontrado');
-        return;
-      }
-
-      const confirmacao1 = window.confirm(`Tem certeza que deseja excluir "${produto.nome}"?`);
-      if (!confirmacao1) return;
-
-      const confirmacao2 = window.confirm('Esta ação não pode ser desfeita. Confirmar exclusão?');
-      if (!confirmacao2) return;
-
-      try {
-        const produtosAtualizados = produtos.filter(p => p.id !== id);
-        if (saveProductsSecure(produtosAtualizados)) {
-          alert('Produto excluído com sucesso!');
-        }
-      } catch (error) {
-        securityUtils.safeLog('Erro ao excluir produto:', error.message);
-        alert('Erro ao excluir produto. Tente novamente.');
-      }
-    });
-  };
-
-  // Toggle de disponibilidade seguro
-  const toggleProductAvailabilitySecure = (id) => {
-    return requireAuth(() => {
-      try {
-        const produtosAtualizados = produtos.map(p => 
-          p.id === id ? { ...p, disponivel: !p.disponivel } : p
+    try {
+      validateProduct(productForm);
+      
+      const productData = {
+        nome: productForm.nome.trim(),
+        descricao: productForm.descricao.trim(),
+        preco: parseFloat(productForm.preco),
+        categoria: productForm.categoria,
+        imagem: productForm.imagem.trim(),
+        disponivel: productForm.disponivel,
+        estoque: parseInt(productForm.estoque) || 100
+      };
+      
+      let produtosAtualizados;
+      
+      if (editingProduct) {
+        const novoProduto = { ...editingProduct, ...productData };
+        produtosAtualizados = produtos.map(p => 
+          p.id === editingProduct.id ? novoProduto : p
         );
-        
-        if (saveProductsSecure(produtosAtualizados)) {
-          const produto = produtos.find(p => p.id === id);
-          alert(`Produto ${produto.disponivel ? 'desativado' : 'ativado'} com sucesso!`);
-        }
-      } catch (error) {
-        securityUtils.safeLog('Erro ao alterar disponibilidade:', error.message);
-        alert('Erro ao alterar disponibilidade. Tente novamente.');
+        alert('Produto atualizado com sucesso!');
+        setEditingProduct(null);
+      } else {
+        const novoId = produtos.length > 0 ? Math.max(...produtos.map(p => p.id)) + 1 : 1;
+        const novoProduto = { id: novoId, ...productData };
+        produtosAtualizados = [...produtos, novoProduto];
+        alert('Produto adicionado com sucesso!');
       }
-    });
+      
+      localStorage.setItem('adminProdutos', JSON.stringify(produtosAtualizados));
+      setProdutos(produtosAtualizados);
+      
+      // Reset form
+      setProductForm({
+        nome: '',
+        descricao: '',
+        preco: '',
+        categoria: 'fitness',
+        imagem: '',
+        disponivel: true,
+        estoque: 100
+      });
+      setShowAddProduct(false);
+      
+    } catch (error) {
+      alert(`Erro: ${error.message}`);
+    }
+  };
+
+  const deleteProduct = (id) => {
+    const produto = produtos.find(p => p.id === id);
+    if (!produto) return;
+
+    if (window.confirm(`Tem certeza que deseja excluir "${produto.nome}"?`)) {
+      const produtosAtualizados = produtos.filter(p => p.id !== id);
+      localStorage.setItem('adminProdutos', JSON.stringify(produtosAtualizados));
+      setProdutos(produtosAtualizados);
+      alert('Produto excluído com sucesso!');
+    }
+  };
+
+  const toggleProductAvailability = (id) => {
+    const produtosAtualizados = produtos.map(p => 
+      p.id === id ? { ...p, disponivel: !p.disponivel } : p
+    );
+    localStorage.setItem('adminProdutos', JSON.stringify(produtosAtualizados));
+    setProdutos(produtosAtualizados);
   };
 
   const editProduct = (produto) => {
@@ -479,23 +311,21 @@ const AdminPage = ({ onNavigate }) => {
   };
 
   const alterarStatusPedido = (pedidoId, novoStatus) => {
-    return requireAuth(() => {
-      try {
-        const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
-        const pedidosAtualizados = pedidosAdmin.map(pedido => 
-          pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
-        );
-        
-        localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAtualizados));
-        loadPedidos();
-        
-        const statusInfo = statusPedidos.find(s => s.value === novoStatus);
-        alert(`Status alterado para: ${statusInfo.label}`);
-      } catch (error) {
-        console.error('Erro ao alterar status:', error);
-        alert('Erro ao alterar status do pedido');
-      }
-    });
+    try {
+      const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
+      const pedidosAtualizados = pedidosAdmin.map(pedido => 
+        pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
+      );
+      
+      localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAtualizados));
+      loadPedidos();
+      
+      const statusInfo = statusPedidos.find(s => s.value === novoStatus);
+      alert(`Status alterado para: ${statusInfo.label}`);
+    } catch (error) {
+      console.error('Erro ao alterar status:', error);
+      alert('Erro ao alterar status do pedido');
+    }
   };
 
   const getStatusInfo = (status) => {
@@ -503,20 +333,18 @@ const AdminPage = ({ onNavigate }) => {
   };
 
   const toggleEmpresaAtiva = async (empresaId, ativo) => {
-    return requireAuth(async () => {
-      try {
-        const resultado = await authSupabaseService.toggleEmpresaAtiva(empresaId, !ativo);
-        if (resultado.success) {
-          alert(resultado.message);
-          loadEmpresasCadastradas();
-        } else {
-          alert(`Erro: ${resultado.error}`);
-        }
-      } catch (error) {
-        console.error('Erro ao alterar status da empresa:', error);
-        alert('Erro ao alterar status da empresa');
+    try {
+      const resultado = await authSupabaseService.toggleEmpresaAtiva(empresaId, !ativo);
+      if (resultado.success) {
+        alert(resultado.message);
+        loadEmpresasCadastradas();
+      } else {
+        alert(`Erro: ${resultado.error}`);
       }
-    });
+    } catch (error) {
+      console.error('Erro ao alterar status da empresa:', error);
+      alert('Erro ao alterar status da empresa');
+    }
   };
 
   const formatarEmail = (email) => {
@@ -524,58 +352,54 @@ const AdminPage = ({ onNavigate }) => {
     return email;
   };
 
-  // ===== VERIFICAÇÃO DE AUTENTICAÇÃO COM FUNÇÕES JÁ DEFINIDAS =====
+  // Verificação inicial de autenticação
   useEffect(() => {
-    const checkAuthentication = () => {
-      console.log('🔐 Verificando autenticação admin...');
+    const initAuth = async () => {
+      setLoading(true);
+      const isAuth = await checkAdminAuth();
       
-      const preAuth = sessionStorage.getItem('adminPreAuthenticated');
-      
-      if (preAuth) {
-        try {
-          const { timestamp } = JSON.parse(preAuth);
-          if (Date.now() - timestamp < 30 * 60 * 1000) {
-            console.log('✅ Pré-autenticação válida encontrada');
-            setAdminAuth({ isAuthenticated: true, attempts: 0, lockedUntil: null });
-            sessionStorage.removeItem('adminPreAuthenticated');
-            
-            sessionStorage.setItem('adminAuthenticated', JSON.stringify({
-              timestamp: Date.now()
-            }));
-            
-            // Agora as funções estão definidas, pode chamar
-            console.log('📊 Carregando dados do admin...');
-            return true; // Sucesso na autenticação
-          } else {
-            console.log('⏰ Pré-autenticação expirada');
-            sessionStorage.removeItem('adminPreAuthenticated');
-          }
-        } catch (error) {
-          console.error('❌ Erro na pré-autenticação:', error);
-          sessionStorage.removeItem('adminPreAuthenticated');
-        }
+      if (!isAuth) {
+        console.log('🚫 Redirecionando para home...');
+        onNavigate('home');
+        return;
       }
-
-      console.log('🚫 Acesso admin não autorizado, redirecionando...');
-      onNavigate('home');
-      return false;
+      
+      setLoading(false);
     };
 
-    checkAuthentication();
-  }, [onNavigate]);
+    initAuth();
+  }, [checkAdminAuth, onNavigate]);
 
-  // ===== CARREGAMENTO DE DADOS QUANDO AUTENTICADO =====
+  // Carregamento de dados quando autenticado
   useEffect(() => {
-    if (adminAuth.isAuthenticated) {
-      console.log('📊 Admin autenticado, carregando dados...');
+    if (isAuthenticated && !loading) {
+      console.log('📊 Carregando dados do admin...');
       loadProducts();
       loadPedidos();
       loadEmpresasCadastradas();
     }
-  }, [adminAuth.isAuthenticated, loadProducts, loadPedidos, loadEmpresasCadastradas]);
+  }, [isAuthenticated, loading, loadProducts, loadPedidos, loadEmpresasCadastradas]);
 
-  // Se não está autenticado, não renderiza nada (já redirecionou)
-  if (!adminAuth.isAuthenticated) {
+  // Loading state
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        fontFamily: 'Arial, sans-serif',
+        flexDirection: 'column',
+        gap: '20px'
+      }}>
+        <div style={{ fontSize: '48px' }}>🔄</div>
+        <div style={{ fontSize: '18px', color: '#666' }}>Verificando acesso admin...</div>
+      </div>
+    );
+  }
+
+  // Se não autenticado, não renderiza (já redirecionou)
+  if (!isAuthenticated) {
     return null;
   }
 
@@ -586,6 +410,7 @@ const AdminPage = ({ onNavigate }) => {
       backgroundColor: '#f8f9fa',
       minHeight: '100vh'
     }}>
+      {/* Header */}
       <div style={{
         background: '#343a40',
         color: 'white',
@@ -602,7 +427,7 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         </div>
         <button 
-          onClick={logoutAdmin}
+          onClick={handleLogout}
           style={{
             backgroundColor: '#dc3545',
             color: 'white',
@@ -617,6 +442,7 @@ const AdminPage = ({ onNavigate }) => {
         </button>
       </div>
 
+      {/* Tabs */}
       <div style={{
         backgroundColor: 'white',
         borderBottom: '1px solid #dee2e6',
@@ -649,11 +475,13 @@ const AdminPage = ({ onNavigate }) => {
         </div>
       </div>
 
+      {/* Content */}
       <div style={{
         padding: '30px 40px',
         maxWidth: '1200px',
         margin: '0 auto'
       }}>
+        {/* Dashboard Tab */}
         {activeTab === 'dashboard' && (
           <div>
             <h1 style={{ color: '#343a40', marginBottom: '30px' }}>📊 Dashboard</h1>
@@ -735,6 +563,7 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
+        {/* Produtos Tab */}
         {activeTab === 'produtos' && (
           <div>
             <div style={{
@@ -771,6 +600,8 @@ const AdminPage = ({ onNavigate }) => {
                 ➕ Adicionar Produto
               </button>
             </div>
+
+            {/* Form de adicionar/editar produto */}
             {showAddProduct && (
               <div style={{
                 backgroundColor: 'white',
@@ -782,7 +613,7 @@ const AdminPage = ({ onNavigate }) => {
                 <h2 style={{ color: '#009245', marginBottom: '25px' }}>
                   {editingProduct ? '✏️ Editar Produto' : '➕ Adicionar Novo Produto'}
                 </h2>
-                <form onSubmit={handleProductSubmitSecure}>
+                <form onSubmit={handleProductSubmit}>
                   <div style={{
                     display: 'grid',
                     gridTemplateColumns: '1fr 1fr',
@@ -970,6 +801,8 @@ const AdminPage = ({ onNavigate }) => {
                 </form>
               </div>
             )}
+
+            {/* Lista de produtos */}
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
@@ -1048,7 +881,7 @@ const AdminPage = ({ onNavigate }) => {
                         ✏️ Editar
                       </button>
                       <button
-                        onClick={() => toggleProductAvailabilitySecure(produto.id)}
+                        onClick={() => toggleProductAvailability(produto.id)}
                         style={{
                           backgroundColor: produto.disponivel ? '#ffc107' : '#28a745',
                           color: produto.disponivel ? '#000' : 'white',
@@ -1062,7 +895,7 @@ const AdminPage = ({ onNavigate }) => {
                         {produto.disponivel ? '⏸️' : '▶️'}
                       </button>
                       <button
-                        onClick={() => deleteProductSecure(produto.id)}
+                        onClick={() => deleteProduct(produto.id)}
                         style={{
                           backgroundColor: '#dc3545',
                           color: 'white',
@@ -1083,6 +916,7 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
+        {/* Pedidos Tab */}
         {activeTab === 'pedidos' && (
           <div>
             <div style={{
@@ -1268,6 +1102,7 @@ const AdminPage = ({ onNavigate }) => {
           </div>
         )}
 
+        {/* Empresas Tab */}
         {activeTab === 'empresas' && (
           <div>
             <h1 style={{ color: '#343a40', marginBottom: '30px' }}>🏢 Empresas Cadastradas</h1>
@@ -1383,28 +1218,6 @@ const AdminPage = ({ onNavigate }) => {
                         }}>
                           {empresa.email ? '📧 COM EMAIL' : '⚠️ SEM EMAIL'}
                         </span>
-                        <span style={{
-                          backgroundColor: empresa.nome_empresa ? '#17a2b8' : '#6c757d',
-                          color: 'white',
-                          padding: '4px 8px',
-                          borderRadius: '12px',
-                          fontSize: '12px',
-                          fontWeight: 'bold'
-                        }}>
-                          {empresa.nome_empresa ? '🏢 COM NOME' : '📝 SEM NOME'}
-                        </span>
-                        {empresa.tentativas_login > 0 && (
-                          <span style={{
-                            backgroundColor: '#ffc107',
-                            color: '#000',
-                            padding: '4px 8px',
-                            borderRadius: '12px',
-                            fontSize: '12px',
-                            fontWeight: 'bold'
-                          }}>
-                            {empresa.tentativas_login} tentativas inválidas
-                          </span>
-                        )}
                         <button
                           onClick={() => toggleEmpresaAtiva(empresa.id, empresa.ativo)}
                           style={{
@@ -1428,7 +1241,6 @@ const AdminPage = ({ onNavigate }) => {
             )}
           </div>
         )}
-        
       </div>
     </div>
   );
