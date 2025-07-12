@@ -19,26 +19,37 @@ const ProsseguirPage = ({ onNavigate }) => {
     const verificarSessaoAtiva = async () => {
       try {
         setLoading(true);
+        console.log('🔍 Verificando sessão do usuário...');
         const sessao = await authSupabaseService.verificarSessao();
         
-        if (!sessao) {
-          alert('Sessão expirada. Faça login novamente.');
+        // Verifica se é o formato padrão do Supabase (data.session)
+        const sessaoValida = sessao?.data?.session || sessao;
+        
+        if (!sessaoValida) {
+          console.warn('⚠️ Sessão inválida ou expirada. Redirecionando para home.');
           onNavigate('home');
+          setLoading(false);
           return;
         }
         
-        setSessaoAtiva(sessao);
-        setIsAdmin(sessao.isAdmin || false); 
+        // Extrai dados do usuário
+        const userData = sessaoValida.user?.user_metadata || sessaoValida;
+        const userIsAdmin = userData.tipo_usuario === 'admin' || userData.isAdmin;
         
-        console.log('📋 Sessão verificada:', {
-          cnpj: sessao.cnpjFormatado,
-          empresa: sessao.nomeEmpresa,
-          isAdmin: sessao.isAdmin
+        setSessaoAtiva({
+          ...userData,
+          isAdmin: userIsAdmin,
+        });
+        setIsAdmin(userIsAdmin);
+        
+        console.log('✅ Sessão verificada com sucesso:', {
+          cnpj: userData.cnpjFormatado || userData.cnpj,
+          empresa: userData.nomeEmpresa || userData.razaoSocial,
+          isAdmin: userIsAdmin
         });
         
       } catch (error) {
-        console.error('❌ Erro ao verificar sessão:', error);
-        alert('Erro ao verificar sessão. Faça login novamente.');
+        console.error('❌ Erro crítico ao verificar sessão:', error);
         onNavigate('home');
       } finally {
         setLoading(false);
@@ -78,22 +89,26 @@ const ProsseguirPage = ({ onNavigate }) => {
   };
 
   const handleAdminAccess = () => {
-    if (!isAdmin || !sessaoAtiva.isAdmin) {
-      alert('Acesso negado. Você não tem privilégios de administrador.');
+    if (!isAdmin || !sessaoAtiva?.isAdmin) {
+      console.warn('🚫 Tentativa de acesso administrativo negada:', {
+        cnpj: sessaoAtiva?.cnpjFormatado || sessaoAtiva?.cnpj,
+        isAdmin: isAdmin,
+        sessaoIsAdmin: sessaoAtiva?.isAdmin
+      });
       return;
     }
 
     console.log('✅ Acesso admin autorizado:', {
-      cnpj: sessaoAtiva.cnpjFormatado,
-      empresa: sessaoAtiva.nomeEmpresa,
-      tipoUsuario: sessaoAtiva.tipoUsuario
+      cnpj: sessaoAtiva.cnpjFormatado || sessaoAtiva.cnpj,
+      empresa: sessaoAtiva.nomeEmpresa || sessaoAtiva.razaoSocial,
+      tipoUsuario: sessaoAtiva.tipoUsuario || sessaoAtiva.tipo_usuario
     });
   
     sessionStorage.setItem('adminPreAuthenticated', JSON.stringify({
-      cnpj: sessaoAtiva.cnpjFormatado,
+      cnpj: sessaoAtiva.cnpjFormatado || sessaoAtiva.cnpj,
       timestamp: Date.now(),
-      empresa: sessaoAtiva.nomeEmpresa,
-      tipoUsuario: sessaoAtiva.tipoUsuario
+      empresa: sessaoAtiva.nomeEmpresa || sessaoAtiva.razaoSocial,
+      tipoUsuario: sessaoAtiva.tipoUsuario || sessaoAtiva.tipo_usuario
     }));
   
     onNavigate('admin');
@@ -103,9 +118,10 @@ const ProsseguirPage = ({ onNavigate }) => {
     if (window.confirm('Tem certeza que deseja sair?')) {
       try {
         await authSupabaseService.logout();
+        console.log('✅ Logout realizado com sucesso');
         onNavigate('home');
       } catch (error) {
-        console.error('Erro no logout:', error);
+        console.error('❌ Erro no logout:', error);
         onNavigate('home');
       }
     }
