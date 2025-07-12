@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../contexts/AuthContext'; // Importa o hook de autenticação
 import { authSupabaseService } from '../services/authSupabaseService';
 import ImageUpload from './ImageUpload';
 
@@ -6,12 +7,8 @@ import ImageUpload from './ImageUpload';
 const securityUtils = {
   sanitizeInput: (input) => {
     if (!input || typeof input !== 'string') return '';
-    return input
-      .replace(/[<>\"']/g, '') // Remove caracteres perigosos
-      .trim()
-      .slice(0, 500); // Limita tamanho
+    return input.replace(/[<>\"']/g, '').trim().slice(0, 500);
   },
-  
   safeLog: (message, data = null) => {
     if (process.env.NODE_ENV === 'development') {
       console.log(`[ADMIN] ${message}`, data);
@@ -20,6 +17,7 @@ const securityUtils = {
 };
 
 const AdminPage = ({ onNavigate }) => {
+  // Estados da UI
   const [activeTab, setActiveTab] = useState('dashboard');
   const [produtos, setProdutos] = useState([]);
   const [pedidos, setPedidos] = useState([]);
@@ -27,15 +25,6 @@ const AdminPage = ({ onNavigate }) => {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
-  
-  // ✅ SISTEMA DE AUTENTICAÇÃO ADMIN MELHORADO
-  const [adminAuth, setAdminAuth] = useState({
-    isAuthenticated: false,
-    attempts: 0,
-    lockedUntil: null,
-    authMethod: null,
-    user: null
-  });
   
   const [productForm, setProductForm] = useState({
     nome: '',
@@ -65,7 +54,10 @@ const AdminPage = ({ onNavigate }) => {
     { value: 'cancelado', label: 'Cancelado', color: '#dc3545', icon: '❌' }
   ];
 
-  // ===== FUNÇÕES DEFINIDAS COM useCallback PARA EVITAR PROBLEMAS DE HOISTING =====
+  // Usa o contexto para obter informações da sessão e a função de logout
+  const { sessionInfo, isAdmin, logout } = useAuth();
+
+  // ===== FUNÇÕES DE CARREGAMENTO DE DADOS =====
 
   const loadEmpresasCadastradas = useCallback(async () => {
     try {
@@ -177,111 +169,37 @@ const AdminPage = ({ onNavigate }) => {
     saveProductsSecure(produtosIniciais);
   }, []);
 
-  // ✅ Verificação otimizada de autenticação admin
-  const checkAdminAuthentication = useCallback(() => {
-    console.log('🔐 Verificando autenticação admin...');
-    
-    try {
-      // ✅ Verifica pré-autenticação (mais prioritária)
-      const preAuth = sessionStorage.getItem('adminPreAuthenticated');
-      
-      if (preAuth) {
-        const { timestamp, authMethod, cnpj, empresa } = JSON.parse(preAuth);
-        
-        // ✅ Verifica se ainda é válida (30 minutos)
-        if (Date.now() - timestamp < 30 * 60 * 1000) {
-          console.log('✅ Pré-autenticação válida encontrada');
-          
-          setAdminAuth({
-            isAuthenticated: true,
-            attempts: 0,
-            lockedUntil: null,
-            authMethod: authMethod || 'pre-auth',
-            user: { cnpj, empresa }
-          });
-          
-          // Remove pré-autenticação e cria autenticação persistente
-          sessionStorage.removeItem('adminPreAuthenticated');
-          sessionStorage.setItem('adminAuthenticated', JSON.stringify({
-            timestamp: Date.now(),
-            authMethod,
-            cnpj,
-            empresa
-          }));
-          
-          return true;
-        } else {
-          console.log('⏰ Pré-autenticação expirada');
-          sessionStorage.removeItem('adminPreAuthenticated');
-        }
-      }
-
-      // ✅ Verifica autenticação persistente
-      const auth = sessionStorage.getItem('adminAuthenticated');
-      
-      if (auth) {
-        const { timestamp, authMethod, cnpj, empresa } = JSON.parse(auth);
-        
-        // ✅ Verifica se ainda é válida (2 horas)
-        if (Date.now() - timestamp < 2 * 60 * 60 * 1000) {
-          console.log('✅ Autenticação admin válida encontrada');
-          
-          setAdminAuth({
-            isAuthenticated: true,
-            attempts: 0,
-            lockedUntil: null,
-            authMethod: authMethod || 'session',
-            user: { cnpj, empresa }
-          });
-          
-          return true;
-        } else {
-          console.log('⏰ Autenticação admin expirada');
-          sessionStorage.removeItem('adminAuthenticated');
-        }
-      }
-
-      console.log('🚫 Acesso admin não autorizado, redirecionando...');
-      return false;
-
-    } catch (error) {
-      console.error('❌ Erro na verificação de autenticação admin:', error);
-      // ✅ Limpa dados corrompidos
-      sessionStorage.removeItem('adminPreAuthenticated');
-      sessionStorage.removeItem('adminAuthenticated');
-      return false;
-    }
-  }, []);
-
-  // Middleware de proteção para ações sensíveis
-  const requireAuth = (action) => {
-    if (!adminAuth.isAuthenticated) {
-      alert('Sessão expirada. Faça login novamente.');
+  // Efeito que carrega os dados apenas se o usuário for admin
+  useEffect(() => {
+    if (isAdmin) {
+      securityUtils.safeLog('Admin autenticado. Carregando dados do painel...');
+      loadProducts();
+      loadPedidos();
+      loadEmpresasCadastradas();
+    } else {
+      // Se um não-admin chegar aqui, redireciona por segurança
+      securityUtils.safeLog('Acesso negado à página de admin.');
       onNavigate('home');
+    }
+  }, [isAdmin, onNavigate, loadProducts, loadPedidos, loadEmpresasCadastradas]);
+
+  const handleLogout = () => {
+    logout(); // Chama a função de logout do contexto
+    onNavigate('home');
+  };
+
+  // Middleware de proteção simplificado que confia no `isAdmin` do contexto
+  const requireAuth = (action) => {
+    if (!isAdmin) {
+      alert('Sessão expirada ou permissão negada. Faça login novamente.');
+      handleLogout();
       return false;
     }
     return action();
   };
 
-  // Logout admin
-  const logoutAdmin = () => {
-    setAdminAuth({
-      isAuthenticated: false,
-      attempts: 0,
-      lockedUntil: null,
-      authMethod: null,
-      user: null
-    });
-    
-    // ✅ Limpa todas as autenticações
-    sessionStorage.removeItem('adminPreAuthenticated');
-    sessionStorage.removeItem('adminAuthenticated');
-    
-    onNavigate('home');
-    securityUtils.safeLog('Admin logout realizado');
-  };
+  // ===== FUNÇÕES DE MANIPULAÇÃO DE PRODUTOS =====
 
-  // Validação de produtos com sanitização
   const validateAndSanitizeProduct = (product) => {
     const errors = [];
     
@@ -325,7 +243,6 @@ const AdminPage = ({ onNavigate }) => {
     };
   };
 
-  // Função para salvar produtos com validação
   const saveProductsSecure = (newProducts) => {
     return requireAuth(() => {
       try {
@@ -353,7 +270,6 @@ const AdminPage = ({ onNavigate }) => {
     });
   };
 
-  // Função para adicionar/editar produto com segurança
   const handleProductSubmitSecure = async (e) => {
     e.preventDefault();
     
@@ -419,7 +335,6 @@ const AdminPage = ({ onNavigate }) => {
     });
   };
 
-  // Função para deletar produto com confirmação dupla
   const deleteProductSecure = (id) => {
     return requireAuth(() => {
       const produto = produtos.find(p => p.id === id);
@@ -446,7 +361,6 @@ const AdminPage = ({ onNavigate }) => {
     });
   };
 
-  // Toggle de disponibilidade seguro
   const toggleProductAvailabilitySecure = (id) => {
     return requireAuth(() => {
       try {
@@ -479,6 +393,8 @@ const AdminPage = ({ onNavigate }) => {
     setShowAddProduct(true);
   };
 
+  // ===== FUNÇÕES DE MANIPULAÇÃO DE PEDIDOS =====
+
   const alterarStatusPedido = (pedidoId, novoStatus) => {
     return requireAuth(() => {
       try {
@@ -503,6 +419,8 @@ const AdminPage = ({ onNavigate }) => {
     return statusPedidos.find(s => s.value === status) || statusPedidos[0];
   };
 
+  // ===== FUNÇÕES DE MANIPULAÇÃO DE EMPRESAS =====
+
   const toggleEmpresaAtiva = async (empresaId, ativo) => {
     return requireAuth(async () => {
       try {
@@ -525,45 +443,41 @@ const AdminPage = ({ onNavigate }) => {
     return email;
   };
 
-  // ===== VERIFICAÇÃO DE AUTENTICAÇÃO COM FUNÇÕES JÁ DEFINIDAS =====
-  useEffect(() => {
-    const isAuthenticated = checkAdminAuthentication();
-    
-    if (!isAuthenticated) {
-      // ✅ Não autenticado, redireciona
-      onNavigate('home');
-    }
-  }, [onNavigate, checkAdminAuthentication]);
-
-  // ===== CARREGAMENTO DE DADOS QUANDO AUTENTICADO =====
-  useEffect(() => {
-    if (adminAuth.isAuthenticated) {
-      console.log('📊 Admin autenticado, carregando dados...');
-      loadProducts();
-      loadPedidos();
-      loadEmpresasCadastradas();
-    }
-  }, [adminAuth.isAuthenticated, loadProducts, loadPedidos, loadEmpresasCadastradas]);
-
-  // Se não está autenticado, não renderiza nada (já redirecionou)
-  if (!adminAuth.isAuthenticated) {
+  // Renderização condicional: se não for admin, mostra uma tela de bloqueio/redirecionamento
+  if (!isAdmin) {
     return (
       <div style={{
         display: 'flex',
+        flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        minHeight: '100vh',
+        height: '100vh',
         fontFamily: 'Arial, sans-serif',
-        flexDirection: 'column',
-        gap: '20px',
         backgroundColor: '#f8f9fa'
       }}>
-        <div style={{ fontSize: '48px' }}>🔐</div>
-        <div style={{ fontSize: '18px', color: '#666' }}>Verificando autenticação...</div>
+        <div style={{ fontSize: '48px', marginBottom: '20px' }}>🔒</div>
+        <h2 style={{ color: '#dc3545', marginBottom: '10px' }}>Acesso Negado</h2>
+        <p style={{ color: '#666', marginBottom: '20px' }}>Você não tem permissão para visualizar esta página.</p>
+        <button 
+          onClick={() => onNavigate('home')} 
+          style={{
+            padding: '12px 24px',
+            backgroundColor: '#007bff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            fontSize: '16px',
+            fontWeight: 'bold'
+          }}
+        >
+          Voltar para Home
+        </button>
       </div>
     );
   }
 
+  // JSX da página de Admin (completo)
   return (
     <div style={{
       margin: 0,
@@ -584,43 +498,24 @@ const AdminPage = ({ onNavigate }) => {
           <div>
             <h2 style={{ margin: 0, fontSize: '24px' }}>Fit In Box Admin</h2>
             <small style={{ color: '#adb5bd' }}>
-              Painel Administrativo
-              {adminAuth.user && (
-                <span style={{ marginLeft: '10px', color: '#ffc107' }}>
-                  • {adminAuth.user.empresa || adminAuth.user.cnpj}
-                </span>
-              )}
+              Painel Administrativo • {sessionInfo?.empresa?.nome_empresa || sessionInfo?.nomeEmpresa || sessionInfo?.user?.email || 'Admin'}
             </small>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          {adminAuth.authMethod && (
-            <span style={{
-              backgroundColor: adminAuth.authMethod === 'password' ? '#dc3545' : '#28a745',
-              color: 'white',
-              padding: '4px 8px',
-              borderRadius: '12px',
-              fontSize: '12px',
-              fontWeight: 'bold'
-            }}>
-              {adminAuth.authMethod === 'password' ? '🔐 SENHA' : '✅ AUTORIZADO'}
-            </span>
-          )}
-          <button 
-            onClick={logoutAdmin}
-            style={{
-              backgroundColor: '#dc3545',
-              color: 'white',
-              border: 'none',
-              padding: '10px 20px',
-              borderRadius: '5px',
-              cursor: 'pointer',
-              fontWeight: 'bold'
-            }}
-          >
-            🚪 Sair
-          </button>
-        </div>
+        <button 
+          onClick={handleLogout} 
+          style={{
+            backgroundColor: '#dc3545',
+            color: 'white',
+            border: 'none',
+            padding: '10px 20px',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
+          🚪 Sair
+        </button>
       </div>
 
       <div style={{
@@ -777,6 +672,7 @@ const AdminPage = ({ onNavigate }) => {
                 ➕ Adicionar Produto
               </button>
             </div>
+            
             {showAddProduct && (
               <div style={{
                 backgroundColor: 'white',
@@ -976,6 +872,7 @@ const AdminPage = ({ onNavigate }) => {
                 </form>
               </div>
             )}
+            
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
@@ -1434,7 +1331,6 @@ const AdminPage = ({ onNavigate }) => {
             )}
           </div>
         )}
-        
       </div>
     </div>
   );

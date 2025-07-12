@@ -1,91 +1,74 @@
-// src/components/ConsultaPedidosPage.jsx
 import React, { useState, useEffect } from 'react';
-import { authSupabaseService } from '../services/authSupabaseService';
+import { useAuth } from '../contexts/AuthContext'; // Importa o hook de autenticação
 import { pedidoService } from '../services/pedidoService';
 
 const ConsultaPedidosPage = ({ onNavigate }) => {
   const [pedidos, setPedidos] = useState([]);
-  const [filtros, setFiltros] = useState({
-    status: 'todos',
-    dataInicio: '',
-    dataFim: '',
-    periodo: '30'
-  });
   const [loading, setLoading] = useState(true);
-  const [sessaoAtiva, setSessaoAtiva] = useState(null);
+  const [filtros, setFiltros] = useState({ status: 'todos', periodo: '30' });
   const [selectedPedido, setSelectedPedido] = useState(null);
   const [showDetalhes, setShowDetalhes] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [stats, setStats] = useState({
-    totalPedidos: 0,
-    valorTotal: 0,
-    ultimoPedido: null
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [stats, setStats] = useState({ 
+    totalPedidos: 0, 
+    valorTotal: 0, 
+    ultimoPedido: null,
+    pedidosUltimos30Dias: 0,
+    ticketMedio: 0
   });
 
+  // Obtém a sessão e a função de logout do contexto
+  const { sessionInfo, logout, isAuthenticated } = useAuth();
+
   const statusPedidos = [
-    { value: 'todos', label: 'Todos os Status', color: '#6c757d' },
-    { value: 'enviado', label: 'Enviado', color: '#007bff' },
-    { value: 'a_preparar', label: 'A Preparar', color: '#ffc107' },
-    { value: 'em_producao', label: 'Em Produção', color: '#fd7e14' },
-    { value: 'pronto_entrega', label: 'Pronto p/ Entrega', color: '#28a745' },
-    { value: 'entregue', label: 'Entregue', color: '#6c757d' },
-    { value: 'cancelado', label: 'Cancelado', color: '#dc3545' }
+    { value: 'todos', label: 'Todos os Status', color: '#6c757d', icon: '📋' },
+    { value: 'enviado', label: 'Enviado', color: '#17a2b8', icon: '📤' },
+    { value: 'a_preparar', label: 'A Preparar', color: '#ffc107', icon: '⏳' },
+    { value: 'em_producao', label: 'Em Produção', color: '#007bff', icon: '👨‍🍳' },
+    { value: 'pronto_entrega', label: 'Pronto para Entrega', color: '#28a745', icon: '📦' },
+    { value: 'entregue', label: 'Entregue', color: '#6c757d', icon: '✅' },
+    { value: 'cancelado', label: 'Cancelado', color: '#dc3545', icon: '❌' }
+  ];
+
+  const periodoOptions = [
+    { value: '7', label: 'Últimos 7 dias' },
+    { value: '30', label: 'Últimos 30 dias' },
+    { value: '90', label: 'Últimos 90 dias' },
+    { value: '365', label: 'Último ano' },
+    { value: 'todos', label: 'Todos os períodos' }
   ];
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
-    checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Efeito para carregar os pedidos usando a sessão do contexto
   useEffect(() => {
-    // Verifica sessão
-    const sessao = authSupabaseService.verificarSessao();
-    if (!sessao) {
+    if (isAuthenticated && sessionInfo?.cnpj) {
+      carregarPedidos();
+    } else if (!isAuthenticated) {
+      // Se o usuário não estiver autenticado, redireciona
       alert('Sessão expirada. Faça login novamente.');
       onNavigate('home');
-      return;
     }
-    setSessaoAtiva(sessao);
-    
-    carregarPedidos(sessao);
-  }, [onNavigate]);
+  }, [isAuthenticated, sessionInfo, onNavigate]);
 
-  const carregarPedidos = async (sessao) => {
+  const carregarPedidos = async () => {
     setLoading(true);
     try {
-      // Carrega pedidos do banco Supabase
-      const pedidosSupabase = await pedidoService.buscarPedidosPorEmpresa(sessao.cnpj);
+      console.log('🔍 Carregando pedidos para CNPJ:', sessionInfo?.cnpj);
       
-      // Carrega também pedidos locais (localStorage) para compatibilidade
-      const pedidosLocais = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]')
-        .filter(p => p.cnpj === sessao.cnpj)
-        .map(p => ({
-          ...p,
-          origem: 'local'
-        }));
+      const pedidosDoBanco = await pedidoService.buscarPedidosPorEmpresa(sessionInfo.cnpj);
+      const pedidosOrdenados = pedidosDoBanco.sort((a, b) => new Date(b.data) - new Date(a.data));
       
-      // Combina pedidos (prioriza Supabase)
-      const todosPedidos = [...pedidosSupabase, ...pedidosLocais];
+      setPedidos(pedidosOrdenados);
+      calcularEstatisticas(pedidosOrdenados);
       
-      // Remove duplicatas baseado no número do pedido
-      const pedidosUnicos = todosPedidos.reduce((acc, pedido) => {
-        const existing = acc.find(p => p.numero === pedido.numero);
-        if (!existing) {
-          acc.push(pedido);
-        }
-        return acc;
-      }, []);
-      
-      // Ordena por data (mais recente primeiro)
-      pedidosUnicos.sort((a, b) => new Date(b.data) - new Date(a.data));
-      
-      setPedidos(pedidosUnicos);
-      calcularEstatisticas(pedidosUnicos);
-      
+      console.log(`✅ ${pedidosOrdenados.length} pedidos carregados`);
     } catch (error) {
-      console.error('Erro ao carregar pedidos:', error);
+      console.error('❌ Erro ao carregar pedidos:', error);
       alert('Erro ao carregar pedidos. Tente novamente.');
     } finally {
       setLoading(false);
@@ -93,18 +76,36 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
   };
 
   const calcularEstatisticas = (pedidosList) => {
-    if (pedidosList.length === 0) {
-      setStats({ totalPedidos: 0, valorTotal: 0, ultimoPedido: null });
+    if (!pedidosList || pedidosList.length === 0) {
+      setStats({
+        totalPedidos: 0,
+        valorTotal: 0,
+        ultimoPedido: null,
+        pedidosUltimos30Dias: 0,
+        ticketMedio: 0
+      });
       return;
     }
 
-    const valorTotal = pedidosList.reduce((sum, p) => sum + (p.total || 0), 0);
-    const ultimoPedido = pedidosList[0]; // Já ordenado por data
+    const totalPedidos = pedidosList.length;
+    const valorTotal = pedidosList.reduce((sum, pedido) => sum + (pedido.total || 0), 0);
+    const ultimoPedido = pedidosList[0]; // Já está ordenado por data desc
+
+    // Pedidos dos últimos 30 dias
+    const trintaDias = new Date();
+    trintaDias.setDate(trintaDias.getDate() - 30);
+    const pedidosUltimos30Dias = pedidosList.filter(p => 
+      new Date(p.data) >= trintaDias
+    ).length;
+
+    const ticketMedio = totalPedidos > 0 ? valorTotal / totalPedidos : 0;
 
     setStats({
-      totalPedidos: pedidosList.length,
+      totalPedidos,
       valorTotal,
-      ultimoPedido
+      ultimoPedido,
+      pedidosUltimos30Dias,
+      ticketMedio
     });
   };
 
@@ -113,7 +114,9 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
 
     // Filtro por status
     if (filtros.status !== 'todos') {
-      pedidosFiltrados = pedidosFiltrados.filter(p => p.status === filtros.status);
+      pedidosFiltrados = pedidosFiltrados.filter(pedido => 
+        pedido.status === filtros.status
+      );
     }
 
     // Filtro por período
@@ -122,41 +125,36 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
       const dataLimite = new Date();
       dataLimite.setDate(dataLimite.getDate() - diasAtras);
       
-      pedidosFiltrados = pedidosFiltrados.filter(p => 
-        new Date(p.data) >= dataLimite
-      );
-    }
-
-    // Filtro por datas específicas
-    if (filtros.dataInicio) {
-      pedidosFiltrados = pedidosFiltrados.filter(p => 
-        new Date(p.data) >= new Date(filtros.dataInicio)
-      );
-    }
-
-    if (filtros.dataFim) {
-      const dataFimAjustada = new Date(filtros.dataFim);
-      dataFimAjustada.setHours(23, 59, 59);
-      pedidosFiltrados = pedidosFiltrados.filter(p => 
-        new Date(p.data) <= dataFimAjustada
+      pedidosFiltrados = pedidosFiltrados.filter(pedido => 
+        new Date(pedido.data) >= dataLimite
       );
     }
 
     return pedidosFiltrados;
   };
 
-  const formatarData = (dataISO) => {
-    return new Date(dataISO).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const formatarData = (dataString) => {
+    try {
+      const data = new Date(dataString);
+      return data.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      return 'Data inválida';
+    }
   };
 
   const getStatusInfo = (status) => {
-    return statusPedidos.find(s => s.value === status) || statusPedidos[0];
+    return statusPedidos.find(s => s.value === status) || {
+      value: status,
+      label: status,
+      color: '#6c757d',
+      icon: '❓'
+    };
   };
 
   const abrirDetalhes = (pedido) => {
@@ -164,115 +162,93 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
     setShowDetalhes(true);
   };
 
-  const baixarComprovante = (pedido) => {
-    const conteudoPDF = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Comprovante Pedido #${pedido.numero}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          .header { text-align: center; margin-bottom: 30px; }
-          .logo { color: #009245; font-size: 24px; font-weight: bold; }
-          .info-box { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; }
-          .item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
-          .total { font-size: 18px; font-weight: bold; color: #009245; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="logo">🍽️ FIT IN BOX</div>
-          <h1>COMPROVANTE DE PEDIDO</h1>
-        </div>
-        
-        <div class="info-box">
-          <strong>Pedido:</strong> #${pedido.numero}<br>
-          <strong>Data:</strong> ${formatarData(pedido.data)}<br>
-          <strong>CNPJ:</strong> ${sessaoAtiva.cnpj}<br>
-          <strong>Status:</strong> ${getStatusInfo(pedido.status).label}
-        </div>
-        
-        <h2>ITENS DO PEDIDO</h2>
-        ${pedido.itens?.map(item => 
-          `<div class="item">
-            <span>${item.quantidade}x ${item.nome}</span>
-            <span>R$ ${(item.quantidade * item.preco).toFixed(2)}</span>
-          </div>`
-        ).join('') || '<p>Itens não disponíveis</p>'}
-        
-        <div class="item total">
-          <span>TOTAL:</span>
-          <span>R$ ${pedido.total.toFixed(2)}</span>
-        </div>
-        
-        ${pedido.enderecoEntrega ? `
-          <div class="info-box">
-            <strong>Endereço de entrega:</strong><br>
-            ${pedido.enderecoEntrega}
-          </div>
-        ` : ''}
-        
-        <div style="text-align: center; margin-top: 30px; color: #666;">
-          <p>Fit In Box - Alimentação Saudável</p>
-          <p>Obrigado pela preferência!</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    const blob = new Blob([conteudoPDF], { type: 'text/html' });
-    const url = window.URL.createObjectURL(blob);
-    const novaJanela = window.open(url, '_blank');
-    novaJanela.onload = () => {
-      setTimeout(() => {
-        novaJanela.print();
-        window.URL.revokeObjectURL(url);
-      }, 500);
-    };
-  };
-
-  const repetirPedido = (pedido) => {
-    if (!pedido.itens || pedido.itens.length === 0) {
-      alert('Não é possível repetir este pedido pois os itens não estão disponíveis.');
-      return;
-    }
-
-    if (window.confirm('Deseja adicionar os itens deste pedido ao carrinho?')) {
-      // Limpa carrinho atual
-      sessionStorage.removeItem('carrinho');
-      
-      // Adiciona itens do pedido ao carrinho
-      sessionStorage.setItem('carrinho', JSON.stringify(pedido.itens));
-      
-      alert('Itens adicionados ao carrinho! Redirecionando...');
-      onNavigate('pedido-produtos');
-    }
+  const fecharDetalhes = () => {
+    setSelectedPedido(null);
+    setShowDetalhes(false);
   };
 
   const handleLogout = () => {
     if (window.confirm('Tem certeza que deseja sair?')) {
-      authSupabaseService.logout();
+      logout(); // Chama a função de logout do contexto
       onNavigate('home');
+    }
+  };
+
+  const exportarPedidos = () => {
+    try {
+      const pedidosFiltrados = aplicarFiltros();
+      const csv = [
+        ['Número', 'Data', 'Status', 'Total', 'Itens'].join(';'),
+        ...pedidosFiltrados.map(pedido => [
+          pedido.numero,
+          formatarData(pedido.data),
+          getStatusInfo(pedido.status).label,
+          `R$ ${pedido.total.toFixed(2)}`,
+          pedido.itens ? pedido.itens.length : 0
+        ].join(';'))
+      ].join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `pedidos_${sessionInfo?.cnpjFormatado?.replace(/\D/g, '')}_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+    } catch (error) {
+      console.error('Erro ao exportar:', error);
+      alert('Erro ao exportar pedidos.');
     }
   };
 
   const pedidosFiltrados = aplicarFiltros();
 
+  // Se não estiver autenticado, mostra tela de acesso negado
+  if (!isAuthenticated) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        fontFamily: 'Arial, sans-serif',
+        backgroundColor: '#f5f5f5'
+      }}>
+        <div style={{ fontSize: '48px', marginBottom: '20px' }}>🔒</div>
+        <h2 style={{ color: '#dc3545', marginBottom: '10px' }}>Acesso Negado</h2>
+        <p style={{ color: '#666', marginBottom: '20px' }}>Faça login para consultar seus pedidos.</p>
+        <button 
+          onClick={() => onNavigate('home')} 
+          style={{
+            padding: '12px 24px',
+            backgroundColor: '#007bff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            fontSize: '16px',
+            fontWeight: 'bold'
+          }}
+        >
+          Fazer Login
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div style={{
-      margin: 0,
-      fontFamily: 'Arial, sans-serif',
-      backgroundColor: '#f5f5f5',
-      minHeight: '100vh'
+    <div style={{ 
+      margin: 0, 
+      fontFamily: 'Arial, sans-serif', 
+      backgroundColor: '#f5f5f5', 
+      minHeight: '100vh' 
     }}>
       {/* Header */}
-      <div style={{
-        background: 'white',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: isMobile ? '15px' : '15px 40px',
+      <div style={{ 
+        background: 'white', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        padding: isMobile ? '15px' : '15px 40px', 
         borderBottom: '1px solid #ccc',
         flexWrap: isMobile ? 'wrap' : 'nowrap'
       }}>
@@ -283,59 +259,58 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
         }}>
           🍽️ Fit In Box
         </div>
-        
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
           gap: isMobile ? '10px' : '20px',
           flexDirection: isMobile ? 'column' : 'row',
           marginTop: isMobile ? '15px' : '0',
           width: isMobile ? '100%' : 'auto'
         }}>
-          <span style={{
-            fontWeight: 'bold',
-            color: '#009245',
-            fontSize: isMobile ? '12px' : '14px',
-            textAlign: 'center'
-          }}>
-            {sessaoAtiva?.razaoSocial || 'Carregando...'}
-          </span>
-          
           <div style={{
-            display: 'flex',
-            gap: '10px',
-            flexDirection: isMobile ? 'column' : 'row',
-            width: isMobile ? '100%' : 'auto'
+            textAlign: isMobile ? 'center' : 'right'
           }}>
+            <div style={{ 
+              fontWeight: 'bold', 
+              color: '#009245', 
+              fontSize: isMobile ? '14px' : '16px' 
+            }}>
+              {sessionInfo?.nomeEmpresa || sessionInfo?.razaoSocial || 'Empresa'}
+            </div>
+            <div style={{ 
+              fontSize: isMobile ? '12px' : '14px',
+              color: '#666'
+            }}>
+              CNPJ: {sessionInfo?.cnpjFormatado || sessionInfo?.cnpj}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', flexDirection: isMobile ? 'row' : 'row' }}>
             <button 
-              onClick={() => onNavigate('prosseguir')}
-              style={{
-                backgroundColor: '#009245',
-                color: 'white',
-                border: 'none',
-                padding: isMobile ? '8px 15px' : '10px 20px',
-                borderRadius: '5px',
-                cursor: 'pointer',
+              onClick={() => onNavigate('prosseguir')} 
+              style={{ 
+                backgroundColor: '#009245', 
+                color: 'white', 
+                border: 'none', 
+                padding: isMobile ? '8px 16px' : '10px 20px', 
+                borderRadius: '5px', 
+                cursor: 'pointer', 
                 fontWeight: 'bold',
-                fontSize: isMobile ? '14px' : '16px',
-                width: isMobile ? '100%' : 'auto'
+                fontSize: isMobile ? '14px' : '16px'
               }}
             >
               Menu Principal
             </button>
-            
             <button 
-              onClick={handleLogout}
-              style={{
-                backgroundColor: '#dc3545',
-                color: 'white',
-                border: 'none',
-                padding: isMobile ? '8px 15px' : '10px 20px',
-                borderRadius: '5px',
-                cursor: 'pointer',
+              onClick={handleLogout} 
+              style={{ 
+                backgroundColor: '#dc3545', 
+                color: 'white', 
+                border: 'none', 
+                padding: isMobile ? '8px 16px' : '10px 20px', 
+                borderRadius: '5px', 
+                cursor: 'pointer', 
                 fontWeight: 'bold',
-                fontSize: isMobile ? '14px' : '16px',
-                width: isMobile ? '100%' : 'auto'
+                fontSize: isMobile ? '14px' : '16px'
               }}
             >
               Sair
@@ -345,164 +320,187 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
       </div>
 
       {/* Container Principal */}
-      <div style={{
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: isMobile ? '15px' : '25px'
+      <div style={{ 
+        maxWidth: '1200px', 
+        margin: '0 auto', 
+        padding: isMobile ? '15px' : '25px' 
       }}>
-        <h1 style={{ 
-          color: '#009245', 
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           marginBottom: '25px',
-          fontSize: isMobile ? '24px' : '28px',
-          textAlign: isMobile ? 'center' : 'left'
+          flexDirection: isMobile ? 'column' : 'row',
+          gap: isMobile ? '15px' : '0'
         }}>
-          📋 Histórico de Pedidos
-        </h1>
+          <h1 style={{ 
+            color: '#009245', 
+            margin: 0,
+            fontSize: isMobile ? '24px' : '32px'
+          }}>
+            📋 Histórico de Pedidos
+          </h1>
+          
+          {pedidos.length > 0 && (
+            <button
+              onClick={exportarPedidos}
+              style={{
+                backgroundColor: '#17a2b8',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '14px'
+              }}
+            >
+              📊 Exportar CSV
+            </button>
+          )}
+        </div>
 
         {/* Estatísticas */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '15px',
-          marginBottom: '30px'
-        }}>
+        {!loading && pedidos.length > 0 && (
           <div style={{
-            backgroundColor: 'white',
-            padding: '20px',
-            borderRadius: '10px',
-            textAlign: 'center',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '15px',
+            marginBottom: '25px'
           }}>
-            <div style={{ fontSize: '32px', marginBottom: '10px' }}>📦</div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#009245' }}>
-              {stats.totalPedidos}
-            </div>
-            <div style={{ color: '#666', fontSize: '14px' }}>Total de Pedidos</div>
-          </div>
-
-          <div style={{
-            backgroundColor: 'white',
-            padding: '20px',
-            borderRadius: '10px',
-            textAlign: 'center',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ fontSize: '32px', marginBottom: '10px' }}>💰</div>
-            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#28a745' }}>
-              R$ {stats.valorTotal.toFixed(2)}
-            </div>
-            <div style={{ color: '#666', fontSize: '14px' }}>Valor Total</div>
-          </div>
-
-          {stats.ultimoPedido && (
             <div style={{
               backgroundColor: 'white',
               padding: '20px',
               borderRadius: '10px',
-              textAlign: 'center',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textAlign: 'center'
             }}>
-              <div style={{ fontSize: '32px', marginBottom: '10px' }}>⏱️</div>
-              <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#007bff' }}>
-                #{stats.ultimoPedido.numero}
+              <div style={{ fontSize: '32px', marginBottom: '10px' }}>📦</div>
+              <h3 style={{ color: '#007bff', margin: '0 0 5px 0' }}>Total de Pedidos</h3>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#343a40' }}>
+                {stats.totalPedidos}
               </div>
-              <div style={{ color: '#666', fontSize: '14px' }}>Último Pedido</div>
             </div>
-          )}
-        </div>
+            
+            <div style={{
+              backgroundColor: 'white',
+              padding: '20px',
+              borderRadius: '10px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '32px', marginBottom: '10px' }}>💰</div>
+              <h3 style={{ color: '#28a745', margin: '0 0 5px 0' }}>Valor Total</h3>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#343a40' }}>
+                R$ {stats.valorTotal.toFixed(2)}
+              </div>
+            </div>
+            
+            <div style={{
+              backgroundColor: 'white',
+              padding: '20px',
+              borderRadius: '10px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '32px', marginBottom: '10px' }}>📈</div>
+              <h3 style={{ color: '#ffc107', margin: '0 0 5px 0' }}>Últimos 30 dias</h3>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#343a40' }}>
+                {stats.pedidosUltimos30Dias}
+              </div>
+            </div>
+            
+            <div style={{
+              backgroundColor: 'white',
+              padding: '20px',
+              borderRadius: '10px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '32px', marginBottom: '10px' }}>🎯</div>
+              <h3 style={{ color: '#dc3545', margin: '0 0 5px 0' }}>Ticket Médio</h3>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#343a40' }}>
+                R$ {stats.ticketMedio.toFixed(2)}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Filtros */}
         <div style={{
           backgroundColor: 'white',
-          padding: isMobile ? '20px' : '25px',
+          padding: '20px',
           borderRadius: '10px',
-          marginBottom: '25px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          marginBottom: '25px'
         }}>
-          <h3 style={{ color: '#009245', marginBottom: '20px' }}>🔍 Filtros</h3>
-          
+          <h3 style={{ color: '#343a40', marginBottom: '15px' }}>🔍 Filtros</h3>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))',
+            gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
             gap: '15px'
           }}>
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                Status
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '5px', 
+                fontWeight: 'bold',
+                color: '#343a40'
+              }}>
+                Status do Pedido:
               </label>
               <select
                 value={filtros.status}
-                onChange={(e) => setFiltros({...filtros, status: e.target.value})}
+                onChange={(e) => setFiltros({ ...filtros, status: e.target.value })}
                 style={{
                   width: '100%',
                   padding: '10px',
                   border: '1px solid #ddd',
-                  borderRadius: '5px'
+                  borderRadius: '5px',
+                  fontSize: '14px',
+                  boxSizing: 'border-box'
                 }}
               >
                 {statusPedidos.map(status => (
                   <option key={status.value} value={status.value}>
-                    {status.label}
+                    {status.icon} {status.label}
                   </option>
                 ))}
               </select>
             </div>
-
+            
             <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                Período
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '5px', 
+                fontWeight: 'bold',
+                color: '#343a40'
+              }}>
+                Período:
               </label>
               <select
                 value={filtros.periodo}
-                onChange={(e) => setFiltros({...filtros, periodo: e.target.value})}
+                onChange={(e) => setFiltros({ ...filtros, periodo: e.target.value })}
                 style={{
                   width: '100%',
                   padding: '10px',
                   border: '1px solid #ddd',
-                  borderRadius: '5px'
+                  borderRadius: '5px',
+                  fontSize: '14px',
+                  boxSizing: 'border-box'
                 }}
               >
-                <option value="7">Últimos 7 dias</option>
-                <option value="30">Últimos 30 dias</option>
-                <option value="90">Últimos 90 dias</option>
-                <option value="365">Último ano</option>
-                <option value="todos">Todos os períodos</option>
+                {periodoOptions.map(periodo => (
+                  <option key={periodo.value} value={periodo.value}>
+                    {periodo.label}
+                  </option>
+                ))}
               </select>
             </div>
-
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                Data Início
-              </label>
-              <input
-                type="date"
-                value={filtros.dataInicio}
-                onChange={(e) => setFiltros({...filtros, dataInicio: e.target.value})}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px'
-                }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                Data Fim
-              </label>
-              <input
-                type="date"
-                value={filtros.dataFim}
-                onChange={(e) => setFiltros({...filtros, dataFim: e.target.value})}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  border: '1px solid #ddd',
-                  borderRadius: '5px'
-                }}
-              />
-            </div>
+          </div>
+          
+          <div style={{ marginTop: '15px', fontSize: '14px', color: '#666' }}>
+            <strong>Resultado:</strong> {pedidosFiltrados.length} pedido(s) encontrado(s)
           </div>
         </div>
 
@@ -513,10 +511,11 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
             padding: '40px',
             borderRadius: '10px',
             textAlign: 'center',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            color: '#666'
           }}>
-            <div style={{ fontSize: '48px', marginBottom: '20px' }}>⏳</div>
+            <div style={{ fontSize: '48px', marginBottom: '20px' }}>🔄</div>
             <h3>Carregando pedidos...</h3>
+            <p>Aguarde enquanto buscamos seu histórico de pedidos.</p>
           </div>
         ) : pedidosFiltrados.length === 0 ? (
           <div style={{
@@ -524,14 +523,14 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
             padding: '40px',
             borderRadius: '10px',
             textAlign: 'center',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            color: '#666'
           }}>
             <div style={{ fontSize: '48px', marginBottom: '20px' }}>📋</div>
-            <h3 style={{ color: '#666' }}>Nenhum pedido encontrado</h3>
-            <p style={{ color: '#999', marginBottom: '20px' }}>
+            <h3>Nenhum pedido encontrado</h3>
+            <p>
               {pedidos.length === 0 
                 ? 'Você ainda não fez nenhum pedido.'
-                : 'Nenhum pedido corresponde aos filtros selecionados.'
+                : 'Nenhum pedido encontrado com os filtros selecionados.'
               }
             </p>
             {pedidos.length === 0 && (
@@ -541,13 +540,15 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
                   backgroundColor: '#009245',
                   color: 'white',
                   border: 'none',
-                  padding: '12px 25px',
+                  padding: '12px 24px',
                   borderRadius: '5px',
+                  cursor: 'pointer',
                   fontWeight: 'bold',
-                  cursor: 'pointer'
+                  fontSize: '16px',
+                  marginTop: '15px'
                 }}
               >
-                Fazer Primeiro Pedido
+                🛒 Fazer Primeiro Pedido
               </button>
             )}
           </div>
@@ -557,159 +558,112 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
             flexDirection: 'column',
             gap: '15px'
           }}>
-            {pedidosFiltrados.map(pedido => {
+            {pedidosFiltrados.map((pedido) => {
               const statusInfo = getStatusInfo(pedido.status);
               return (
                 <div
-                  key={pedido.id || pedido.numero}
+                  key={pedido.id}
                   style={{
                     backgroundColor: 'white',
-                    padding: isMobile ? '20px' : '25px',
+                    padding: '20px',
                     borderRadius: '10px',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                    border: '1px solid #e9ecef'
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    border: '1px solid transparent'
+                  }}
+                  onClick={() => abrirDetalhes(pedido)}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+                    e.currentTarget.style.borderColor = '#009245';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                    e.currentTarget.style.borderColor = 'transparent';
                   }}
                 >
                   <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'flex-start',
-                    marginBottom: '15px',
                     flexDirection: isMobile ? 'column' : 'row',
                     gap: isMobile ? '15px' : '0'
                   }}>
-                    <div>
-                      <h3 style={{ 
-                        margin: '0 0 5px 0', 
-                        color: '#009245',
-                        fontSize: isMobile ? '18px' : '20px'
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        marginBottom: '10px'
                       }}>
-                        Pedido #{pedido.numero}
-                      </h3>
-                      <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
-                        📅 {formatarData(pedido.data)}
-                      </p>
-                      {pedido.origem === 'local' && (
-                        <small style={{ 
-                          backgroundColor: '#fff3cd', 
-                          color: '#856404',
-                          padding: '2px 6px',
-                          borderRadius: '3px',
-                          fontSize: '11px'
+                        <h3 style={{ 
+                          margin: 0, 
+                          color: '#343a40',
+                          fontSize: '18px' 
                         }}>
-                          Pedido Local
-                        </small>
+                          Pedido #{pedido.numero}
+                        </h3>
+                        <span style={{
+                          backgroundColor: statusInfo.color,
+                          color: 'white',
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 'bold'
+                        }}>
+                          {statusInfo.icon} {statusInfo.label}
+                        </span>
+                      </div>
+                      
+                      <p style={{ 
+                        margin: '5px 0', 
+                        color: '#666',
+                        fontSize: '14px'
+                      }}>
+                        📅 Data: {formatarData(pedido.data)}
+                      </p>
+                      
+                      {pedido.itens && pedido.itens.length > 0 && (
+                        <p style={{ 
+                          margin: '5px 0', 
+                          color: '#666',
+                          fontSize: '14px'
+                        }}>
+                          📦 {pedido.itens.length} {pedido.itens.length === 1 ? 'item' : 'itens'}
+                        </p>
+                      )}
+                      
+                      {pedido.enderecoEntrega && (
+                        <p style={{ 
+                          margin: '5px 0', 
+                          color: '#666',
+                          fontSize: '14px'
+                        }}>
+                          📍 {pedido.enderecoEntrega.substring(0, 50)}...
+                        </p>
                       )}
                     </div>
-
-                    <div style={{ 
+                    
+                    <div style={{
                       textAlign: isMobile ? 'left' : 'right',
-                      width: isMobile ? '100%' : 'auto'
+                      minWidth: isMobile ? 'auto' : '120px'
                     }}>
                       <div style={{
-                        backgroundColor: statusInfo.color,
-                        color: 'white',
-                        padding: '6px 12px',
-                        borderRadius: '15px',
-                        fontSize: '12px',
+                        fontSize: '24px',
                         fontWeight: 'bold',
-                        marginBottom: '10px',
-                        display: 'inline-block'
-                      }}>
-                        {statusInfo.label}
-                      </div>
-                      <div style={{
-                        fontSize: isMobile ? '22px' : '24px',
-                        fontWeight: 'bold',
-                        color: '#28a745'
+                        color: '#28a745',
+                        marginBottom: '5px'
                       }}>
                         R$ {pedido.total.toFixed(2)}
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Resumo dos itens */}
-                  {pedido.itens && pedido.itens.length > 0 && (
-                    <div style={{
-                      backgroundColor: '#f8f9fa',
-                      padding: '15px',
-                      borderRadius: '8px',
-                      marginBottom: '15px'
-                    }}>
-                      <strong style={{ color: '#009245', marginBottom: '10px', display: 'block' }}>
-                        📦 Itens ({pedido.itens.reduce((sum, item) => sum + item.quantidade, 0)} marmitas):
-                      </strong>
-                      <div style={{ fontSize: '14px', color: '#666' }}>
-                        {pedido.itens.slice(0, 3).map((item, index) => (
-                          <div key={index} style={{ marginBottom: '3px' }}>
-                            • {item.quantidade}x {item.nome}
-                          </div>
-                        ))}
-                        {pedido.itens.length > 3 && (
-                          <div style={{ fontStyle: 'italic', marginTop: '5px' }}>
-                            + {pedido.itens.length - 3} item(s) adicional(is)
-                          </div>
-                        )}
+                      
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#666'
+                      }}>
+                        Clique para detalhes
                       </div>
                     </div>
-                  )}
-
-                  {/* Ações */}
-                  <div style={{
-                    display: 'flex',
-                    gap: '10px',
-                    flexWrap: 'wrap',
-                    justifyContent: isMobile ? 'center' : 'flex-start'
-                  }}>
-                    <button
-                      onClick={() => abrirDetalhes(pedido)}
-                      style={{
-                        backgroundColor: '#007bff',
-                        color: 'white',
-                        border: 'none',
-                        padding: '8px 15px',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: 'bold'
-                      }}
-                    >
-                      👁️ Detalhes
-                    </button>
-
-                    <button
-                      onClick={() => baixarComprovante(pedido)}
-                      style={{
-                        backgroundColor: '#17a2b8',
-                        color: 'white',
-                        border: 'none',
-                        padding: '8px 15px',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: 'bold'
-                      }}
-                    >
-                      📄 Comprovante
-                    </button>
-
-                    {pedido.itens && pedido.itens.length > 0 && (
-                      <button
-                        onClick={() => repetirPedido(pedido)}
-                        style={{
-                          backgroundColor: '#28a745',
-                          color: 'white',
-                          border: 'none',
-                          padding: '8px 15px',
-                          borderRadius: '5px',
-                          cursor: 'pointer',
-                          fontSize: '14px',
-                          fontWeight: 'bold'
-                        }}
-                      >
-                        🔄 Repetir
-                      </button>
-                    )}
                   </div>
                 </div>
               );
@@ -724,220 +678,254 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
           position: 'fixed',
           top: 0,
           left: 0,
-          width: '100%',
-          height: '100%',
+          right: 0,
+          bottom: 0,
           backgroundColor: 'rgba(0,0,0,0.5)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           zIndex: 1000,
-          padding: isMobile ? '15px' : '20px'
+          padding: '20px'
         }}>
           <div style={{
             backgroundColor: 'white',
             borderRadius: '10px',
-            padding: isMobile ? '25px' : '30px',
             maxWidth: '600px',
             width: '100%',
-            maxHeight: '80vh',
+            maxHeight: '90vh',
             overflow: 'auto',
             position: 'relative'
           }}>
-            <button
-              onClick={() => setShowDetalhes(false)}
-              style={{
-                position: 'absolute',
-                top: '15px',
-                right: '15px',
-                backgroundColor: 'transparent',
-                border: 'none',
-                fontSize: '24px',
-                cursor: 'pointer',
-                color: '#666'
-              }}
-            >
-              ×
-            </button>
-
-            <div style={{ textAlign: 'center', marginBottom: '25px' }}>
-              <h2 style={{ color: '#009245', margin: '0 0 10px 0' }}>
-                📋 Detalhes do Pedido
+            {/* Header do Modal */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '20px 20px 0 20px',
+              borderBottom: '1px solid #eee',
+              marginBottom: '20px'
+            }}>
+              <h2 style={{ 
+                margin: 0, 
+                color: '#343a40',
+                fontSize: '24px'
+              }}>
+                Pedido #{selectedPedido.numero}
               </h2>
-              <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#007bff' }}>
-                #{selectedPedido.numero}
-              </div>
+              <button
+                onClick={fecharDetalhes}
+                style={{
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: '#666'
+                }}
+              >
+                ✕
+              </button>
             </div>
 
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-              gap: '20px',
-              marginBottom: '25px'
-            }}>
-              <div>
-                <strong style={{ color: '#009245' }}>📅 Data do Pedido:</strong>
-                <div>{formatarData(selectedPedido.data)}</div>
-              </div>
-
-              <div>
-                <strong style={{ color: '#009245' }}>📊 Status:</strong>
+            {/* Conteúdo do Modal */}
+            <div style={{ padding: '0 20px 20px 20px' }}>
+              {/* Status e Data */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '20px',
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: isMobile ? '15px' : '0'
+              }}>
                 <div>
                   <span style={{
                     backgroundColor: getStatusInfo(selectedPedido.status).color,
                     color: 'white',
-                    padding: '4px 8px',
-                    borderRadius: '12px',
-                    fontSize: '12px',
+                    padding: '8px 16px',
+                    borderRadius: '20px',
+                    fontSize: '14px',
                     fontWeight: 'bold'
                   }}>
-                    {getStatusInfo(selectedPedido.status).label}
+                    {getStatusInfo(selectedPedido.status).icon} {getStatusInfo(selectedPedido.status).label}
                   </span>
                 </div>
-              </div>
-
-              <div>
-                <strong style={{ color: '#009245' }}>💰 Valor Total:</strong>
-                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#28a745' }}>
-                  R$ {selectedPedido.total.toFixed(2)}
-                </div>
-              </div>
-
-              <div>
-                <strong style={{ color: '#009245' }}>📦 Total de Itens:</strong>
-                <div>
-                  {selectedPedido.itens 
-                    ? selectedPedido.itens.reduce((sum, item) => sum + item.quantidade, 0)
-                    : 'N/A'
-                  } marmitas
-                </div>
-              </div>
-            </div>
-
-            {selectedPedido.itens && selectedPedido.itens.length > 0 && (
-              <div style={{ marginBottom: '25px' }}>
-                <strong style={{ color: '#009245', marginBottom: '15px', display: 'block' }}>
-                  🍽️ Itens do Pedido:
-                </strong>
                 <div style={{
-                  backgroundColor: '#f8f9fa',
-                  borderRadius: '8px',
-                  padding: '15px'
+                  fontSize: '16px',
+                  color: '#666'
                 }}>
-                  {selectedPedido.itens.map((item, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '10px 0',
-                        borderBottom: index < selectedPedido.itens.length - 1 ? '1px solid #dee2e6' : 'none'
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 'bold' }}>{item.nome}</div>
-                        <div style={{ fontSize: '14px', color: '#666' }}>
-                          {item.quantidade} x R$ {item.preco.toFixed(2)}
-                        </div>
-                      </div>
-                      <div style={{ fontWeight: 'bold', color: '#009245' }}>
-                        R$ {(item.quantidade * item.preco).toFixed(2)}
-                      </div>
-                    </div>
-                  ))}
+                  📅 {formatarData(selectedPedido.data)}
                 </div>
               </div>
-            )}
 
-            {selectedPedido.enderecoEntrega && (
-              <div style={{ marginBottom: '25px' }}>
-                <strong style={{ color: '#009245', marginBottom: '10px', display: 'block' }}>
-                  📍 Endereço de Entrega:
-                </strong>
+              {/* Endereço de Entrega */}
+              {selectedPedido.enderecoEntrega && (
                 <div style={{
                   backgroundColor: '#fff8e1',
                   padding: '15px',
                   borderRadius: '8px',
-                  fontSize: '14px',
-                  lineHeight: '1.5'
+                  marginBottom: '20px',
+                  border: '1px solid #ffecb3'
                 }}>
-                  {selectedPedido.enderecoEntrega}
+                  <h4 style={{ 
+                    margin: '0 0 8px 0', 
+                    color: '#f57f17',
+                    fontSize: '16px',
+                    fontWeight: 'bold'
+                  }}>
+                    📍 Endereço de Entrega:
+                  </h4>
+                  <p style={{ 
+                    margin: 0, 
+                    color: '#e65100',
+                    fontSize: '14px',
+                    lineHeight: '1.4'
+                  }}>
+                    {selectedPedido.enderecoEntrega}
+                  </p>
                 </div>
-              </div>
-            )}
+              )}
 
-            {selectedPedido.observacoes && (
-              <div style={{ marginBottom: '25px' }}>
-                <strong style={{ color: '#009245', marginBottom: '10px', display: 'block' }}>
-                  💬 Observações:
-                </strong>
+              {/* Observações */}
+              {selectedPedido.observacoes && (
                 <div style={{
-                  backgroundColor: '#e7f3ff',
+                  backgroundColor: '#e3f2fd',
                   padding: '15px',
                   borderRadius: '8px',
-                  fontSize: '14px',
-                  fontStyle: 'italic'
+                  marginBottom: '20px',
+                  border: '1px solid #bbdefb'
                 }}>
-                  {selectedPedido.observacoes}
+                  <h4 style={{ 
+                    margin: '0 0 8px 0', 
+                    color: '#1976d2',
+                    fontSize: '16px',
+                    fontWeight: 'bold'
+                  }}>
+                    💬 Observações:
+                  </h4>
+                  <p style={{ 
+                    margin: 0, 
+                    color: '#0277bd',
+                    fontSize: '14px',
+                    lineHeight: '1.4'
+                  }}>
+                    {selectedPedido.observacoes}
+                  </p>
+                </div>
+              )}
+
+              {/* Itens do Pedido */}
+              <div style={{ marginBottom: '20px' }}>
+                <h4 style={{ 
+                  margin: '0 0 15px 0', 
+                  color: '#343a40',
+                  fontSize: '18px'
+                }}>
+                  📦 Itens do Pedido:
+                </h4>
+                {selectedPedido.itens && selectedPedido.itens.length > 0 ? (
+                  <div style={{
+                    border: '1px solid #eee',
+                    borderRadius: '8px',
+                    overflow: 'hidden'
+                  }}>
+                    {selectedPedido.itens.map((item, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '12px 15px',
+                          borderBottom: index < selectedPedido.itens.length - 1 ? '1px solid #eee' : 'none',
+                          backgroundColor: index % 2 === 0 ? '#f8f9fa' : 'white'
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ 
+                            fontWeight: 'bold', 
+                            color: '#343a40',
+                            marginBottom: '4px'
+                          }}>
+                            {item.nome}
+                          </div>
+                          <div style={{ 
+                            fontSize: '14px', 
+                            color: '#666' 
+                          }}>
+                            Quantidade: {item.quantidade}x | Preço unit.: R$ {item.preco.toFixed(2)}
+                          </div>
+                        </div>
+                        <div style={{
+                          fontWeight: 'bold',
+                          color: '#28a745',
+                          fontSize: '16px'
+                        }}>
+                          R$ {(item.quantidade * item.preco).toFixed(2)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ color: '#666', fontStyle: 'italic' }}>
+                    Nenhum item detalhado disponível.
+                  </p>
+                )}
+              </div>
+
+              {/* Total */}
+              <div style={{
+                borderTop: '2px solid #009245',
+                paddingTop: '15px',
+                textAlign: 'right'
+              }}>
+                <div style={{
+                  fontSize: '24px',
+                  fontWeight: 'bold',
+                  color: '#28a745'
+                }}>
+                  Total: R$ {selectedPedido.total.toFixed(2)}
                 </div>
               </div>
-            )}
 
-            <div style={{
-              display: 'flex',
-              gap: '10px',
-              justifyContent: 'center',
-              flexWrap: 'wrap'
-            }}>
-              <button
-                onClick={() => baixarComprovante(selectedPedido)}
-                style={{
-                  backgroundColor: '#17a2b8',
-                  color: 'white',
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold'
-                }}
-              >
-                📄 Baixar Comprovante
-              </button>
-
-              {selectedPedido.itens && selectedPedido.itens.length > 0 && (
+              {/* Botões de Ação */}
+              <div style={{
+                display: 'flex',
+                gap: '10px',
+                marginTop: '20px',
+                justifyContent: 'center'
+              }}>
                 <button
-                  onClick={() => {
-                    setShowDetalhes(false);
-                    repetirPedido(selectedPedido);
-                  }}
+                  onClick={fecharDetalhes}
                   style={{
-                    backgroundColor: '#28a745',
+                    backgroundColor: '#6c757d',
                     color: 'white',
                     border: 'none',
-                    padding: '10px 20px',
+                    padding: '12px 24px',
                     borderRadius: '5px',
                     cursor: 'pointer',
                     fontWeight: 'bold'
                   }}
                 >
-                  🔄 Repetir Pedido
+                  Fechar
                 </button>
-              )}
-
-              <button
-                onClick={() => setShowDetalhes(false)}
-                style={{
-                  backgroundColor: '#6c757d',
-                  color: 'white',
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold'
-                }}
-              >
-                Fechar
-              </button>
+                <button
+                  onClick={() => {
+                    fecharDetalhes();
+                    onNavigate('pedido-produtos');
+                  }}
+                  style={{
+                    backgroundColor: '#009245',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 24px',
+                    borderRadius: '5px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  🛒 Fazer Novo Pedido
+                </button>
+              </div>
             </div>
           </div>
         </div>
