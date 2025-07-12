@@ -15,6 +15,28 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
+// Web Worker para hashing de senha
+const createHashWorker = () => {
+  const workerCode = `
+    self.addEventListener('message', async (event) => {
+      const { senha } = event.data;
+      try {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(senha + 'fitinbox_salt_2025');
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        self.postMessage({ hash: hashHex });
+      } catch (error) {
+        self.postMessage({ error: error.message });
+      }
+    });
+  `;
+
+  const blob = new Blob([workerCode], { type: 'application/javascript' });
+  return new Worker(URL.createObjectURL(blob));
+};
+
 // Funções auxiliares
 const validarCnpj = (cnpj) => {
   const cnpjLimpo = cnpj.replace(/\D/g, "");
@@ -49,13 +71,27 @@ const formatarCnpj = (cnpj) => {
   return cnpjLimpo.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
 };
 
-// Hash simples (substitua por bcrypt em produção)
-const hashSenha = async (senha) => {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(senha + 'fitinbox_salt_2025');
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+// Nova implementação de hash usando Web Worker
+const hashSenha = (senha) => {
+  return new Promise((resolve, reject) => {
+    const worker = createHashWorker();
+    
+    worker.postMessage({ senha });
+    
+    worker.onmessage = (event) => {
+      if (event.data.error) {
+        reject(event.data.error);
+      } else {
+        resolve(event.data.hash);
+      }
+      worker.terminate();
+    };
+    
+    worker.onerror = (error) => {
+      reject(error.message);
+      worker.terminate();
+    };
+  });
 };
 
 const authSupabaseService = {
@@ -139,7 +175,7 @@ const authSupabaseService = {
         return { success: false, error: 'CNPJ ou senha inválidos' };
       }
 
-      // VERIFICAR SENHA (usando hash simples por enquanto)
+      // VERIFICAR SENHA (usando worker)
       const senhaHash = await hashSenha(senha);
       if (empresa.senha_hash && empresa.senha_hash !== senhaHash) {
         console.error("❌ Senha inválida");
@@ -207,7 +243,7 @@ const authSupabaseService = {
         };
       }
 
-      // Hash da senha
+      // Hash da senha usando worker
       const senhaHash = await hashSenha(senha);
 
       // Preparar dados para inserção (ESTRUTURA COMPLETA)
@@ -231,8 +267,6 @@ const authSupabaseService = {
       }
 
       console.log('📝 Dados completos para inserção:', { ...dadosInsercao, senha_hash: '[OCULTA]' });
-
-      console.log('📝 Dados para inserção:', { ...dadosInsercao, senha_hash: '[OCULTA]' });
 
       // Inserir empresa diretamente na tabela (sem .single() no final)
       const { data: novaEmpresa, error: empresaError } = await supabase
