@@ -1,162 +1,202 @@
 import React, { useState, useEffect } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
 
-const ProsseguirPage = ({ onNavigate }) => {
-  const [selectedOption, setSelectedOption] = useState('fazerPedido');
-  const [sessaoAtiva, setSessaoAtiva] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [loading, setLoading] = useState(true);
+const PedidoProdutosPage = ({ onNavigate }) => {
+  const [produtos, setProdutos] = useState([]);
+  const [carrinho, setCarrinho] = useState([]);
+  const [dadosEmpresa, setDadosEmpresa] = useState(null);
+  const [enderecoEntrega, setEnderecoEntrega] = useState({
+    logradouro: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    cep: '',
+    referencia: ''
+  });
+  const [mostrarFinalizacao, setMostrarFinalizacao] = useState(false);
+  const [finalizandoPedido, setFinalizandoPedido] = useState(false);
 
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  useEffect(() => {
-    const verificarSessaoAtiva = async () => {
+    const verificarSessaoEBuscarDados = async () => {
       try {
-        setLoading(true);
-        console.log('🔍 Verificando sessão do usuário...');
+        console.log('🔍 Verificando sessão em PedidoProdutosPage...');
         const sessao = await authSupabaseService.verificarSessao();
-        
-        // Verifica se é o formato padrão do Supabase (data.session)
-        const sessaoValida = sessao?.data?.session || sessao;
-        
+        const sessaoValida = sessao?.data?.session;
+
         if (!sessaoValida) {
           console.warn('⚠️ Sessão inválida ou expirada. Redirecionando para home.');
           onNavigate('home');
-          setLoading(false);
           return;
         }
-        
-        // Extrai dados do usuário
-        const userData = sessaoValida.user?.user_metadata || sessaoValida;
-        const userIsAdmin = userData.tipo_usuario === 'admin' || userData.isAdmin;
-        
-        setSessaoAtiva({
-          ...userData,
-          isAdmin: userIsAdmin,
-        });
-        setIsAdmin(userIsAdmin);
-        
-        console.log('✅ Sessão verificada com sucesso:', {
-          cnpj: userData.cnpjFormatado || userData.cnpj,
-          empresa: userData.nomeEmpresa || userData.razaoSocial,
-          isAdmin: userIsAdmin
-        });
-        
+
+        // Se a sessão for válida, continue com a lógica da página
+        console.log('✅ Sessão válida. Buscando dados da empresa e produtos...');
+        const dados = sessaoValida.user.user_metadata;
+        setDadosEmpresa(dados);
+        setEnderecoEntrega(prev => ({ ...prev, ...dados.endereco }));
+
+        // Carrega produtos do localStorage
+        const produtosSalvos = localStorage.getItem('adminProdutos');
+        if (produtosSalvos) {
+          try {
+            const produtosParsed = JSON.parse(produtosSalvos);
+            setProdutos(produtosParsed.filter(p => p.disponivel));
+          } catch (error) {
+            console.error('Erro ao carregar produtos:', error);
+          }
+        }
+
       } catch (error) {
-        console.error('❌ Erro crítico ao verificar sessão:', error);
+        console.error('❌ Erro ao verificar sessão ou buscar dados:', error);
         onNavigate('home');
-      } finally {
-        setLoading(false);
       }
     };
 
-    verificarSessaoAtiva();
-    
-    const handlePopState = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onNavigate('home');
-      return false;
-    };
-    
-    window.removeEventListener('popstate', handlePopState);
-    window.addEventListener('popstate', handlePopState);
-    window.history.pushState({ page: 'prosseguir' }, '', window.location.pathname);
-    
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
+    verificarSessaoEBuscarDados();
   }, [onNavigate]);
 
-  const handleOptionChange = (option) => {
-    setSelectedOption(option);
+  const adicionarAoCarrinho = (produto) => {
+    setCarrinho(prev => {
+      const itemExistente = prev.find(item => item.id === produto.id);
+      if (itemExistente) {
+        return prev.map(item =>
+          item.id === produto.id
+            ? { ...item, quantidade: item.quantidade + 1 }
+            : item
+        );
+      }
+      return [...prev, { ...produto, quantidade: 1 }];
+    });
   };
 
-  const prosseguir = () => {
-    if (selectedOption === 'fazerPedido') {
-      onNavigate('pedido-produtos');
-    } else if (selectedOption === 'consultarPedidos') {
-      onNavigate('consultar-pedido');
-    } else if (selectedOption === 'painelAdmin') {
-      handleAdminAccess();
+  const removerDoCarrinho = (produtoId) => {
+    setCarrinho(prev => prev.filter(item => item.id !== produtoId));
+  };
+
+  const alterarQuantidade = (produtoId, novaQuantidade) => {
+    if (novaQuantidade <= 0) {
+      removerDoCarrinho(produtoId);
+      return;
     }
+    setCarrinho(prev =>
+      prev.map(item =>
+        item.id === produtoId
+          ? { ...item, quantidade: novaQuantidade }
+          : item
+      )
+    );
   };
 
-  const handleAdminAccess = () => {
-    if (!isAdmin || !sessaoAtiva?.isAdmin) {
-      console.warn('🚫 Tentativa de acesso administrativo negada:', {
-        cnpj: sessaoAtiva?.cnpjFormatado || sessaoAtiva?.cnpj,
-        isAdmin: isAdmin,
-        sessaoIsAdmin: sessaoAtiva?.isAdmin
-      });
+  const calcularTotal = () => {
+    return carrinho.reduce((total, item) => total + (item.preco * item.quantidade), 0);
+  };
+
+  const handleFinalizarPedido = async () => {
+    if (carrinho.length === 0) {
+      alert('Adicione pelo menos um produto ao carrinho');
       return;
     }
 
-    console.log('✅ Acesso admin autorizado:', {
-      cnpj: sessaoAtiva.cnpjFormatado || sessaoAtiva.cnpj,
-      empresa: sessaoAtiva.nomeEmpresa || sessaoAtiva.razaoSocial,
-      tipoUsuario: sessaoAtiva.tipoUsuario || sessaoAtiva.tipo_usuario
-    });
-  
-    sessionStorage.setItem('adminPreAuthenticated', JSON.stringify({
-      cnpj: sessaoAtiva.cnpjFormatado || sessaoAtiva.cnpj,
-      timestamp: Date.now(),
-      empresa: sessaoAtiva.nomeEmpresa || sessaoAtiva.razaoSocial,
-      tipoUsuario: sessaoAtiva.tipoUsuario || sessaoAtiva.tipo_usuario
-    }));
-  
-    onNavigate('admin');
-  };
+    // Valida endereço de entrega
+    if (!enderecoEntrega.logradouro || !enderecoEntrega.numero || !enderecoEntrega.bairro) {
+      alert('Preencha o endereço de entrega completo');
+      return;
+    }
 
-  const handleLogout = async () => {
-    if (window.confirm('Tem certeza que deseja sair?')) {
-      try {
-        await authSupabaseService.logout();
-        console.log('✅ Logout realizado com sucesso');
-        onNavigate('home');
-      } catch (error) {
-        console.error('❌ Erro no logout:', error);
-        onNavigate('home');
+    setFinalizandoPedido(true);
+
+    try {
+      // Cria o pedido
+      const pedido = {
+        numero: Math.floor(Math.random() * 10000) + 1000,
+        itens: carrinho,
+        total: calcularTotal(),
+        enderecoEntrega: `${enderecoEntrega.logradouro}, ${enderecoEntrega.numero}${enderecoEntrega.complemento ? ', ' + enderecoEntrega.complemento : ''} - ${enderecoEntrega.bairro}, ${enderecoEntrega.cidade} - CEP: ${enderecoEntrega.cep}${enderecoEntrega.referencia ? ' (Ref: ' + enderecoEntrega.referencia + ')' : ''}`,
+        dadosEmpresa: dadosEmpresa,
+        data: new Date().toISOString(),
+        status: 'enviado'
+      };
+
+      // Salva no localStorage para o admin ver
+      const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
+      pedidosAdmin.push({
+        id: Date.now(),
+        numero: pedido.numero,
+        cliente: dadosEmpresa.razaoSocial,
+        cnpj: dadosEmpresa.cnpj,
+        total: pedido.total,
+        status: 'enviado',
+        data: pedido.data,
+        itens: pedido.itens,
+        enderecoEntrega: pedido.enderecoEntrega
+      });
+      localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
+
+      // Prepara mensagem para WhatsApp
+      const numeroWhatsApp = '5565992556938';
+      let mensagem = `🍽️ *NOVO PEDIDO - FIT IN BOX*\n\n`;
+      mensagem += `📋 *Pedido:* #${pedido.numero}\n`;
+      mensagem += `🏢 *Empresa:* ${dadosEmpresa.razaoSocial}\n`;
+      mensagem += `📄 *CNPJ:* ${dadosEmpresa.cnpj}\n`;
+      if (dadosEmpresa.nomeFantasia) {
+        mensagem += `🏪 *Nome Fantasia:* ${dadosEmpresa.nomeFantasia}\n`;
       }
+      mensagem += `📅 *Data:* ${new Date().toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })}\n\n`;
+      
+      mensagem += `*📦 ITENS DO PEDIDO:*\n`;
+      pedido.itens.forEach(item => {
+        mensagem += `• ${item.quantidade}x ${item.nome} - R$ ${(item.quantidade * item.preco).toFixed(2)}\n`;
+      });
+      
+      mensagem += `\n*💰 TOTAL: R$ ${pedido.total.toFixed(2)}*\n\n`;
+      
+      mensagem += `*📍 ENDEREÇO DE ENTREGA:*\n${pedido.enderecoEntrega}\n\n`;
+      
+      mensagem += `Aguardo confirmação! 🙏`;
+
+      // Abre WhatsApp
+      const url = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
+      window.open(url, '_blank');
+
+      // Limpa carrinho e mostra sucesso
+      setCarrinho([]);
+      alert('Pedido enviado com sucesso via WhatsApp!');
+      
+      // Volta para a página anterior
+      onNavigate('prosseguir');
+
+    } catch (error) {
+      alert('Erro ao enviar pedido. Tente novamente.');
+      console.error('Erro:', error);
+    } finally {
+      setFinalizandoPedido(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-        fontFamily: 'Arial, sans-serif',
-        flexDirection: 'column',
-        gap: '20px'
-      }}>
-        <div style={{ fontSize: '48px' }}>🔄</div>
-        <div style={{ fontSize: '18px', color: '#666' }}>Verificando sessão...</div>
-      </div>
-    );
-  }
+  const logout = () => {
+    if (window.confirm('Tem certeza que deseja sair?')) {
+      authSupabaseService.logout();
+      onNavigate('home');
+    }
+  };
 
-  if (!sessaoAtiva) {
+  if (!dadosEmpresa) {
     return (
       <div style={{
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         minHeight: '100vh',
-        fontFamily: 'Arial, sans-serif',
-        flexDirection: 'column',
-        gap: '20px'
+        fontFamily: 'Arial, sans-serif'
       }}>
-        <div style={{ fontSize: '48px' }}>❌</div>
-        <div style={{ fontSize: '18px', color: '#666' }}>Sessão não encontrada</div>
+        Carregando dados da empresa...
       </div>
     );
   }
@@ -168,73 +208,62 @@ const ProsseguirPage = ({ onNavigate }) => {
       backgroundColor: '#f5f5f5',
       minHeight: '100vh'
     }}>
+      {/* Header com dados da empresa VISÍVEIS para entrega */}
       <div style={{
         background: 'white',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: isMobile ? '15px 20px' : '15px 40px',
-        borderBottom: '1px solid #ccc',
-        flexWrap: isMobile ? 'wrap' : 'nowrap'
+        padding: '15px 40px',
+        borderBottom: '1px solid #ccc'
       }}>
-        <div style={{ 
-          fontSize: isMobile ? '24px' : '32px', 
-          fontWeight: 'bold', 
-          color: '#009245' 
-        }}>
-          🍽️ Fit In Box
-        </div>
         <div style={{
           display: 'flex',
+          justifyContent: 'space-between',
           alignItems: 'center',
-          gap: isMobile ? '15px' : '20px',
-          flexDirection: isMobile ? 'column' : 'row',
-          marginTop: isMobile ? '15px' : '0',
-          width: isMobile ? '100%' : 'auto'
+          flexWrap: 'wrap',
+          gap: '20px'
         }}>
-          <div style={{ 
-            textAlign: isMobile ? 'center' : 'right',
-            width: isMobile ? '100%' : 'auto'
+          <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#009245' }}>
+            🍽️ Fit In Box
+          </div>
+          
+          {/* DADOS DA EMPRESA VISÍVEIS PARA FACILITAR ENTREGA */}
+          <div style={{
+            backgroundColor: '#e7f3ff',
+            padding: '15px',
+            borderRadius: '8px',
+            border: '1px solid #b3d9ff',
+            flex: 1,
+            maxWidth: '500px',
+            margin: '0 20px'
           }}>
-            <div style={{
-              fontWeight: 'bold',
-              color: '#009245',
-              fontSize: isMobile ? '14px' : '16px'
+            <h3 style={{ 
+              margin: '0 0 10px 0', 
+              color: '#0066cc',
+              fontSize: '16px'
             }}>
-              {sessaoAtiva.nomeEmpresa || sessaoAtiva.razaoSocial}
-              {isAdmin && (
-                <span style={{
-                  backgroundColor: '#f38e3c',
-                  color: 'white',
-                  padding: '2px 6px',
-                  borderRadius: '8px',
-                  fontSize: '10px',
-                  marginLeft: '8px',
-                  fontWeight: 'bold'
-                }}>
-                  ADMIN
-                </span>
+              📋 Dados para Entrega
+            </h3>
+            <div style={{ fontSize: '14px', color: '#333' }}>
+              <div><strong>Empresa:</strong> {dadosEmpresa.razaoSocial}</div>
+              {dadosEmpresa.nomeFantasia && (
+                <div><strong>Nome Fantasia:</strong> {dadosEmpresa.nomeFantasia}</div>
+              )}
+              <div><strong>CNPJ:</strong> {dadosEmpresa.cnpj}</div>
+              {dadosEmpresa.telefone && (
+                <div><strong>Telefone:</strong> {dadosEmpresa.telefone}</div>
               )}
             </div>
-            <div style={{
-              fontSize: isMobile ? '12px' : '14px',
-              color: '#666'
-            }}>
-              CNPJ: {sessaoAtiva.cnpjFormatado || sessaoAtiva.cnpj}
-            </div>
           </div>
+
           <button 
-            onClick={handleLogout}
+            onClick={logout}
             style={{
-              padding: isMobile ? '8px 16px' : '10px 20px',
-              borderRadius: '5px',
-              color: 'white',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              border: 'none',
               backgroundColor: '#dc3545',
-              fontSize: isMobile ? '14px' : '16px',
-              width: isMobile ? '100%' : 'auto'
+              color: 'white',
+              border: 'none',
+              padding: '10px 20px',
+              borderRadius: '5px',
+              cursor: 'pointer',
+              fontWeight: 'bold'
             }}
           >
             🚪 SAIR
@@ -242,349 +271,420 @@ const ProsseguirPage = ({ onNavigate }) => {
         </div>
       </div>
 
+      {/* Conteúdo Principal */}
       <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: 'calc(100vh - 100px)',
-        padding: '20px'
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: '20px',
+        display: 'grid',
+        gridTemplateColumns: mostrarFinalizacao ? '1fr 1fr' : '2fr 1fr',
+        gap: '30px'
       }}>
-        <div style={{
-          backgroundColor: 'white',
-          padding: isMobile ? '30px 25px' : '40px',
-          borderRadius: '15px',
-          boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
-          width: '100%',
-          maxWidth: '650px',
-          textAlign: 'center'
-        }}>
-          <div style={{
-            marginBottom: '30px'
-          }}>
-            <div style={{
-              fontSize: '48px',
-              marginBottom: '20px'
-            }}>
-              🎯
-            </div>
-            <h2 style={{
-              color: '#009245',
-              fontSize: isMobile ? '24px' : '28px',
-              marginBottom: '10px',
-              fontWeight: 'bold'
-            }}>
-              O que gostaria de fazer?
-            </h2>
-            <p style={{
-              color: '#666',
-              fontSize: isMobile ? '16px' : '18px',
-              margin: 0
-            }}>
-              Escolha uma das opções abaixo para continuar
-            </p>
-          </div>
-          
-          <div style={{
-            margin: '30px 0',
-            textAlign: 'left',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '15px'
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              padding: '20px',
-              border: selectedOption === 'fazerPedido' ? '3px solid #009245' : '2px solid #eee',
-              borderRadius: '12px',
-              cursor: 'pointer',
-              backgroundColor: selectedOption === 'fazerPedido' ? '#f0f9f0' : 'white',
-              transition: 'all 0.3s ease',
-              boxShadow: selectedOption === 'fazerPedido' ? '0 4px 12px rgba(0,146,69,0.2)' : '0 2px 4px rgba(0,0,0,0.05)'
-            }}
-            onClick={() => handleOptionChange('fazerPedido')}
-            onMouseEnter={(e) => {
-              if (selectedOption !== 'fazerPedido') {
-                e.currentTarget.style.borderColor = '#009245';
-                e.currentTarget.style.backgroundColor = '#f9f9f9';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (selectedOption !== 'fazerPedido') {
-                e.currentTarget.style.borderColor = '#eee';
-                e.currentTarget.style.backgroundColor = 'white';
-              }
-            }}
-            >
-              <input 
-                type="radio" 
-                id="fazerPedido"
-                name="opcao"
-                checked={selectedOption === 'fazerPedido'}
-                onChange={() => handleOptionChange('fazerPedido')}
-                style={{
-                  marginRight: '15px',
-                  marginTop: '3px',
-                  transform: 'scale(1.2)'
-                }}
-              />
+        {/* Coluna Esquerda - Produtos ou Finalização */}
+        <div>
+          {!mostrarFinalizacao ? (
+            // Lista de Produtos
+            <div>
+              <h1 style={{ color: '#009245', marginBottom: '30px' }}>
+                🍽️ Nossos Produtos
+              </h1>
+              
               <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '15px',
-                flex: 1
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: '20px'
               }}>
-                <div style={{
-                  fontSize: '32px',
-                  width: '50px',
-                  textAlign: 'center'
-                }}>
-                  🛒
-                </div>
-                <div>
-                  <label 
-                    htmlFor="fazerPedido"
+                {produtos.map(produto => (
+                  <div
+                    key={produto.id}
                     style={{
-                      fontWeight: 'bold',
-                      color: '#333',
-                      cursor: 'pointer',
-                      fontSize: isMobile ? '18px' : '20px',
-                      marginBottom: '5px',
-                      display: 'block'
+                      backgroundColor: 'white',
+                      borderRadius: '10px',
+                      boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                      overflow: 'hidden'
                     }}
                   >
-                    Quero realizar um pedido
-                  </label>
-                  <span style={{
-                    color: '#666',
-                    fontSize: isMobile ? '14px' : '16px',
-                    lineHeight: '1.4'
-                  }}>
-                    Visualizar produtos disponíveis e fazer novos pedidos
-                  </span>
-                </div>
+                    <img
+                      src={produto.imagem}
+                      alt={produto.nome}
+                      style={{
+                        width: '100%',
+                        height: '150px',
+                        objectFit: 'cover'
+                      }}
+                    />
+                    
+                    <div style={{ padding: '15px' }}>
+                      <h3 style={{
+                        color: '#009245',
+                        fontSize: '16px',
+                        marginBottom: '8px'
+                      }}>
+                        {produto.nome}
+                      </h3>
+                      
+                      <p style={{
+                        color: '#666',
+                        fontSize: '13px',
+                        marginBottom: '12px'
+                      }}>
+                        {produto.descricao}
+                      </p>
+                      
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <span style={{
+                          fontSize: '18px',
+                          fontWeight: 'bold',
+                          color: '#009245'
+                        }}>
+                          R$ {produto.preco.toFixed(2)}
+                        </span>
+                        
+                        <button
+                          onClick={() => adicionarAoCarrinho(produto)}
+                          style={{
+                            backgroundColor: '#f38e3c',
+                            color: 'white',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: '5px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Adicionar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-            
-            <div style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              padding: '20px',
-              border: selectedOption === 'consultarPedidos' ? '3px solid #009245' : '2px solid #eee',
-              borderRadius: '12px',
-              cursor: 'pointer',
-              backgroundColor: selectedOption === 'consultarPedidos' ? '#f0f9f0' : 'white',
-              transition: 'all 0.3s ease',
-              boxShadow: selectedOption === 'consultarPedidos' ? '0 4px 12px rgba(0,146,69,0.2)' : '0 2px 4px rgba(0,0,0,0.05)'
-            }}
-            onClick={() => handleOptionChange('consultarPedidos')}
-            onMouseEnter={(e) => {
-              if (selectedOption !== 'consultarPedidos') {
-                e.currentTarget.style.borderColor = '#009245';
-                e.currentTarget.style.backgroundColor = '#f9f9f9';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (selectedOption !== 'consultarPedidos') {
-                e.currentTarget.style.borderColor = '#eee';
-                e.currentTarget.style.backgroundColor = 'white';
-              }
-            }}
-            >
-              <input 
-                type="radio" 
-                id="consultarPedidos"
-                name="opcao"
-                checked={selectedOption === 'consultarPedidos'}
-                onChange={() => handleOptionChange('consultarPedidos')}
-                style={{
-                  marginRight: '15px',
-                  marginTop: '3px',
-                  transform: 'scale(1.2)'
-                }}
-              />
+          ) : (
+            // Formulário de Finalização
+            <div>
+              <h2 style={{ color: '#009245', marginBottom: '25px' }}>
+                📍 Endereço de Entrega
+              </h2>
+              
               <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '15px',
-                flex: 1
+                backgroundColor: 'white',
+                padding: '25px',
+                borderRadius: '10px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
               }}>
                 <div style={{
-                  fontSize: '32px',
-                  width: '50px',
-                  textAlign: 'center'
+                  display: 'grid',
+                  gridTemplateColumns: '2fr 1fr',
+                  gap: '15px',
+                  marginBottom: '15px'
                 }}>
-                  📋
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                      Logradouro (Rua/Av) *
+                    </label>
+                    <input
+                      type="text"
+                      value={enderecoEntrega.logradouro}
+                      onChange={(e) => setEnderecoEntrega({...enderecoEntrega, logradouro: e.target.value})}
+                      placeholder="Ex: Rua das Flores"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        border: '1px solid #ddd',
+                        borderRadius: '5px'
+                      }}
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                      Número *
+                    </label>
+                    <input
+                      type="text"
+                      value={enderecoEntrega.numero}
+                      onChange={(e) => setEnderecoEntrega({...enderecoEntrega, numero: e.target.value})}
+                      placeholder="123"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        border: '1px solid #ddd',
+                        borderRadius: '5px'
+                      }}
+                      required
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label 
-                    htmlFor="consultarPedidos"
-                    style={{
-                      fontWeight: 'bold',
-                      color: '#333',
-                      cursor: 'pointer',
-                      fontSize: isMobile ? '18px' : '20px',
-                      marginBottom: '5px',
-                      display: 'block'
-                    }}
-                  >
-                    Consultar Pedidos Realizados
-                  </label>
-                  <span style={{
-                    color: '#666',
-                    fontSize: isMobile ? '14px' : '16px',
-                    lineHeight: '1.4'
-                  }}>
-                    Visualize seu histórico completo de pedidos e status
-                  </span>
-                </div>
-              </div>
-            </div>
 
-            {isAdmin && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                padding: '20px',
-                border: selectedOption === 'painelAdmin' ? '3px solid #f38e3c' : '2px solid #ffe4d6',
-                borderRadius: '12px',
-                cursor: 'pointer',
-                backgroundColor: selectedOption === 'painelAdmin' ? '#fff4f0' : '#fef9f7',
-                transition: 'all 0.3s ease',
-                boxShadow: selectedOption === 'painelAdmin' ? '0 4px 12px rgba(243,142,60,0.3)' : '0 2px 4px rgba(243,142,60,0.1)',
-                position: 'relative'
-              }}
-              onClick={() => handleOptionChange('painelAdmin')}
-              onMouseEnter={(e) => {
-                if (selectedOption !== 'painelAdmin') {
-                  e.currentTarget.style.borderColor = '#f38e3c';
-                  e.currentTarget.style.backgroundColor = '#fff4f0';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (selectedOption !== 'painelAdmin') {
-                  e.currentTarget.style.borderColor = '#ffe4d6';
-                  e.currentTarget.style.backgroundColor = '#fef9f7';
-                }
-              }}
-              >
                 <div style={{
-                  position: 'absolute',
-                  top: '-8px',
-                  right: '15px',
-                  backgroundColor: '#f38e3c',
-                  color: 'white',
-                  padding: '4px 8px',
-                  borderRadius: '8px',
-                  fontSize: '10px',
-                  fontWeight: 'bold'
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '15px',
+                  marginBottom: '15px'
                 }}>
-                  EXCLUSIVO
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                      Complemento
+                    </label>
+                    <input
+                      type="text"
+                      value={enderecoEntrega.complemento}
+                      onChange={(e) => setEnderecoEntrega({...enderecoEntrega, complemento: e.target.value})}
+                      placeholder="Apto, Sala, etc"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        border: '1px solid #ddd',
+                        borderRadius: '5px'
+                      }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                      Bairro *
+                    </label>
+                    <input
+                      type="text"
+                      value={enderecoEntrega.bairro}
+                      onChange={(e) => setEnderecoEntrega({...enderecoEntrega, bairro: e.target.value})}
+                      placeholder="Centro"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        border: '1px solid #ddd',
+                        borderRadius: '5px'
+                      }}
+                      required
+                    />
+                  </div>
                 </div>
-                <input 
-                  type="radio" 
-                  id="painelAdmin"
-                  name="opcao"
-                  checked={selectedOption === 'painelAdmin'}
-                  onChange={() => handleOptionChange('painelAdmin')}
-                  style={{
-                    marginRight: '15px',
-                    marginTop: '3px',
-                    transform: 'scale(1.2)'
-                  }}
-                />
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '15px',
+                  marginBottom: '15px'
+                }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                      Cidade *
+                    </label>
+                    <input
+                      type="text"
+                      value={enderecoEntrega.cidade}
+                      onChange={(e) => setEnderecoEntrega({...enderecoEntrega, cidade: e.target.value})}
+                      placeholder="São Paulo"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        border: '1px solid #ddd',
+                        borderRadius: '5px'
+                      }}
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                      CEP
+                    </label>
+                    <input
+                      type="text"
+                      value={enderecoEntrega.cep}
+                      onChange={(e) => setEnderecoEntrega({...enderecoEntrega, cep: e.target.value})}
+                      placeholder="00000-000"
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        border: '1px solid #ddd',
+                        borderRadius: '5px'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                    Ponto de Referência
+                  </label>
+                  <input
+                    type="text"
+                    value={enderecoEntrega.referencia}
+                    onChange={(e) => setEnderecoEntrega({...enderecoEntrega, referencia: e.target.value})}
+                    placeholder="Próximo ao shopping, portão azul, etc"
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      border: '1px solid #ddd',
+                      borderRadius: '5px'
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={handleFinalizarPedido}
+                    disabled={finalizandoPedido}
+                    style={{
+                      backgroundColor: finalizandoPedido ? '#ccc' : '#25D366',
+                      color: 'white',
+                      border: 'none',
+                      padding: '15px 25px',
+                      borderRadius: '5px',
+                      fontWeight: 'bold',
+                      cursor: finalizandoPedido ? 'wait' : 'pointer',
+                      fontSize: '16px'
+                    }}
+                  >
+                    {finalizandoPedido ? '📱 Enviando...' : '📱 Enviar via WhatsApp'}
+                  </button>
+                  
+                  <button
+                    onClick={() => setMostrarFinalizacao(false)}
+                    style={{
+                      backgroundColor: '#6c757d',
+                      color: 'white',
+                      border: 'none',
+                      padding: '15px 25px',
+                      borderRadius: '5px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Voltar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Coluna Direita - Carrinho */}
+        <div>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '25px',
+            borderRadius: '10px',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+            position: 'sticky',
+            top: '20px'
+          }}>
+            <h2 style={{ color: '#009245', marginBottom: '20px' }}>
+              🛒 Carrinho ({carrinho.reduce((total, item) => total + item.quantidade, 0)})
+            </h2>
+            
+            {carrinho.length === 0 ? (
+              <p style={{ color: '#666', textAlign: 'center', padding: '20px' }}>
+                Carrinho vazio
+              </p>
+            ) : (
+              <div>
+                {carrinho.map(item => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '10px 0',
+                      borderBottom: '1px solid #eee'
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '14px' }}>
+                        {item.nome}
+                      </div>
+                      <div style={{ color: '#666', fontSize: '12px' }}>
+                        R$ {item.preco.toFixed(2)}
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        onClick={() => alterarQuantidade(item.id, item.quantidade - 1)}
+                        style={{
+                          backgroundColor: '#dc3545',
+                          color: 'white',
+                          border: 'none',
+                          width: '25px',
+                          height: '25px',
+                          borderRadius: '50%',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        -
+                      </button>
+                      
+                      <span style={{ fontWeight: 'bold', minWidth: '30px', textAlign: 'center' }}>
+                        {item.quantidade}
+                      </span>
+                      
+                      <button
+                        onClick={() => alterarQuantidade(item.id, item.quantidade + 1)}
+                        style={{
+                          backgroundColor: '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          width: '25px',
+                          height: '25px',
+                          borderRadius: '50%',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        +
+                      </button>
+                    </div>
+                    
+                    <div style={{ 
+                      fontWeight: 'bold', 
+                      minWidth: '80px', 
+                      textAlign: 'right',
+                      color: '#009245'
+                    }}>
+                      R$ {(item.preco * item.quantidade).toFixed(2)}
+                    </div>
+                  </div>
+                ))}
+                
                 <div style={{
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: '15px',
-                  flex: 1
+                  justifyContent: 'space-between',
+                  marginTop: '15px',
+                  paddingTop: '15px',
+                  borderTop: '2px solid #009245',
+                  fontSize: '18px',
+                  fontWeight: 'bold',
+                  color: '#009245'
                 }}>
-                  <div style={{
-                    fontSize: '32px',
-                    width: '50px',
-                    textAlign: 'center'
-                  }}>
-                    ⚙️
-                  </div>
-                  <div>
-                    <label 
-                      htmlFor="painelAdmin"
-                      style={{
-                        fontWeight: 'bold',
-                        color: '#333',
-                        cursor: 'pointer',
-                        fontSize: isMobile ? '18px' : '20px',
-                        marginBottom: '5px',
-                        display: 'block'
-                      }}
-                    >
-                      Painel Administrativo
-                    </label>
-                    <span style={{
-                      color: '#666',
-                      fontSize: isMobile ? '14px' : '16px',
-                      lineHeight: '1.4'
-                    }}>
-                      Gerenciar produtos, pedidos e empresas cadastradas
-                    </span>
-                  </div>
+                  <span>Total:</span>
+                  <span>R$ {calcularTotal().toFixed(2)}</span>
                 </div>
-              </div>
-            )}
-          </div>
-          
-          <button 
-            onClick={prosseguir}
-            style={{
-              backgroundColor: selectedOption === 'painelAdmin' ? '#f38e3c' : '#009245',
-              color: 'white',
-              padding: isMobile ? '16px 30px' : '18px 40px',
-              width: '100%',
-              border: 'none',
-              borderRadius: '10px',
-              fontSize: isMobile ? '18px' : '20px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              marginTop: '30px',
-              transition: 'all 0.3s ease',
-              boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = 'translateY(-2px)';
-              e.target.style.boxShadow = '0 6px 20px rgba(0,0,0,0.3)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = 'translateY(0)';
-              e.target.style.boxShadow = '0 4px 15px rgba(0,0,0,0.2)';
-            }}
-          >
-            {selectedOption === 'painelAdmin' ? '🔐 Acessar Painel Admin' : 'Continuar'}
-          </button>
-
-          <div style={{
-            marginTop: '30px',
-            padding: '15px',
-            backgroundColor: '#f8f9fa',
-            borderRadius: '10px',
-            fontSize: '14px',
-            color: '#666',
-            textAlign: 'center',
-            border: '1px solid #e9ecef'
-          }}>
-            <div style={{ marginBottom: '5px' }}>
-              <strong>Sessão ativa para:</strong>
-            </div>
-            <div style={{ color: '#009245', fontWeight: 'bold' }}>
-              {sessaoAtiva.nomeEmpresa || sessaoAtiva.razaoSocial}
-            </div>
-            {isAdmin && (
-              <div style={{
-                marginTop: '8px',
-                fontSize: '12px',
-                color: '#f38e3c',
-                fontWeight: 'bold'
-              }}>
-                ⚙️ Conta com privilégios administrativos
+                
+                <button
+                  onClick={() => setMostrarFinalizacao(true)}
+                  disabled={carrinho.length === 0}
+                  style={{
+                    backgroundColor: carrinho.length === 0 ? '#ccc' : '#f38e3c',
+                    color: 'white',
+                    border: 'none',
+                    padding: '15px',
+                    width: '100%',
+                    borderRadius: '5px',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    cursor: carrinho.length === 0 ? 'not-allowed' : 'pointer',
+                    marginTop: '15px'
+                  }}
+                >
+                  Finalizar Pedido
+                </button>
               </div>
             )}
           </div>
@@ -594,4 +694,4 @@ const ProsseguirPage = ({ onNavigate }) => {
   );
 };
 
-export default ProsseguirPage;
+export default PedidoProdutosPage;
