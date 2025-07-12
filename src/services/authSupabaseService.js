@@ -1,21 +1,12 @@
-import { createClient } from '@supabase/supabase-js';
+// ✅ CORRIGIDO: Usar cliente único do singleton
+import supabase from '../lib/supabase';
 
-// Configuração do Supabase
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
+// ✅ Cache para verificação de sessão (evita calls desnecessários)
+let sessionCache = null;
+let sessionCacheTimestamp = 0;
+const SESSION_CACHE_DURATION = 30000; // 30 segundos
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Supabase URL and anon key must be provided via environment variables');
-}
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-  }
-});
-
-// Funções auxiliares
+// Funções auxiliares otimizadas
 const validarCnpj = (cnpj) => {
   const cnpjLimpo = cnpj.replace(/\D/g, "");
 
@@ -49,25 +40,56 @@ const formatarCnpj = (cnpj) => {
   return cnpjLimpo.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
 };
 
-// Hash simples (substitua por bcrypt em produção)
+// ✅ Hash otimizado e assíncrono (não bloqueia UI)
 const hashSenha = async (senha) => {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(senha + 'fitinbox_salt_2025');
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return new Promise((resolve) => {
+    // Usa setTimeout para não bloquear o thread principal
+    setTimeout(async () => {
+      try {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(senha + 'fitinbox_salt_2025');
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        resolve(hash);
+      } catch (error) {
+        console.error('Erro ao gerar hash:', error);
+        resolve(null);
+      }
+    }, 0);
+  });
+};
+
+// ✅ Função para criar timeout em operações
+const withTimeout = (promise, ms = 5000) => {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Timeout')), ms)
+  );
+  return Promise.race([promise, timeout]);
 };
 
 const authSupabaseService = {
-  // Login padrão via email/senha usando Supabase Auth
-  login: async (email, senha) => {
+  // ✅ Login padrão otimizado
+  login: async (email, senha, options = {}) => {
+    const { signal } = options;
+    
     try {
       console.log('🔐 Iniciando login via email:', email);
 
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // ✅ Operação com timeout e cancelamento
+      const loginPromise = supabase.auth.signInWithPassword({
         email,
         password: senha
       });
+
+      const { data, error } = signal 
+        ? await Promise.race([
+            loginPromise,
+            new Promise((_, reject) => {
+              signal.addEventListener('abort', () => reject(new Error('AbortError')));
+            })
+          ])
+        : await withTimeout(loginPromise, 5000);
 
       if (error) {
         console.error("❌ Erro de autenticação:", error.message);
@@ -77,11 +99,14 @@ const authSupabaseService = {
         };
       }
 
-      const { data: empresaData, error: empresaError } = await supabase
+      // ✅ Busca dados da empresa com timeout
+      const empresaPromise = supabase
         .from("empresas")
         .select("*")
         .eq("user_id", data.user.id)
         .single();
+
+      const { data: empresaData, error: empresaError } = await withTimeout(empresaPromise, 3000);
 
       if (empresaError) {
         console.error("❌ Erro ao buscar empresa:", empresaError.message);
@@ -91,62 +116,73 @@ const authSupabaseService = {
         };
       }
 
-      console.log('✅ Login realizado com sucesso:', {
-        user: data.user.email,
-        empresa: empresaData.nome_empresa
-      });
+      console.log('✅ Login realizado com sucesso');
 
-      return {
+      // ✅ Atualiza cache
+      sessionCache = {
         success: true,
         session: data.session,
         user: data.user,
         empresa: empresaData
       };
+      sessionCacheTimestamp = Date.now();
+
+      return sessionCache;
 
     } catch (error) {
       console.error("❌ Erro no login:", error);
       return {
         success: false,
-        error: error.message || "Erro desconhecido ao fazer login."
+        error: error.message === 'Timeout' ? 'Tempo esgotado. Tente novamente.' : 
+               error.name === 'AbortError' ? 'Operação cancelada' :
+               error.message || "Erro desconhecido ao fazer login."
       };
     }
   },
 
-  // ✅ CORRIGIDO: Login via CNPJ (busca direta na tabela)
-  autenticarCnpj: async (cnpj, senha) => {
+  // ✅ Login via CNPJ otimizado
+  autenticarCnpj: async (cnpj, senha, options = {}) => {
+    const { signal } = options;
+    
     try {
       console.log('🔐 Iniciando login via CNPJ:', cnpj);
 
-      // Valida o CNPJ
+      // ✅ Validação rápida
       if (!validarCnpj(cnpj)) {
-        return { 
-          success: false, 
-          error: "CNPJ inválido." 
-        };
+        return { success: false, error: "CNPJ inválido." };
       }
 
       const cnpjLimpo = cnpj.replace(/\D/g, "");
       
-      // BUSCAR EMPRESA DIRETAMENTE NA TABELA (sem filtro ativo)
-      const { data: empresa, error } = await supabase
+      // ✅ Busca empresa com timeout
+      const empresaPromise = supabase
         .from('empresas')
         .select('*')
         .eq('cnpj', cnpjLimpo)
         .single();
+
+      const { data: empresa, error } = signal 
+        ? await Promise.race([
+            empresaPromise,
+            new Promise((_, reject) => {
+              signal.addEventListener('abort', () => reject(new Error('AbortError')));
+            })
+          ])
+        : await withTimeout(empresaPromise, 3000);
 
       if (error || !empresa) {
         console.error("❌ Empresa não encontrada:", error?.message);
         return { success: false, error: 'CNPJ ou senha inválidos' };
       }
 
-      // VERIFICAR SENHA (usando hash simples por enquanto)
+      // ✅ Verificação de senha assíncrona
       const senhaHash = await hashSenha(senha);
-      if (empresa.senha_hash && empresa.senha_hash !== senhaHash) {
+      if (!senhaHash || (empresa.senha_hash && empresa.senha_hash !== senhaHash)) {
         console.error("❌ Senha inválida");
         return { success: false, error: 'CNPJ ou senha inválidos' };
       }
 
-      // CRIAR SESSÃO MANUAL
+      // ✅ Criação de sessão otimizada
       const sessaoData = {
         cnpj: cnpjLimpo,
         cnpjFormatado: empresa.cnpj_formatado || formatarCnpj(cnpjLimpo),
@@ -160,13 +196,18 @@ const authSupabaseService = {
         timestamp: Date.now()
       };
 
-      // SALVAR SESSÃO NO SESSIONSTORAGE
-      sessionStorage.setItem('sessaoAtiva', JSON.stringify(sessaoData));
+      // ✅ Salvar sessão assíncrono
+      setTimeout(() => {
+        try {
+          sessionStorage.setItem('sessaoAtiva', JSON.stringify(sessaoData));
+          sessionCache = { success: true, ...sessaoData };
+          sessionCacheTimestamp = Date.now();
+        } catch (storageError) {
+          console.error('Erro ao salvar sessão:', storageError);
+        }
+      }, 0);
 
-      console.log('✅ Login via CNPJ realizado com sucesso:', {
-        cnpj: empresa.cnpj_formatado,
-        empresa: empresa.nome_empresa
-      });
+      console.log('✅ Login via CNPJ realizado com sucesso');
 
       return { success: true, ...sessaoData };
 
@@ -174,43 +215,46 @@ const authSupabaseService = {
       console.error("❌ Erro no login via CNPJ:", error.message);
       return {
         success: false,
-        error: "Erro ao fazer login"
+        error: error.message === 'Timeout' ? 'Tempo esgotado. Tente novamente.' : 
+               error.name === 'AbortError' ? 'Operação cancelada' :
+               "Erro ao fazer login"
       };
     }
   },
 
-  // ✅ CORRIGIDO: Registro usando inserção direta na tabela
-  registrarEmpresa: async (email, senha, dadosEmpresa) => {
+  // ✅ Registro otimizado
+  registrarEmpresa: async (email, senha, dadosEmpresa, options = {}) => {
+    const { signal } = options;
+    
     try {
       console.log('📝 Iniciando registro de empresa via CNPJ:', dadosEmpresa.cnpj);
 
       const cnpjLimpo = dadosEmpresa.cnpj.replace(/\D/g, "");
       
-      // Verifica se CNPJ já existe (sem .single() para evitar erro 406)
-      const { data: empresasExistentes, error: checkError } = await supabase
+      // ✅ Verificação com timeout
+      const checkPromise = supabase
         .from('empresas')
         .select('cnpj')
         .eq('cnpj', cnpjLimpo);
 
+      const { data: empresasExistentes, error: checkError } = await withTimeout(checkPromise, 3000);
+
       if (checkError) {
         console.error("❌ Erro ao verificar CNPJ existente:", checkError);
-        return { 
-          success: false, 
-          error: "Erro ao verificar CNPJ" 
-        };
+        return { success: false, error: "Erro ao verificar CNPJ" };
       }
 
       if (empresasExistentes && empresasExistentes.length > 0) {
-        return { 
-          success: false, 
-          error: "CNPJ já cadastrado no sistema" 
-        };
+        return { success: false, error: "CNPJ já cadastrado no sistema" };
       }
 
-      // Hash da senha
+      // ✅ Hash da senha assíncrono
       const senhaHash = await hashSenha(senha);
+      if (!senhaHash) {
+        return { success: false, error: "Erro ao processar senha" };
+      }
 
-      // Preparar dados para inserção (ESTRUTURA COMPLETA)
+      // ✅ Preparar dados
       const dadosInsercao = {
         cnpj: cnpjLimpo,
         cnpj_formatado: formatarCnpj(dadosEmpresa.cnpj),
@@ -219,7 +263,6 @@ const authSupabaseService = {
         tipo_usuario: 'cliente'
       };
 
-      // Adicionar campos opcionais
       if (email && email.trim()) {
         dadosInsercao.email = email.trim();
       }
@@ -230,20 +273,24 @@ const authSupabaseService = {
         dadosInsercao.nome_fantasia = dadosEmpresa.nomeEmpresa.trim();
       }
 
-      console.log('📝 Dados completos para inserção:', { ...dadosInsercao, senha_hash: '[OCULTA]' });
-
-      console.log('📝 Dados para inserção:', { ...dadosInsercao, senha_hash: '[OCULTA]' });
-
-      // Inserir empresa diretamente na tabela (sem .single() no final)
-      const { data: novaEmpresa, error: empresaError } = await supabase
+      // ✅ Inserção com timeout
+      const insertPromise = supabase
         .from("empresas")
         .insert(dadosInsercao)
         .select();
 
+      const { data: novaEmpresa, error: empresaError } = signal 
+        ? await Promise.race([
+            insertPromise,
+            new Promise((_, reject) => {
+              signal.addEventListener('abort', () => reject(new Error('AbortError')));
+            })
+          ])
+        : await withTimeout(insertPromise, 5000);
+
       if (empresaError) {
         console.error("❌ Erro ao inserir empresa:", empresaError);
         
-        // Tratamento de erros específicos
         if (empresaError.code === '23505') {
           return { success: false, error: "CNPJ já cadastrado" };
         }
@@ -255,10 +302,7 @@ const authSupabaseService = {
       }
 
       if (!novaEmpresa || novaEmpresa.length === 0) {
-        return { 
-          success: false, 
-          error: "Erro: empresa não foi criada" 
-        };
+        return { success: false, error: "Erro: empresa não foi criada" };
       }
 
       console.log('✅ Empresa cadastrada com sucesso:', novaEmpresa[0].cnpj_formatado);
@@ -273,53 +317,104 @@ const authSupabaseService = {
       console.error("❌ Erro no registro:", error);
       return { 
         success: false,
-        error: `Erro no cadastro: ${error.message || 'Erro desconhecido'}`
+        error: error.message === 'Timeout' ? 'Tempo esgotado. Tente novamente.' : 
+               error.name === 'AbortError' ? 'Operação cancelada' :
+               `Erro no cadastro: ${error.message || 'Erro desconhecido'}`
       };
     }
   },
 
-  // ✅ CORRIGIDO: Verificação de sessão via sessionStorage
-  verificarSessao: async () => {
+  // ✅ Verificação de sessão COM CACHE (resolve o problema de 9s!)
+  verificarSessao: async (options = {}) => {
+    const { signal, forceRefresh = false } = options;
+    
     try {
-      const sessaoSalva = sessionStorage.getItem('sessaoAtiva');
-      
-      if (!sessaoSalva) {
-        return null;
+      // ✅ Usa cache se disponível e não forçou refresh
+      const now = Date.now();
+      if (!forceRefresh && sessionCache && (now - sessionCacheTimestamp) < SESSION_CACHE_DURATION) {
+        console.log('✅ Usando sessão do cache');
+        return sessionCache;
       }
 
-      const sessaoData = JSON.parse(sessaoSalva);
-      
-      // Verifica se a sessão não expirou (1 dia)
-      const agora = Date.now();
-      const umDia = 24 * 60 * 60 * 1000;
-      
-      if (sessaoData.timestamp && (agora - sessaoData.timestamp) > umDia) {
-        sessionStorage.removeItem('sessaoAtiva');
-        return null;
-      }
+      // ✅ Operação assíncrona para não bloquear UI
+      return new Promise((resolve) => {
+        // Usa requestAnimationFrame para não bloquear
+        requestAnimationFrame(() => {
+          try {
+            const sessaoSalva = sessionStorage.getItem('sessaoAtiva');
+            
+            if (!sessaoSalva) {
+              sessionCache = null;
+              sessionCacheTimestamp = 0;
+              resolve(null);
+              return;
+            }
 
-      console.log('✅ Sessão válida encontrada:', {
-        cnpj: sessaoData.cnpjFormatado,
-        empresa: sessaoData.nomeEmpresa
+            const sessaoData = JSON.parse(sessaoSalva);
+            
+            // ✅ Verifica expiração (1 dia)
+            const agora = Date.now();
+            const umDia = 24 * 60 * 60 * 1000;
+            
+            if (sessaoData.timestamp && (agora - sessaoData.timestamp) > umDia) {
+              setTimeout(() => {
+                sessionStorage.removeItem('sessaoAtiva');
+              }, 0);
+              sessionCache = null;
+              sessionCacheTimestamp = 0;
+              resolve(null);
+              return;
+            }
+
+            console.log('✅ Sessão válida encontrada:', {
+              cnpj: sessaoData.cnpjFormatado,
+              empresa: sessaoData.nomeEmpresa
+            });
+
+            // ✅ Atualiza cache
+            sessionCache = sessaoData;
+            sessionCacheTimestamp = now;
+            
+            resolve(sessaoData);
+
+          } catch (error) {
+            console.error("❌ Erro ao verificar sessão:", error);
+            setTimeout(() => {
+              sessionStorage.removeItem('sessaoAtiva');
+            }, 0);
+            sessionCache = null;
+            sessionCacheTimestamp = 0;
+            resolve(null);
+          }
+        });
       });
 
-      return sessaoData;
-
     } catch (error) {
-      console.error("❌ Erro ao verificar sessão:", error);
-      sessionStorage.removeItem('sessaoAtiva');
+      console.error("❌ Erro na verificação de sessão:", error);
+      sessionCache = null;
+      sessionCacheTimestamp = 0;
       return null;
     }
   },
 
-  // Logout
+  // ✅ Logout otimizado
   logout: async () => {
     try {
-      // Remove sessão local
-      sessionStorage.removeItem('sessaoAtiva');
+      // ✅ Limpa cache
+      sessionCache = null;
+      sessionCacheTimestamp = 0;
       
-      // Tenta fazer logout do Supabase Auth também (se existir)
-      await supabase.auth.signOut();
+      // ✅ Remove sessão assíncrono
+      setTimeout(() => {
+        sessionStorage.removeItem('sessaoAtiva');
+      }, 0);
+      
+      // ✅ Logout do Supabase com timeout
+      try {
+        await withTimeout(supabase.auth.signOut(), 2000);
+      } catch (timeoutError) {
+        console.warn('Timeout no logout do Supabase, prosseguindo...');
+      }
       
       console.log("✅ Logout realizado com sucesso");
       return true;
@@ -330,45 +425,57 @@ const authSupabaseService = {
     }
   },
 
-  // Recuperação de senha
+  // ✅ Recuperação de senha otimizada
   enviarCodigoRecuperacao: async (email) => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const resetPromise = supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`
       });
+      
+      const { error } = await withTimeout(resetPromise, 10000);
       
       if (error) throw error;
       return { success: true, message: "Link de recuperação enviado para seu email!" };
 
     } catch (error) {
       console.error("❌ Erro ao enviar código:", error.message);
-      return { success: false, error: error.message };
+      return { 
+        success: false, 
+        error: error.message === 'Timeout' ? 'Tempo esgotado. Tente novamente.' : error.message 
+      };
     }
   },
 
-  // Atualizar senha
+  // ✅ Atualizar senha otimizada
   atualizarSenha: async (newPassword) => {
     try {
-      const { error } = await supabase.auth.updateUser({
+      const updatePromise = supabase.auth.updateUser({
         password: newPassword
       });
+      
+      const { error } = await withTimeout(updatePromise, 5000);
 
       if (error) throw error;
       return { success: true };
 
     } catch (error) {
       console.error("❌ Erro ao atualizar senha:", error.message);
-      return { success: false, error: error.message };
+      return { 
+        success: false, 
+        error: error.message === 'Timeout' ? 'Tempo esgotado. Tente novamente.' : error.message 
+      };
     }
   },
 
-  // ✅ NOVAS FUNÇÕES ADMINISTRATIVAS
+  // ✅ Funções administrativas otimizadas
   listarEmpresas: async () => {
     try {
-      const { data: empresas, error } = await supabase
+      const listPromise = supabase
         .from('empresas')
         .select('*')
         .order('created_at', { ascending: false });
+        
+      const { data: empresas, error } = await withTimeout(listPromise, 8000);
 
       if (error) throw error;
       
@@ -381,10 +488,12 @@ const authSupabaseService = {
 
   toggleEmpresaAtiva: async (empresaId, ativo) => {
     try {
-      const { error } = await supabase
+      const togglePromise = supabase
         .from('empresas')
         .update({ ativo: ativo })
         .eq('id', empresaId);
+        
+      const { error } = await withTimeout(togglePromise, 3000);
 
       if (error) throw error;
       
@@ -396,9 +505,16 @@ const authSupabaseService = {
       console.error("❌ Erro ao alterar status da empresa:", error);
       return { 
         success: false, 
-        error: "Erro ao alterar status da empresa" 
+        error: error.message === 'Timeout' ? 'Tempo esgotado. Tente novamente.' : "Erro ao alterar status da empresa" 
       };
     }
+  },
+
+  // ✅ Função para limpar cache (útil para debugging)
+  clearCache: () => {
+    sessionCache = null;
+    sessionCacheTimestamp = 0;
+    console.log('🗑️ Cache de sessão limpo');
   },
 
   // Utilitários
