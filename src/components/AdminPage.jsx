@@ -28,11 +28,13 @@ const AdminPage = ({ onNavigate }) => {
   const [editingProduct, setEditingProduct] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   
-  // SISTEMA DE AUTENTICAÇÃO ADMIN MELHORADO
+  // ✅ SISTEMA DE AUTENTICAÇÃO ADMIN MELHORADO
   const [adminAuth, setAdminAuth] = useState({
     isAuthenticated: false,
     attempts: 0,
-    lockedUntil: null
+    lockedUntil: null,
+    authMethod: null,
+    user: null
   });
   
   const [productForm, setProductForm] = useState({
@@ -175,89 +177,81 @@ const AdminPage = ({ onNavigate }) => {
     saveProductsSecure(produtosIniciais);
   }, []);
 
-  // Verifica se admin está bloqueado
-  const checkAdminLock = () => {
-    const lockData = localStorage.getItem('adminLock');
-    if (lockData) {
-      try {
-        const { lockedUntil } = JSON.parse(lockData);
-        if (new Date() < new Date(lockedUntil)) {
-          const remainingMinutes = Math.ceil((new Date(lockedUntil) - new Date()) / 1000 / 60);
-          return {
-            isLocked: true,
-            remainingMinutes
-          };
-        } else {
-          localStorage.removeItem('adminLock');
-        }
-      } catch {
-        localStorage.removeItem('adminLock');
-      }
-    }
-    return { isLocked: false };
-  };
-
-  // Bloqueio temporário após tentativas
-  const lockAdmin = (minutes = 30) => {
-    const lockedUntil = new Date(Date.now() + minutes * 60 * 1000);
-    localStorage.setItem('adminLock', JSON.stringify({ lockedUntil }));
-  };
-
-  // Autenticação admin melhorada
-  const authenticateAdmin = () => {
-    const lockCheck = checkAdminLock();
-    if (lockCheck.isLocked) {
-      alert(`Acesso bloqueado. Tente novamente em ${lockCheck.remainingMinutes} minutos.`);
-      return false;
-    }
-
-    // Múltiplas senhas possíveis (para diferentes ambientes)
-    const validPasswords = [
-      process.env.REACT_APP_ADMIN_PASSWORD || 'FitInBox2025!',
-      'admin2025!@#',
-      'fitinbox_admin_secure'
-    ];
-
-    const senha = prompt('Digite a senha do administrador:');
+  // ✅ Verificação otimizada de autenticação admin
+  const checkAdminAuthentication = useCallback(() => {
+    console.log('🔐 Verificando autenticação admin...');
     
-    if (senha === null) return false; // Cancelou
-
-    // Validação da senha
-    const isValid = validPasswords.some(validPassword => {
-      // Hash simples para comparação (ainda é client-side, mas melhor que texto puro)
-      const inputHash = btoa(senha + 'fitinbox_salt');
-      const validHash = btoa(validPassword + 'fitinbox_salt');
-      return inputHash === validHash;
-    });
-
-    if (isValid) {
-      setAdminAuth({
-        isAuthenticated: true,
-        attempts: 0,
-        lockedUntil: null
-      });
+    try {
+      // ✅ Verifica pré-autenticação (mais prioritária)
+      const preAuth = sessionStorage.getItem('adminPreAuthenticated');
       
-      // Remove lock se existir
-      localStorage.removeItem('adminLock');
-      
-      // Log seguro (não mostra senha)
-      securityUtils.safeLog('Admin autenticado com sucesso');
-      return true;
-    } else {
-      const attempts = (adminAuth.attempts || 0) + 1;
-      setAdminAuth(prev => ({ ...prev, attempts }));
-
-      if (attempts >= 3) {
-        lockAdmin(30); // Bloqueia por 30 minutos após 3 tentativas
-        alert('Muitas tentativas incorretas. Acesso bloqueado por 30 minutos.');
-      } else {
-        alert(`Senha incorreta! Tentativas restantes: ${3 - attempts}`);
+      if (preAuth) {
+        const { timestamp, authMethod, cnpj, empresa } = JSON.parse(preAuth);
+        
+        // ✅ Verifica se ainda é válida (30 minutos)
+        if (Date.now() - timestamp < 30 * 60 * 1000) {
+          console.log('✅ Pré-autenticação válida encontrada');
+          
+          setAdminAuth({
+            isAuthenticated: true,
+            attempts: 0,
+            lockedUntil: null,
+            authMethod: authMethod || 'pre-auth',
+            user: { cnpj, empresa }
+          });
+          
+          // Remove pré-autenticação e cria autenticação persistente
+          sessionStorage.removeItem('adminPreAuthenticated');
+          sessionStorage.setItem('adminAuthenticated', JSON.stringify({
+            timestamp: Date.now(),
+            authMethod,
+            cnpj,
+            empresa
+          }));
+          
+          return true;
+        } else {
+          console.log('⏰ Pré-autenticação expirada');
+          sessionStorage.removeItem('adminPreAuthenticated');
+        }
       }
 
-      securityUtils.safeLog(`Tentativa de acesso admin falhou. Tentativas: ${attempts}`);
+      // ✅ Verifica autenticação persistente
+      const auth = sessionStorage.getItem('adminAuthenticated');
+      
+      if (auth) {
+        const { timestamp, authMethod, cnpj, empresa } = JSON.parse(auth);
+        
+        // ✅ Verifica se ainda é válida (2 horas)
+        if (Date.now() - timestamp < 2 * 60 * 60 * 1000) {
+          console.log('✅ Autenticação admin válida encontrada');
+          
+          setAdminAuth({
+            isAuthenticated: true,
+            attempts: 0,
+            lockedUntil: null,
+            authMethod: authMethod || 'session',
+            user: { cnpj, empresa }
+          });
+          
+          return true;
+        } else {
+          console.log('⏰ Autenticação admin expirada');
+          sessionStorage.removeItem('adminAuthenticated');
+        }
+      }
+
+      console.log('🚫 Acesso admin não autorizado, redirecionando...');
+      return false;
+
+    } catch (error) {
+      console.error('❌ Erro na verificação de autenticação admin:', error);
+      // ✅ Limpa dados corrompidos
+      sessionStorage.removeItem('adminPreAuthenticated');
+      sessionStorage.removeItem('adminAuthenticated');
       return false;
     }
-  };
+  }, []);
 
   // Middleware de proteção para ações sensíveis
   const requireAuth = (action) => {
@@ -274,8 +268,15 @@ const AdminPage = ({ onNavigate }) => {
     setAdminAuth({
       isAuthenticated: false,
       attempts: 0,
-      lockedUntil: null
+      lockedUntil: null,
+      authMethod: null,
+      user: null
     });
+    
+    // ✅ Limpa todas as autenticações
+    sessionStorage.removeItem('adminPreAuthenticated');
+    sessionStorage.removeItem('adminAuthenticated');
+    
     onNavigate('home');
     securityUtils.safeLog('Admin logout realizado');
   };
@@ -526,43 +527,13 @@ const AdminPage = ({ onNavigate }) => {
 
   // ===== VERIFICAÇÃO DE AUTENTICAÇÃO COM FUNÇÕES JÁ DEFINIDAS =====
   useEffect(() => {
-    const checkAuthentication = () => {
-      console.log('🔐 Verificando autenticação admin...');
-      
-      const preAuth = sessionStorage.getItem('adminPreAuthenticated');
-      
-      if (preAuth) {
-        try {
-          const { timestamp } = JSON.parse(preAuth);
-          if (Date.now() - timestamp < 30 * 60 * 1000) {
-            console.log('✅ Pré-autenticação válida encontrada');
-            setAdminAuth({ isAuthenticated: true, attempts: 0, lockedUntil: null });
-            sessionStorage.removeItem('adminPreAuthenticated');
-            
-            sessionStorage.setItem('adminAuthenticated', JSON.stringify({
-              timestamp: Date.now()
-            }));
-            
-            // Agora as funções estão definidas, pode chamar
-            console.log('📊 Carregando dados do admin...');
-            return true; // Sucesso na autenticação
-          } else {
-            console.log('⏰ Pré-autenticação expirada');
-            sessionStorage.removeItem('adminPreAuthenticated');
-          }
-        } catch (error) {
-          console.error('❌ Erro na pré-autenticação:', error);
-          sessionStorage.removeItem('adminPreAuthenticated');
-        }
-      }
-
-      console.log('🚫 Acesso admin não autorizado, redirecionando...');
+    const isAuthenticated = checkAdminAuthentication();
+    
+    if (!isAuthenticated) {
+      // ✅ Não autenticado, redireciona
       onNavigate('home');
-      return false;
-    };
-
-    checkAuthentication();
-  }, [onNavigate]);
+    }
+  }, [onNavigate, checkAdminAuthentication]);
 
   // ===== CARREGAMENTO DE DADOS QUANDO AUTENTICADO =====
   useEffect(() => {
@@ -576,7 +547,21 @@ const AdminPage = ({ onNavigate }) => {
 
   // Se não está autenticado, não renderiza nada (já redirecionou)
   if (!adminAuth.isAuthenticated) {
-    return null;
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        fontFamily: 'Arial, sans-serif',
+        flexDirection: 'column',
+        gap: '20px',
+        backgroundColor: '#f8f9fa'
+      }}>
+        <div style={{ fontSize: '48px' }}>🔐</div>
+        <div style={{ fontSize: '18px', color: '#666' }}>Verificando autenticação...</div>
+      </div>
+    );
   }
 
   return (
@@ -598,23 +583,44 @@ const AdminPage = ({ onNavigate }) => {
           <div style={{ fontSize: '32px' }}>🍽️</div>
           <div>
             <h2 style={{ margin: 0, fontSize: '24px' }}>Fit In Box Admin</h2>
-            <small style={{ color: '#adb5bd' }}>Painel Administrativo</small>
+            <small style={{ color: '#adb5bd' }}>
+              Painel Administrativo
+              {adminAuth.user && (
+                <span style={{ marginLeft: '10px', color: '#ffc107' }}>
+                  • {adminAuth.user.empresa || adminAuth.user.cnpj}
+                </span>
+              )}
+            </small>
           </div>
         </div>
-        <button 
-          onClick={logoutAdmin}
-          style={{
-            backgroundColor: '#dc3545',
-            color: 'white',
-            border: 'none',
-            padding: '10px 20px',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            fontWeight: 'bold'
-          }}
-        >
-          🚪 Sair
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          {adminAuth.authMethod && (
+            <span style={{
+              backgroundColor: adminAuth.authMethod === 'password' ? '#dc3545' : '#28a745',
+              color: 'white',
+              padding: '4px 8px',
+              borderRadius: '12px',
+              fontSize: '12px',
+              fontWeight: 'bold'
+            }}>
+              {adminAuth.authMethod === 'password' ? '🔐 SENHA' : '✅ AUTORIZADO'}
+            </span>
+          )}
+          <button 
+            onClick={logoutAdmin}
+            style={{
+              backgroundColor: '#dc3545',
+              color: 'white',
+              border: 'none',
+              padding: '10px 20px',
+              borderRadius: '5px',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+          >
+            🚪 Sair
+          </button>
+        </div>
       </div>
 
       <div style={{
