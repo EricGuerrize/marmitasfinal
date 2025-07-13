@@ -944,7 +944,7 @@ const HomePage = ({ onNavigate }) => {
               lineHeight: '1.6',
               fontSize: '14px'
             }}>
-              Alimentação saudável e nutritiva para empresas que se preocupam com o bem-estar de seus colaboradores.
+              Alimentação saudável e nutritiva para empresas que se preocupam com o bem-estar de seus clientes.
             </p>
           </div>
 
@@ -974,7 +974,8 @@ const HomePage = ({ onNavigate }) => {
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
               <div style={{ color: '#bdc3c7' }}>
-                <strong>🏢 Razão Social:</strong><br />Fit In Box Alimentação Ltda
+                <strong>🏢 Razão Social:</strong><br />H Azevedo de Abreu Refeições Saudaveis
+                <div>Fit in box</div>
               </div>
               <div style={{ color: '#bdc3c7' }}>
                 <strong>⭐ Qualidade:</strong><br />Ingredientes frescos e selecionados
