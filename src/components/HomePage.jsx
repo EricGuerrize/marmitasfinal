@@ -358,7 +358,7 @@ const HomePage = ({ onNavigate }) => {
           <strong>Nosso</strong> Compromisso
         </h1>
         <p style={{ marginTop: '20px', fontSize: isMobile ? '1.1em' : '1.2em' }}>
-          ÁREA DO FORNECEDOR
+          ÁREA DO CLIENTE
         </p>
         <p style={{ fontSize: isMobile ? '1.1em' : '1.2em', margin: isMobile ? '10px 10px 0 10px' : '0' }}>
           {modo === 'login' ? 'Acesse sua conta' : 'Crie sua conta'}
