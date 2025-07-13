@@ -345,7 +345,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 }}
               >
                 <img
-                  src={item.imagem}
+                  src={item.imagem_url} // Corrigido para imagem_url
                   alt={item.nome}
                   style={{
                     width: isMobile ? '100%' : '85px',
@@ -881,3 +881,4 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
 };
 
 export default CarrinhoPage;
+

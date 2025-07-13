@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
+import { produtoService } from '../services/produtoService'; // Importar produtoService
 
 const PedidoProdutosPage = ({ onNavigate }) => {
   const [produtos, setProdutos] = useState([]);
@@ -18,7 +19,6 @@ const PedidoProdutosPage = ({ onNavigate }) => {
   const [finalizandoPedido, setFinalizandoPedido] = useState(false);
 
   useEffect(() => {
-    // Verifica sessão
     const sessao = authSupabaseService.verificarSessao();
     if (!sessao) {
       alert('Sessão expirada. Faça login novamente.');
@@ -26,20 +26,16 @@ const PedidoProdutosPage = ({ onNavigate }) => {
       return;
     }
 
-    // Busca dados da empresa para exibir na entrega
     buscarDadosEmpresa(sessao);
     carregarProdutos();
   }, [onNavigate]);
 
   const buscarDadosEmpresa = async (sessao) => {
     try {
-      // Aqui você buscaria os dados completos da empresa no Supabase
-      // Por enquanto, usamos os dados da sessão
       setDadosEmpresa({
         cnpj: sessao.cnpj,
         razaoSocial: sessao.razaoSocial,
         nomeFantasia: sessao.nomeFantasia,
-        // Dados adicionais poderiam vir do banco
         endereco: 'Rua da Empresa, 123',
         cidade: 'São Paulo',
         telefone: '(11) 9999-9999'
@@ -49,15 +45,13 @@ const PedidoProdutosPage = ({ onNavigate }) => {
     }
   };
 
-  const carregarProdutos = () => {
-    const produtosSalvos = localStorage.getItem('adminProdutos');
-    if (produtosSalvos) {
-      try {
-        const produtosParsed = JSON.parse(produtosSalvos);
-        setProdutos(produtosParsed.filter(p => p.disponivel));
-      } catch (error) {
-        console.error('Erro ao carregar produtos:', error);
-      }
+  const carregarProdutos = async () => {
+    try {
+      const produtosSupabase = await produtoService.listarProdutos();
+      setProdutos(produtosSupabase.filter(p => p.disponivel));
+    } catch (error) {
+      console.error('Erro ao carregar produtos do Supabase:', error);
+      setProdutos([]); // Em caso de erro, define como array vazio
     }
   };
 
@@ -103,7 +97,6 @@ const PedidoProdutosPage = ({ onNavigate }) => {
       return;
     }
 
-    // Valida endereço de entrega
     if (!enderecoEntrega.logradouro || !enderecoEntrega.numero || !enderecoEntrega.bairro) {
       alert('Preencha o endereço de entrega completo');
       return;
@@ -112,7 +105,6 @@ const PedidoProdutosPage = ({ onNavigate }) => {
     setFinalizandoPedido(true);
 
     try {
-      // Cria o pedido
       const pedido = {
         numero: Math.floor(Math.random() * 10000) + 1000,
         itens: carrinho,
@@ -123,22 +115,8 @@ const PedidoProdutosPage = ({ onNavigate }) => {
         status: 'enviado'
       };
 
-      // Salva no localStorage para o admin ver
-      const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
-      pedidosAdmin.push({
-        id: Date.now(),
-        numero: pedido.numero,
-        cliente: dadosEmpresa.razaoSocial,
-        cnpj: dadosEmpresa.cnpj,
-        total: pedido.total,
-        status: 'enviado',
-        data: pedido.data,
-        itens: pedido.itens,
-        enderecoEntrega: pedido.enderecoEntrega
-      });
-      localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
+      // Removido o salvamento no localStorage para o admin ver
 
-      // Prepara mensagem para WhatsApp
       const numeroWhatsApp = '5565992556938';
       let mensagem = `🍽️ *NOVO PEDIDO - FIT IN BOX*\n\n`;
       mensagem += `📋 *Pedido:* #${pedido.numero}\n`;
@@ -166,15 +144,12 @@ const PedidoProdutosPage = ({ onNavigate }) => {
       
       mensagem += `Aguardo confirmação! 🙏`;
 
-      // Abre WhatsApp
       const url = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
       window.open(url, '_blank');
 
-      // Limpa carrinho e mostra sucesso
       setCarrinho([]);
       alert('Pedido enviado com sucesso via WhatsApp!');
       
-      // Volta para a página anterior
       onNavigate('prosseguir');
 
     } catch (error) {
@@ -213,7 +188,6 @@ const PedidoProdutosPage = ({ onNavigate }) => {
       backgroundColor: '#f5f5f5',
       minHeight: '100vh'
     }}>
-      {/* Header com dados da empresa VISÍVEIS para entrega */}
       <div style={{
         background: 'white',
         padding: '15px 40px',
@@ -230,7 +204,6 @@ const PedidoProdutosPage = ({ onNavigate }) => {
             🍽️ Fit In Box
           </div>
           
-          {/* DADOS DA EMPRESA VISÍVEIS PARA FACILITAR ENTREGA */}
           <div style={{
             backgroundColor: '#e7f3ff',
             padding: '15px',
@@ -276,7 +249,6 @@ const PedidoProdutosPage = ({ onNavigate }) => {
         </div>
       </div>
 
-      {/* Conteúdo Principal */}
       <div style={{
         maxWidth: '1200px',
         margin: '0 auto',
@@ -285,10 +257,8 @@ const PedidoProdutosPage = ({ onNavigate }) => {
         gridTemplateColumns: mostrarFinalizacao ? '1fr 1fr' : '2fr 1fr',
         gap: '30px'
       }}>
-        {/* Coluna Esquerda - Produtos ou Finalização */}
         <div>
           {!mostrarFinalizacao ? (
-            // Lista de Produtos
             <div>
               <h1 style={{ color: '#009245', marginBottom: '30px' }}>
                 🍽️ Nossos Produtos
@@ -310,7 +280,7 @@ const PedidoProdutosPage = ({ onNavigate }) => {
                     }}
                   >
                     <img
-                      src={produto.imagem}
+                      src={produto.imagem_url}
                       alt={produto.nome}
                       style={{
                         width: '100%',
@@ -370,7 +340,6 @@ const PedidoProdutosPage = ({ onNavigate }) => {
               </div>
             </div>
           ) : (
-            // Formulário de Finalização
             <div>
               <h2 style={{ color: '#009245', marginBottom: '25px' }}>
                 📍 Endereço de Entrega
@@ -571,7 +540,6 @@ const PedidoProdutosPage = ({ onNavigate }) => {
           )}
         </div>
 
-        {/* Coluna Direita - Carrinho */}
         <div>
           <div style={{
             backgroundColor: 'white',
@@ -700,3 +668,4 @@ const PedidoProdutosPage = ({ onNavigate }) => {
 };
 
 export default PedidoProdutosPage;
+

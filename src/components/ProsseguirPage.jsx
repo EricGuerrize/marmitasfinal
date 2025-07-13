@@ -576,4 +576,4 @@ const ProsseguirPage = ({ onNavigate }) => {
   );
 };
 
-export default ProsseguirPage;
+export default ProsseguirPage;  

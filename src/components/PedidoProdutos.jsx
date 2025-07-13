@@ -10,118 +10,6 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
   const [quantidades, setQuantidades] = useState({});
   const [isMobile, setIsMobile] = useState(false);
 
-  // Produtos de exemplo otimizados (fallback)
-  const produtos = [
-    {
-      id: 1,
-      nome: 'Marmita Fitness Frango',
-      descricao: 'Peito de frango grelhado, arroz integral, brócolis e cenoura',
-      preco: 18.90,
-      categoria: 'fitness',
-      imagem: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c',
-      disponivel: true
-    },
-    {
-      id: 2,
-      nome: 'Marmita Vegana',
-      descricao: 'Quinoa, grão-de-bico, abobrinha refogada e salada verde',
-      preco: 16.90,
-      categoria: 'vegana',
-      imagem: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd',
-      disponivel: true
-    },
-    {
-      id: 3,
-      nome: 'Marmita Tradicional',
-      descricao: 'Bife acebolado, arroz, feijão, farofa e salada',
-      preco: 15.90,
-      categoria: 'tradicional',
-      imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445',
-      disponivel: true
-    },
-    {
-      id: 4,
-      nome: 'Marmita Low Carb',
-      descricao: 'Salmão grelhado, couve-flor gratinada e aspargos',
-      preco: 22.90,
-      categoria: 'fitness',
-      imagem: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288',
-      disponivel: true
-    },
-    {
-      id: 5,
-      nome: 'Marmita do Chef',
-      descricao: 'Risotto de camarão com legumes e ervas finas',
-      preco: 28.90,
-      categoria: 'gourmet',
-      imagem: 'https://images.unsplash.com/photo-1563379091339-03246963d96c',
-      disponivel: true
-    },
-    {
-      id: 6,
-      nome: 'Marmita Vegetariana',
-      descricao: 'Lasanha de berinjela, salada de rúcula e tomate seco',
-      preco: 17.90,
-      categoria: 'vegana',
-      imagem: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b',
-      disponivel: true
-    },
-    {
-      id: 7,
-      nome: 'Marmita Proteica',
-      descricao: 'Carne vermelha magra, batata doce e mix de vegetais',
-      preco: 21.90,
-      categoria: 'fitness',
-      imagem: 'https://images.unsplash.com/photo-1551782450-17144efb9c50',
-      disponivel: true
-    },
-    {
-      id: 8,
-      nome: 'Marmita Detox',
-      descricao: 'Salada completa com grãos, frutas e molho especial',
-      preco: 19.90,
-      categoria: 'vegana',
-      imagem: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd',
-      disponivel: true
-    },
-    {
-      id: 9,
-      nome: 'Marmita Executiva',
-      descricao: 'Peixe grelhado, arroz de brócolis e legumes sauteados',
-      preco: 25.90,
-      categoria: 'gourmet',
-      imagem: 'https://images.unsplash.com/photo-1546793665-c74683f339c1',
-      disponivel: true
-    },
-    {
-      id: 10,
-      nome: 'Marmita Caseira',
-      descricao: 'Frango desfiado, purê de batata e salada mista',
-      preco: 16.90,
-      categoria: 'tradicional',
-      imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445',
-      disponivel: true
-    },
-    {
-      id: 11,
-      nome: 'Marmita Mediterrânea',
-      descricao: 'Salmão com ervas, quinoa e mix de folhas verdes',
-      preco: 26.90,
-      categoria: 'gourmet',
-      imagem: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288',
-      disponivel: true
-    },
-    {
-      id: 12,
-      nome: 'Marmita Kids',
-      descricao: 'Frango empanado, arroz colorido e cenoura refogada',
-      preco: 14.90,
-      categoria: 'tradicional',
-      imagem: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b',
-      disponivel: true
-    }
-  ];
-
   const categorias = [
     { id: 'todos', nome: 'Todos os Produtos' },
     { id: 'fitness', nome: 'Fitness' },
@@ -147,32 +35,18 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
     const cnpjInfo = sessionStorage.getItem('cnpj') || '';
     setCnpj(cnpjInfo);
 
-    // Carrega produtos do localStorage/admin ou usa produtos padrão
+    // Carrega produtos do Supabase
     const carregarProdutos = async () => {
       try {
-        // Primeiro tenta carregar do localStorage (produtos do admin)
-        const produtosAdmin = localStorage.getItem('adminProdutos');
-        if (produtosAdmin) {
-          const produtosParsed = JSON.parse(produtosAdmin);
-          const produtosAtivos = produtosParsed.filter(p => p.disponivel);
-          if (produtosAtivos.length > 0) {
-            setProdutosDisponiveis(produtosAtivos);
-            return;
-          }
-        }
-
-        // Se não tem produtos do admin, tenta Supabase
         const produtosSupabase = await produtoService.listarProdutos();
         if (produtosSupabase && produtosSupabase.length > 0) {
-          setProdutosDisponiveis(produtosSupabase);
+          setProdutosDisponiveis(produtosSupabase.filter(p => p.disponivel));
         } else {
-          // Fallback para produtos padrão
-          setProdutosDisponiveis(produtos);
+          setProdutosDisponiveis([]);
         }
       } catch (error) {
         console.error('Erro ao carregar produtos:', error);
-        // Fallback para produtos padrão se der erro
-        setProdutosDisponiveis(produtos);
+        setProdutosDisponiveis([]);
       }
     };
 
@@ -432,7 +306,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
               >
                 {/* Imagem do Produto Otimizada */}
                 <OptimizedImage
-                  src={produto.imagem}
+                  src={produto.imagem_url} // Corrigido para imagem_url
                   alt={produto.nome}
                   width={300}
                   height={200}
@@ -638,3 +512,5 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
 };
 
 export default PedidoProdutos;
+
+
