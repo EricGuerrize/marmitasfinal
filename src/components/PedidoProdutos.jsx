@@ -329,7 +329,8 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
                     color: '#666',
                     fontSize: isMobile ? '13px' : '14px',
                     lineHeight: '1.4',
-                    marginBottom: '15px'
+                    marginBottom: '15px',
+                    whiteSpace: 'pre-line'
                   }}>
                     {produto.descricao}
                   </p>
