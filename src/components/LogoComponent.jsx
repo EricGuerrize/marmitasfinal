@@ -10,17 +10,17 @@ const LogoComponent = ({
   const sizes = {
     small: {
       container: { width: '120px', height: '40px' },
-      icon: { fontSize: '24px' },
+      logo: { height: '30px' },
       text: { fontSize: '16px' }
     },
     medium: {
       container: { width: '160px', height: '50px' },
-      icon: { fontSize: '32px' },
+      logo: { height: '40px' },
       text: { fontSize: '20px' }
     },
     large: {
       container: { width: '200px', height: '60px' },
-      icon: { fontSize: '40px' },
+      logo: { height: '50px' },
       text: { fontSize: '24px' }
     }
   };
@@ -39,14 +39,33 @@ const LogoComponent = ({
       }}
       onClick={onClick}
     >
-      {/* Ícone/Logo */}
+      {/* Logo da empresa */}
+      <img 
+        src="/logo-fitinbox.png" 
+        alt="Fit In Box" 
+        style={{
+          height: currentSize.logo.height,
+          width: 'auto',
+          objectFit: 'contain',
+          display: 'block'
+        }}
+        onError={(e) => {
+          // Fallback caso a imagem não carregue
+          e.target.style.display = 'none';
+          e.target.nextSibling.style.display = 'flex';
+        }}
+      />
+      
+      {/* Fallback emoji (caso logo não carregue) */}
       <div style={{
-        ...currentSize.icon,
+        fontSize: currentSize.logo.height,
         color: style.color || '#009245',
         fontWeight: 'bold',
-        display: 'flex',
+        display: 'none',
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        height: currentSize.logo.height,
+        lineHeight: '1'
       }}>
         🍽️
       </div>
