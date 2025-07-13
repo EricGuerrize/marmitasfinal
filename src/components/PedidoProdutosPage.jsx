@@ -17,6 +17,7 @@ const PedidoProdutosPage = ({ onNavigate }) => {
   });
   const [mostrarFinalizacao, setMostrarFinalizacao] = useState(false);
   const [finalizandoPedido, setFinalizandoPedido] = useState(false);
+  const [loadingProdutos, setLoadingProdutos] = useState(true); // Novo estado de carregamento
 
   useEffect(() => {
     const sessao = authSupabaseService.verificarSessao();
@@ -46,12 +47,15 @@ const PedidoProdutosPage = ({ onNavigate }) => {
   };
 
   const carregarProdutos = async () => {
+    setLoadingProdutos(true); // Inicia o carregamento
     try {
       const produtosSupabase = await produtoService.listarProdutos();
       setProdutos(produtosSupabase.filter(p => p.disponivel));
     } catch (error) {
       console.error('Erro ao carregar produtos do Supabase:', error);
       setProdutos([]); // Em caso de erro, define como array vazio
+    } finally {
+      setLoadingProdutos(false); // Finaliza o carregamento
     }
   };
 
@@ -167,7 +171,7 @@ const PedidoProdutosPage = ({ onNavigate }) => {
     }
   };
 
-  if (!dadosEmpresa) {
+  if (!dadosEmpresa || loadingProdutos) { // Adicionado loadingProdutos aqui
     return (
       <div style={{
         display: 'flex',
@@ -176,7 +180,7 @@ const PedidoProdutosPage = ({ onNavigate }) => {
         minHeight: '100vh',
         fontFamily: 'Arial, sans-serif'
       }}>
-        Carregando dados da empresa...
+        {loadingProdutos ? 'Carregando produtos...' : 'Carregando dados da empresa...'}
       </div>
     );
   }
@@ -668,4 +672,5 @@ const PedidoProdutosPage = ({ onNavigate }) => {
 };
 
 export default PedidoProdutosPage;
+
 

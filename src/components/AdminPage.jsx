@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
+import { produtoService } from '../services/produtoService'; // Importar produtoService
 import ImageUpload from './ImageUpload';
 
 const AdminPage = ({ onNavigate }) => {
@@ -18,7 +19,7 @@ const AdminPage = ({ onNavigate }) => {
     descricao: '',
     preco: '',
     categoria: 'fitness',
-    imagem: '',
+    imagem_url: '', // Alterado de 'imagem' para 'imagem_url'
     disponivel: true,
     estoque: 100
   });
@@ -61,22 +62,20 @@ const AdminPage = ({ onNavigate }) => {
     }
   }, []);
 
-  const loadProducts = useCallback(() => {
+  const loadProducts = useCallback(async () => {
     try {
-      const produtosSalvos = localStorage.getItem('adminProdutos');
-      if (produtosSalvos) {
-        const produtosParsed = JSON.parse(produtosSalvos);
-        setProdutos(produtosParsed);
-      } else {
-        initializeDefaultProducts();
+      const data = await produtoService.listarProdutos();
+      if (data) {
+        setProdutos(data);
       }
     } catch (error) {
-      console.error('Erro ao carregar produtos:', error);
-      initializeDefaultProducts();
+      console.error('Erro ao carregar produtos do Supabase:', error);
+      setProdutos([]);
     }
   }, []);
 
   const loadPedidos = useCallback(() => {
+    // TODO: Integrar com pedidoService para carregar pedidos do Supabase
     const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
     const pedidosSimulados = pedidosAdmin.length === 0 ? [
       {
@@ -115,43 +114,7 @@ const AdminPage = ({ onNavigate }) => {
     }));
   }, []);
 
-  const initializeDefaultProducts = useCallback(() => {
-    const produtosIniciais = [
-      {
-        id: 1,
-        nome: 'Marmita Fitness Frango',
-        descricao: 'Peito de frango grelhado, arroz integral, brócolis e cenoura',
-        preco: 18.9,
-        categoria: 'fitness',
-        imagem: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=200&fit=crop',
-        disponivel: true,
-        estoque: 95
-      },
-      {
-        id: 2,
-        nome: 'Marmita Vegana',
-        descricao: 'Quinoa, grão-de-bico, abobrinha refogada e salada verde',
-        preco: 16.9,
-        categoria: 'vegana',
-        imagem: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=300&h=200&fit=crop',
-        disponivel: true,
-        estoque: 88
-      },
-      {
-        id: 3,
-        nome: 'Marmita Tradicional',
-        descricao: 'Bife acebolado, arroz, feijão, farofa e salada',
-        preco: 15.9,
-        categoria: 'tradicional',
-        imagem: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=300&h=200&fit=crop',
-        disponivel: true,
-        estoque: 120
-      }
-    ];
-    
-    localStorage.setItem('adminProdutos', JSON.stringify(produtosIniciais));
-    setProdutos(produtosIniciais);
-  }, []);
+  // Removido initializeDefaultProducts pois os produtos virão do Supabase
 
   // Verificação de autenticação simplificada
   const checkAdminAuth = useCallback(async () => {
@@ -214,16 +177,16 @@ const AdminPage = ({ onNavigate }) => {
     if (!product.preco || isNaN(product.preco) || product.preco <= 0) {
       throw new Error('Preço deve ser um número maior que zero');
     }
-    if (!product.imagem?.trim()) throw new Error('URL da imagem é obrigatória');
+    if (!product.imagem_url?.trim()) throw new Error('URL da imagem é obrigatória'); // Alterado para imagem_url
     
     try {
-      new URL(product.imagem);
+      new URL(product.imagem_url); // Alterado para imagem_url
     } catch {
       throw new Error('URL da imagem inválida');
     }
   };
 
-  // Funções de produto simplificadas
+  // Funções de produto integradas com Supabase
   const handleProductSubmit = async (e) => {
     e.preventDefault();
     
@@ -235,29 +198,30 @@ const AdminPage = ({ onNavigate }) => {
         descricao: productForm.descricao.trim(),
         preco: parseFloat(productForm.preco),
         categoria: productForm.categoria,
-        imagem: productForm.imagem.trim(),
+        imagem_url: productForm.imagem_url.trim(), // Alterado para imagem_url
         disponivel: productForm.disponivel,
         estoque: parseInt(productForm.estoque) || 100
       };
       
-      let produtosAtualizados;
-      
+      let result;
       if (editingProduct) {
-        const novoProduto = { ...editingProduct, ...productData };
-        produtosAtualizados = produtos.map(p => 
-          p.id === editingProduct.id ? novoProduto : p
-        );
-        alert('Produto atualizado com sucesso!');
-        setEditingProduct(null);
+        result = await produtoService.atualizarProduto(editingProduct.id, productData);
+        if (result.success) {
+          alert('Produto atualizado com sucesso!');
+          setEditingProduct(null);
+        } else {
+          throw new Error(result.error);
+        }
       } else {
-        const novoId = produtos.length > 0 ? Math.max(...produtos.map(p => p.id)) + 1 : 1;
-        const novoProduto = { id: novoId, ...productData };
-        produtosAtualizados = [...produtos, novoProduto];
-        alert('Produto adicionado com sucesso!');
+        result = await produtoService.adicionarProduto(productData);
+        if (result.success) {
+          alert('Produto adicionado com sucesso!');
+        } else {
+          throw new Error(result.error);
+        }
       }
       
-      localStorage.setItem('adminProdutos', JSON.stringify(produtosAtualizados));
-      setProdutos(produtosAtualizados);
+      loadProducts(); // Recarrega a lista de produtos do Supabase
       
       // Reset form
       setProductForm({
@@ -265,7 +229,7 @@ const AdminPage = ({ onNavigate }) => {
         descricao: '',
         preco: '',
         categoria: 'fitness',
-        imagem: '',
+        imagem_url: '', // Alterado para imagem_url
         disponivel: true,
         estoque: 100
       });
@@ -276,24 +240,40 @@ const AdminPage = ({ onNavigate }) => {
     }
   };
 
-  const deleteProduct = (id) => {
+  const deleteProduct = async (id) => {
     const produto = produtos.find(p => p.id === id);
     if (!produto) return;
 
     if (window.confirm(`Tem certeza que deseja excluir "${produto.nome}"?`)) {
-      const produtosAtualizados = produtos.filter(p => p.id !== id);
-      localStorage.setItem('adminProdutos', JSON.stringify(produtosAtualizados));
-      setProdutos(produtosAtualizados);
-      alert('Produto excluído com sucesso!');
+      try {
+        const result = await produtoService.deletarProduto(id);
+        if (result.success) {
+          alert('Produto excluído com sucesso!');
+          loadProducts(); // Recarrega a lista de produtos
+        } else {
+          throw new Error(result.error);
+        }
+      } catch (error) {
+        alert(`Erro ao excluir produto: ${error.message}`);
+      }
     }
   };
 
-  const toggleProductAvailability = (id) => {
-    const produtosAtualizados = produtos.map(p => 
-      p.id === id ? { ...p, disponivel: !p.disponivel } : p
-    );
-    localStorage.setItem('adminProdutos', JSON.stringify(produtosAtualizados));
-    setProdutos(produtosAtualizados);
+  const toggleProductAvailability = async (id) => {
+    const produto = produtos.find(p => p.id === id);
+    if (!produto) return;
+
+    try {
+      const result = await produtoService.atualizarProduto(id, { disponivel: !produto.disponivel });
+      if (result.success) {
+        alert('Status do produto atualizado com sucesso!');
+        loadProducts(); // Recarrega a lista de produtos
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      alert(`Erro ao alterar status do produto: ${error.message}`);
+    }
   };
 
   const editProduct = (produto) => {
@@ -302,7 +282,7 @@ const AdminPage = ({ onNavigate }) => {
       descricao: produto.descricao,
       preco: produto.preco.toString(),
       categoria: produto.categoria,
-      imagem: produto.imagem,
+      imagem_url: produto.imagem_url, // Alterado para imagem_url
       disponivel: produto.disponivel,
       estoque: produto.estoque.toString()
     });
@@ -582,7 +562,7 @@ const AdminPage = ({ onNavigate }) => {
                     descricao: '',
                     preco: '',
                     categoria: 'fitness',
-                    imagem: '',
+                    imagem_url: '', // Alterado para imagem_url
                     disponivel: true,
                     estoque: 100
                   });
@@ -756,9 +736,9 @@ const AdminPage = ({ onNavigate }) => {
                   </div>
                   <div style={{ marginBottom: '25px' }}>
                     <ImageUpload
-                      currentImage={productForm.imagem}
+                      currentImage={productForm.imagem_url} // Alterado para imagem_url
                       onImageUpload={(imageUrl) =>
-                        setProductForm({ ...productForm, imagem: imageUrl })
+                        setProductForm({ ...productForm, imagem_url: imageUrl }) // Alterado para imagem_url
                       }
                       placeholder="URL da imagem do produto"
                     />
@@ -820,7 +800,7 @@ const AdminPage = ({ onNavigate }) => {
                   }}
                 >
                   <img
-                    src={produto.imagem}
+                    src={produto.imagem_url} // Alterado para imagem_url
                     alt={produto.nome}
                     style={{
                       width: '100%',
@@ -1247,3 +1227,4 @@ const AdminPage = ({ onNavigate }) => {
 };
 
 export default AdminPage;
+
