@@ -83,6 +83,28 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       
       pedidosAdmin.push(novoPedido);
       localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
+
+      try {
+        const { pedidoService } = await import('../services/pedidoService');
+        const dadosPedido = {
+          cnpj: cnpj.replace(/\D/g, ''), // Remove formatação
+          empresaNome: nomeParaExibir,
+          itens: pedidoFinal.itens,
+          subtotal: pedidoFinal.subtotal,
+          taxaEntrega: pedidoFinal.taxaEntrega,
+          total: pedidoFinal.total,
+          enderecoEntrega: pedidoFinal.enderecoEntrega,
+          observacoes: pedidoFinal.observacoes || '',
+          metodoPagamento: 'whatsapp'
+        };
+        
+        await pedidoService.criarPedido(dadosPedido);
+        console.log('✅ Pedido salvo no Supabase para o usuário');
+      } catch (error) {
+        console.error('❌ Erro ao salvar pedido no Supabase:', error);
+        // Não bloqueia o fluxo, pois o WhatsApp já foi enviado
+      }
+      
       
       // MENSAGEM DO WHATSAPP COM NOME DA EMPRESA
       const numeroWhatsApp = '5521964298123';

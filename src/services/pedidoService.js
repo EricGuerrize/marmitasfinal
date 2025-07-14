@@ -92,13 +92,15 @@ export const pedidoService = {
     }
   },
 
-  // ✅ Criar pedido otimizado
+  // ✅ Criar pedido otimizado com debug
   criarPedido: async (dadosPedido) => {
     try {
       console.log('📝 Criando novo pedido:', dadosPedido);
       
       // ✅ Validação rápida
       const empresaCnpj = cnpjService.removerMascaraCnpj(dadosPedido.cnpj);
+      console.log('📝 CNPJ limpo para salvar:', empresaCnpj);
+      
       const validacaoCnpj = cnpjService.validarCnpj(empresaCnpj);
       if (!validacaoCnpj.valido) {
         console.error('❌ CNPJ inválido:', validacaoCnpj.erro);
@@ -126,11 +128,12 @@ export const pedidoService = {
         };
       }
 
-      // ✅ Preparar dados do pedido
+      // ✅ Preparar dados do pedido com ambos campos CNPJ
       const novoPedido = {
         numero: Math.floor(Math.random() * 10000) + 1000,
         empresa_id: empresa.id,
-        empresa_cnpj: empresaCnpj,
+        empresa_cnpj: empresaCnpj, // ✅ CNPJ limpo sem formatação
+        cnpj: empresaCnpj,         // ✅ CAMPO ADICIONAL para compatibilidade
         empresa_nome: dadosPedido.empresaNome || empresa.nome_empresa,
         itens: dadosPedido.itens,
         subtotal: dadosPedido.subtotal,
@@ -145,6 +148,14 @@ export const pedidoService = {
         origem: 'supabase',
         previsao_entrega: dadosPedido.previsaoEntrega || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
       };
+
+      console.log('📝 Dados do pedido que será salvo:', {
+        numero: novoPedido.numero,
+        empresa_cnpj: novoPedido.empresa_cnpj,
+        cnpj: novoPedido.cnpj,
+        empresa_nome: novoPedido.empresa_nome,
+        total: novoPedido.total
+      });
 
       // ✅ Salvar no Supabase com timeout
       const insertPromise = supabase
@@ -162,6 +173,8 @@ export const pedidoService = {
           error: 'Erro ao criar pedido. Tente novamente.'
         };
       }
+
+      console.log('✅ Pedido salvo no Supabase com ID:', data.id);
 
       // ✅ Atualizar storages em background (não bloqueia retorno)
       this.updateLocalStoragesBackground(data, novoPedido);
@@ -222,33 +235,77 @@ export const pedidoService = {
     }
   },
 
-  // ✅ Buscar pedidos com cache inteligente
+  // ✅ Buscar pedidos com cache inteligente e debug completo
   buscarPedidosPorEmpresa: async (cnpj) => {
     try {
-      console.log('🔍 Buscando pedidos para CNPJ:', cnpj);
+      console.log('🔍 pedidoService.buscarPedidosPorEmpresa - CNPJ recebido:', cnpj);
       
       const empresaCnpj = cnpjService.removerMascaraCnpj(cnpj);
+      console.log('🔍 CNPJ limpo para busca:', empresaCnpj);
       
       // ✅ Verificar cache
       const cacheKey = `pedidos_${empresaCnpj}`;
       const now = Date.now();
       
       if (pedidosCache && pedidosCache[cacheKey] && (now - pedidosCacheTimestamp) < CACHE_DURATION) {
-        console.log('✅ Usando pedidos do cache');
+        console.log('✅ Usando pedidos do cache:', pedidosCache[cacheKey].length);
         return pedidosCache[cacheKey];
       }
 
-      // ✅ Buscar no Supabase com timeout
-      const pedidosPromise = supabase
+      console.log('🔍 Buscando no Supabase...');
+
+      // ✅ PRIMEIRA TENTATIVA: Buscar por empresa_cnpj
+      let pedidosPromise = supabase
         .from('pedidos')
         .select('*')
         .eq('empresa_cnpj', empresaCnpj)
         .order('data_pedido', { ascending: false });
 
-      const { data: pedidos, error } = await withTimeout(pedidosPromise, 5000);
+      let { data: pedidos, error } = await withTimeout(pedidosPromise, 5000);
+
+      // ✅ SEGUNDA TENTATIVA: Se não encontrou, buscar por cnpj
+      if (!error && (!pedidos || pedidos.length === 0)) {
+        console.log('🔍 Nenhum pedido encontrado com empresa_cnpj, tentando campo cnpj...');
+        
+        pedidosPromise = supabase
+          .from('pedidos')
+          .select('*')
+          .eq('cnpj', empresaCnpj)
+          .order('data_pedido', { ascending: false });
+
+        const resultado = await withTimeout(pedidosPromise, 5000);
+        pedidos = resultado.data;
+        error = resultado.error;
+      }
 
       if (error) {
-        console.error('❌ Erro ao buscar pedidos no Supabase:', error.message);
+        console.error('❌ Erro na query Supabase:', error);
+        console.error('❌ Detalhes do erro:', error.message);
+        return [];
+      }
+
+      console.log('📦 Dados retornados do Supabase:', pedidos);
+      console.log('📦 Quantidade de pedidos encontrados:', pedidos?.length || 0);
+
+      if (!pedidos || pedidos.length === 0) {
+        console.log('⚠️ NENHUM PEDIDO ENCONTRADO NO SUPABASE!');
+        console.log('🔍 Verificações:');
+        console.log('   - CNPJ usado na busca:', empresaCnpj);
+        console.log('   - Campos testados: empresa_cnpj e cnpj');
+        console.log('   - Tabela: pedidos');
+        
+        // ✅ TESTE: Buscar TODOS os pedidos para debug
+        const { data: todosPedidos, error: errorTodos } = await supabase
+          .from('pedidos')
+          .select('empresa_cnpj, cnpj, numero, empresa_nome')
+          .limit(5);
+        
+        if (!errorTodos && todosPedidos) {
+          console.log('🔍 Primeiros 5 pedidos na tabela (para debug):', todosPedidos);
+        } else {
+          console.log('❌ Erro ao buscar pedidos para debug:', errorTodos);
+        }
+        
         return [];
       }
 
@@ -263,7 +320,7 @@ export const pedidoService = {
         observacoes: pedido.observacoes,
         metodoPagamento: pedido.metodo_pagamento,
         previsaoEntrega: pedido.previsao_entrega,
-        origem: pedido.origem
+        origem: 'supabase'
       }));
 
       // ✅ Atualizar cache
@@ -271,11 +328,12 @@ export const pedidoService = {
       pedidosCache[cacheKey] = pedidosFormatados;
       pedidosCacheTimestamp = now;
 
-      console.log(`✅ Encontrados ${pedidos.length} pedidos`);
+      console.log(`✅ Encontrados ${pedidos.length} pedidos formatados`);
       return pedidosFormatados;
 
     } catch (error) {
-      console.error('❌ Erro ao buscar pedidos:', error);
+      console.error('❌ Erro geral ao buscar pedidos:', error);
+      console.error('❌ Stack trace:', error.stack);
       return [];
     }
   },
