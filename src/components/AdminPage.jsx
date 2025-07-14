@@ -391,6 +391,271 @@ const AdminPage = ({ onNavigate }) => {
     }
   };
 
+  // Nova função para imprimir pedido
+  const imprimirPedido = (pedido) => {
+    const statusInfo = getStatusInfo(pedido.status);
+    const dataFormatada = new Date(pedido.data).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const conteudoImpressao = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Pedido #${pedido.numero} - Fit In Box</title>
+        <style>
+          @media print {
+            body { margin: 0; }
+            .no-print { display: none !important; }
+          }
+          
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.4;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+          }
+          
+          .header {
+            text-align: center;
+            border-bottom: 3px solid #009245;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+          }
+          
+          .logo {
+            font-size: 32px;
+            margin-bottom: 10px;
+          }
+          
+          .empresa-nome {
+            font-size: 24px;
+            font-weight: bold;
+            color: #009245;
+            margin: 0;
+          }
+          
+          .subtitle {
+            color: #666;
+            margin: 5px 0 0 0;
+          }
+          
+          .info-section {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #009245;
+          }
+          
+          .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+          }
+          
+          .info-item {
+            margin-bottom: 10px;
+          }
+          
+          .label {
+            font-weight: bold;
+            color: #009245;
+          }
+          
+          .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+            background-color: ${statusInfo.color};
+          }
+          
+          .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          
+          .items-table th {
+            background-color: #009245;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+          }
+          
+          .items-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #ddd;
+          }
+          
+          .items-table tr:nth-child(even) {
+            background-color: #f8f9fa;
+          }
+          
+          .total-section {
+            background-color: #e8f5e8;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: right;
+            border: 2px solid #009245;
+          }
+          
+          .total-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #009245;
+          }
+          
+          .endereco-section, .obs-section {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+          }
+          
+          .obs-section {
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+          }
+          
+          .section-title {
+            font-weight: bold;
+            color: #856404;
+            margin-bottom: 8px;
+            font-size: 14px;
+          }
+          
+          .obs-section .section-title {
+            color: #0c5460;
+          }
+          
+          .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            color: #666;
+            font-size: 12px;
+          }
+          
+          @media print {
+            body { 
+              margin: 0;
+              padding: 15px;
+            }
+            .info-grid {
+              grid-template-columns: 1fr;
+              gap: 10px;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo">🍽️</div>
+          <h1 class="empresa-nome">Fit In Box</h1>
+          <p class="subtitle">Marmitas Saudáveis e Saborosas</p>
+        </div>
+
+        <div class="info-section">
+          <div class="info-grid">
+            <div>
+              <div class="info-item">
+                <span class="label">Pedido:</span> #${pedido.numero}
+              </div>
+              <div class="info-item">
+                <span class="label">Data:</span> ${dataFormatada}
+              </div>
+              <div class="info-item">
+                <span class="label">Status:</span> 
+                <span class="status-badge">${statusInfo.icon} ${statusInfo.label}</span>
+              </div>
+            </div>
+            <div>
+              <div class="info-item">
+                <span class="label">Cliente:</span> ${pedido.cliente}
+              </div>
+              <div class="info-item">
+                <span class="label">CNPJ:</span> ${pedido.cnpj}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        ${pedido.enderecoEntrega ? `
+          <div class="endereco-section">
+            <div class="section-title">📍 Endereço de Entrega:</div>
+            <div>${pedido.enderecoEntrega}</div>
+          </div>
+        ` : ''}
+
+        ${pedido.observacoes ? `
+          <div class="obs-section">
+            <div class="section-title">💬 Observações:</div>
+            <div>${pedido.observacoes}</div>
+          </div>
+        ` : ''}
+
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Qtd</th>
+              <th>Valor Unit.</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pedido.itens ? pedido.itens.map(item => `
+              <tr>
+                <td>${item.nome}</td>
+                <td>${item.quantidade}</td>
+                <td>R$ ${item.preco.toFixed(2)}</td>
+                <td>R$ ${(item.quantidade * item.preco).toFixed(2)}</td>
+              </tr>
+            `).join('') : ''}
+          </tbody>
+        </table>
+
+        <div class="total-section">
+          <div style="margin-bottom: 5px;">Total do Pedido:</div>
+          <div class="total-value">R$ ${pedido.total.toFixed(2)}</div>
+        </div>
+
+        <div class="footer">
+          <p>Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
+          <p>Fit In Box - Alimentação Corporativa Saudável</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Abre nova janela para impressão
+    const janelaImpressao = window.open('', '_blank');
+    janelaImpressao.document.write(conteudoImpressao);
+    janelaImpressao.document.close();
+    janelaImpressao.focus();
+    
+    // Aguarda o carregamento e executa a impressão
+    setTimeout(() => {
+      janelaImpressao.print();
+    }, 250);
+  };
+
   const getStatusInfo = (status) => {
     return statusPedidos.find(s => s.value === status) || statusPedidos[0];
   };
@@ -1054,7 +1319,7 @@ const AdminPage = ({ onNavigate }) => {
                           </p>
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <div style={{ marginBottom: '10px', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                          <div style={{ marginBottom: '10px', display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                             <select
                               value={pedido.status}
                               onChange={(e) => alterarStatusPedido(pedido.id, e.target.value)}
@@ -1076,6 +1341,23 @@ const AdminPage = ({ onNavigate }) => {
                                 </option>
                               ))}
                             </select>
+                            <button
+                              onClick={() => imprimirPedido(pedido)}
+                              style={{
+                                backgroundColor: '#007bff',
+                                color: 'white',
+                                border: 'none',
+                                padding: '8px 12px',
+                                borderRadius: '20px',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                outline: 'none'
+                              }}
+                              title="Imprimir pedido"
+                            >
+                              🖨️ Imprimir
+                            </button>
                             <button
                               onClick={() => excluirPedido(pedido.id)}
                               style={{
