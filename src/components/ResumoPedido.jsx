@@ -84,7 +84,7 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
       
       // MENSAGEM DO WHATSAPP COM NOME DA EMPRESA
-      const numeroWhatsApp = '5565992556938';
+      const numeroWhatsApp = '552196429-8123';
       let mensagem = `*NOVO PEDIDO - FIT IN BOX*\n\n`;
       mensagem += `*Pedido:* #${pedidoFinal.numero}\n`;
       mensagem += `*Empresa:* ${nomeParaExibir}\n`; // MOSTRAR NOME DA EMPRESA
@@ -383,7 +383,8 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
             }}>
               <strong>Contato:</strong><br />
               <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
-                +55 (65) 99255-6938
+                +55 (21) 96429-8123
+
               </span>
             </div>
             

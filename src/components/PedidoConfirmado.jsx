@@ -37,7 +37,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
   };
 
   const enviarNovamenteWhatsApp = () => {
-    const numeroWhatsApp = '5565992556938';
+    const numeroWhatsApp = '2196429-8123';
     
     let mensagem = `*CONSULTA DE PEDIDO - FIT IN BOX*\n\n`;
     mensagem += `*Pedido:* #${pedidoConfirmado.numero}\n`;
@@ -520,7 +520,8 @@ const PedidoConfirmado = ({ onNavigate }) => {
               borderRadius: '8px'
             }}>
               <strong>WhatsApp</strong>
-              <div>+55 (65) 99255-6938</div>
+              <div>+55 (21) 2196429-8123
+              </div>
             </div>
             
             <div style={{

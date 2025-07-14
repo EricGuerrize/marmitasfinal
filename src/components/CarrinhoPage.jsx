@@ -732,7 +732,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   setObservacoes(e.target.value);
                 }
               }}
-              placeholder="Ex: Sem cebola, entregar na portaria..."
+              placeholder="Digite suas observações aqui..."
               style={{
                 width: '100%',
                 height: '90px',

@@ -47,7 +47,7 @@ export const whatsappService = {
    * Envia pedido via WhatsApp
    */
   enviarPedido(pedido, empresa) {
-    const numeroWhatsApp = '5565992556938';
+    const numeroWhatsApp = '2196429-8123';
     
     let mensagem = `*🍽️ NOVO PEDIDO - FIT IN BOX*\n\n`;
     mensagem += `*📋 Pedido:* #${pedido.numero}\n`;
@@ -89,7 +89,7 @@ export const whatsappService = {
    * Envia consulta sobre pedido
    */
   consultarPedido(pedido, empresa) {
-    const numeroWhatsApp = '5565992556938';
+    const numeroWhatsApp = '2196429-8123';
     
     let mensagem = `*🔍 CONSULTA DE PEDIDO - FIT IN BOX*\n\n`;
     mensagem += `*📋 Pedido:* #${pedido.numero}\n`;
@@ -109,7 +109,7 @@ export const whatsappService = {
    * Envia mensagem de suporte
    */
   enviarSuporte(assunto, mensagem, empresa = null) {
-    const numeroWhatsApp = '5565992556938';
+    const numeroWhatsApp = '2196429-8123';
     
     let mensagemCompleta = `*🆘 SUPORTE - FIT IN BOX*\n\n`;
     
@@ -528,7 +528,7 @@ export const CONSTANTS = {
 
   // Configurações de contato
   CONTATO: {
-    WHATSAPP: '5565992556938',
+    WHATSAPP: '2196429-8123',
     EMAIL: 'contato@fitinbox.com',
     NOME_EMPRESA: 'Fit In Box',
     SLOGAN: 'Sua Alimentação, Nosso Compromisso'
