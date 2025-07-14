@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
+import LogoComponent from './LogoComponent';
 
 const ProsseguirPage = ({ onNavigate }) => {
   const [selectedOption, setSelectedOption] = useState('fazerPedido');
@@ -196,13 +197,7 @@ const ProsseguirPage = ({ onNavigate }) => {
         borderBottom: '1px solid #ccc',
         flexWrap: isMobile ? 'wrap' : 'nowrap'
       }}>
-        <div style={{ 
-          fontSize: isMobile ? '24px' : '32px', 
-          fontWeight: 'bold', 
-          color: '#009245' 
-        }}>
-          🍽️ Fit In Box
-        </div>
+<LogoComponent size={isMobile ? 'small' : 'medium'} showText={true} />
         <div style={{
           display: 'flex',
           alignItems: 'center',

@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import LogoComponent from './LogoComponent';
 
 const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
   const [cnpj, setCnpj] = useState('');
   const [pedidoAtual, setPedidoAtual] = useState(null);
   const [processandoPedido, setProcessandoPedido] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [showWhatsAppFallback, setShowWhatsAppFallback] = useState(false); // ✅ NOVO
+  const [mensagemWhatsApp, setMensagemWhatsApp] = useState(''); // ✅ NOVO
 
   // Detecta se é mobile
   useEffect(() => {
@@ -45,6 +48,63 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
     };
   }, [onNavigate]);
 
+  // ✅ FUNÇÃO COMPLETA para WhatsApp
+  const abrirWhatsAppCompleto = (mensagem) => {
+    const numeroWhatsApp = '5521964298123';
+    setMensagemWhatsApp(mensagem);
+    
+    const isMobileDevice = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobileDevice) {
+      console.log('📱 Tentando abrir WhatsApp no mobile...');
+      
+      // Tenta app nativo primeiro
+      const urlNativo = `whatsapp://send?phone=55${numeroWhatsApp}&text=${encodeURIComponent(mensagem)}`;
+      
+      try {
+        window.location.href = urlNativo;
+        
+        // Se não abrir em 3 segundos, mostra fallback
+        setTimeout(() => {
+          setShowWhatsAppFallback(true);
+          console.log('📱 Mostrando opções manuais para mobile');
+        }, 3000);
+        
+      } catch (error) {
+        console.log('📱 Erro, mostrando fallback:', error);
+        setShowWhatsAppFallback(true);
+      }
+      
+    } else {
+      console.log('💻 Abrindo WhatsApp no desktop...');
+      const urlDesktop = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
+      const novaJanela = window.open(urlDesktop, '_blank');
+      
+      // Se não abrir, mostra fallback
+      setTimeout(() => {
+        if (!novaJanela || novaJanela.closed) {
+          setShowWhatsAppFallback(true);
+        }
+      }, 2000);
+    }
+  };
+
+  // ✅ FUNÇÃO para copiar mensagem
+  const copiarMensagem = () => {
+    navigator.clipboard.writeText(mensagemWhatsApp).then(() => {
+      alert('✅ Mensagem copiada! Cole no WhatsApp.');
+    }).catch(() => {
+      // Fallback para navegadores antigos
+      const textArea = document.createElement('textarea');
+      textArea.value = mensagemWhatsApp;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      alert('✅ Mensagem copiada! Cole no WhatsApp.');
+    });
+  };
+
   const confirmarPedido = async () => {
     setProcessandoPedido(true);
 
@@ -71,7 +131,7 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       const novoPedido = {
         id: Date.now(),
         numero: pedidoFinal.numero,
-        cliente: nomeParaExibir, // USAR NOME DA EMPRESA AQUI
+        cliente: nomeParaExibir,
         cnpj: cnpj,
         total: pedidoFinal.total,
         status: 'enviado',
@@ -87,7 +147,7 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       try {
         const { pedidoService } = await import('../services/pedidoService');
         const dadosPedido = {
-          cnpj: cnpj.replace(/\D/g, ''), // Remove formatação
+          cnpj: cnpj.replace(/\D/g, ''),
           empresaNome: nomeParaExibir,
           itens: pedidoFinal.itens,
           subtotal: pedidoFinal.subtotal,
@@ -102,15 +162,12 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
         console.log('✅ Pedido salvo no Supabase para o usuário');
       } catch (error) {
         console.error('❌ Erro ao salvar pedido no Supabase:', error);
-        // Não bloqueia o fluxo, pois o WhatsApp já foi enviado
       }
       
-      
-      // MENSAGEM DO WHATSAPP COM NOME DA EMPRESA
-      const numeroWhatsApp = '5521964298123';
+      // ✅ WHATSAPP CORRIGIDO
       let mensagem = `*NOVO PEDIDO - FIT IN BOX*\n\n`;
       mensagem += `*Pedido:* #${pedidoFinal.numero}\n`;
-      mensagem += `*Empresa:* ${nomeParaExibir}\n`; // MOSTRAR NOME DA EMPRESA
+      mensagem += `*Empresa:* ${nomeParaExibir}\n`;
       mensagem += `*CNPJ:* ${cnpjFormatado}\n`;
       mensagem += `*Data:* ${new Date().toLocaleDateString('pt-BR', {
         day: '2-digit',
@@ -138,13 +195,18 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       
       mensagem += `Aguardo confirmacao!`;
 
-      const url = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
-      window.open(url, '_blank');
+      // ✅ USA A NOVA FUNÇÃO
+      abrirWhatsAppCompleto(mensagem);
       
       sessionStorage.removeItem('carrinho');
       sessionStorage.removeItem('pedidoAtual');
 
-      onNavigate('pedido-confirmado');
+      // Só navega se não mostrar fallback
+      setTimeout(() => {
+        if (!showWhatsAppFallback) {
+          onNavigate('pedido-confirmado');
+        }
+      }, 4000);
 
     } catch (error) {
       alert('Erro ao enviar pedido. Tente novamente.');
@@ -188,11 +250,8 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
         borderBottom: '1px solid #ccc',
         flexWrap: isMobile ? 'wrap' : 'nowrap'
       }}>
-        <img 
-          style={{ height: isMobile ? '50px' : '60px' }}
-          src="/assets/logo.jpg" 
-          alt="Logo Fit In Box"
-        />
+        <LogoComponent size={isMobile ? 'small' : 'medium'} showText={true} />
+        
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -407,7 +466,6 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
               <strong>Contato:</strong><br />
               <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
                 +55 (21) 96429-8123
-
               </span>
             </div>
             
@@ -456,6 +514,109 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
           </div>
         </div>
       </div>
+
+      {/* ✅ Modal WhatsApp Fallback */}
+      {showWhatsAppFallback && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '10px',
+            padding: '30px',
+            maxWidth: '500px',
+            width: '100%',
+            textAlign: 'center'
+          }}>
+            <h2 style={{ color: '#25D366', marginBottom: '20px' }}>
+              📱 WhatsApp não abriu?
+            </h2>
+            
+            <p style={{ color: '#666', marginBottom: '25px' }}>
+              Não se preocupe! Use uma das opções abaixo:
+            </p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <button
+                onClick={() => {
+                  const numeroWhatsApp = '5521964298123';
+                  const urlWeb = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagemWhatsApp)}`;
+                  window.open(urlWeb, '_blank');
+                }}
+                style={{
+                  backgroundColor: '#25D366',
+                  color: 'white',
+                  border: 'none',
+                  padding: '15px',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                🌐 Abrir WhatsApp Web
+              </button>
+              
+              <button
+                onClick={copiarMensagem}
+                style={{
+                  backgroundColor: '#007bff',
+                  color: 'white',
+                  border: 'none',
+                  padding: '15px',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                📋 Copiar Mensagem
+              </button>
+              
+              <div style={{
+                backgroundColor: '#f8f9fa',
+                padding: '15px',
+                borderRadius: '8px',
+                textAlign: 'left'
+              }}>
+                <strong>📞 Ou ligue/mande mensagem:</strong>
+                <br />
+                <span style={{ fontSize: '18px', color: '#25D366', fontWeight: 'bold' }}>
+                  (21) 96429-8123
+                </span>
+              </div>
+              
+              <button
+                onClick={() => {
+                  setShowWhatsAppFallback(false);
+                  onNavigate('pedido-confirmado');
+                }}
+                style={{
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+              >
+                Continuar sem WhatsApp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
