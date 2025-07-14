@@ -9,22 +9,21 @@ const LogoComponent = ({
 }) => {
   const sizes = {
     small: {
-      container: { width: '120px', height: '40px' },
-      logo: { height: '30px' },
-      text: { fontSize: '16px' }
+      container: { width: '180px', height: '70px' },     // ✅ Ainda maior
+      logo: { height: '60px' },                          // ✅ Logo bem grande  
+      text: { fontSize: '20px' }                         // ✅ Texto maior
     },
     medium: {
-      container: { width: '160px', height: '50px' },
-      logo: { height: '40px' },
-      text: { fontSize: '20px' }
+      container: { width: '220px', height: '80px' },     // ✅ Bem maior
+      logo: { height: '70px' },                          // ✅ Logo grande
+      text: { fontSize: '24px' }                         // ✅ Texto maior
     },
     large: {
-      container: { width: '200px', height: '60px' },
-      logo: { height: '50px' },
-      text: { fontSize: '24px' }
+      container: { width: '280px', height: '90px' },     // ✅ Muito maior
+      logo: { height: '80px' },                          // ✅ Logo muito grande
+      text: { fontSize: '28px' }                         // ✅ Texto bem maior
     }
   };
-
   const currentSize = sizes[size] || sizes.medium;
 
   return (
@@ -80,7 +79,8 @@ const LogoComponent = ({
           <span style={{
             ...currentSize.text,
             fontWeight: 'bold',
-            color: style.color || '#009245'
+            color: style.color || '#009245',
+            whiteSpace: 'nowrap'
           }}>
             Fit In Box
           </span>
