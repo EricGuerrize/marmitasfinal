@@ -60,11 +60,12 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       sessionStorage.setItem('pedidoConfirmado', JSON.stringify(pedidoFinal));
 
       // BUSCAR NOME DA EMPRESA DA SESSÃO
-      const nomeEmpresa = sessionStorage.getItem('nomeEmpresa') || '';
-      const razaoSocial = sessionStorage.getItem('empresaInfo') || '';
+      const sessaoAtiva = JSON.parse(sessionStorage.getItem('sessaoAtiva') || '{}');
+      const nomeEmpresa = sessaoAtiva.nomeEmpresa || sessaoAtiva.razaoSocial || '';
+      const cnpjFormatado = sessaoAtiva.cnpjFormatado || cnpj;
       
       // Prioriza nomeEmpresa, depois razaoSocial, depois CNPJ como fallback
-      const nomeParaExibir = nomeEmpresa || razaoSocial || cnpj;
+      const nomeParaExibir = nomeEmpresa || cnpj;
 
       const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
       const novoPedido = {
@@ -88,7 +89,7 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       let mensagem = `*NOVO PEDIDO - FIT IN BOX*\n\n`;
       mensagem += `*Pedido:* #${pedidoFinal.numero}\n`;
       mensagem += `*Empresa:* ${nomeParaExibir}\n`; // MOSTRAR NOME DA EMPRESA
-      mensagem += `*CNPJ:* ${cnpj}\n`;
+      mensagem += `*CNPJ:* ${cnpjFormatado}\n`;
       mensagem += `*Data:* ${new Date().toLocaleDateString('pt-BR', {
         day: '2-digit',
         month: '2-digit', 
