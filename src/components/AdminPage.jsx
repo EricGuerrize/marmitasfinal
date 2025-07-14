@@ -46,13 +46,21 @@ const AdminPage = ({ onNavigate }) => {
   const loadEmpresasCadastradas = useCallback(async () => {
     try {
       const empresas = await authSupabaseService.listarEmpresas();
-      setEmpresasCadastradas(empresas);
-      const empresasComEmail = empresas.filter(e => e.email && e.email.trim() !== '').length;
-      const percentual = empresas.length > 0 ? (empresasComEmail / empresas.length) * 100 : 0;
+      
+      // Verifica e corrige datas inválidas
+      const empresasComDatasCorrigidas = empresas.map(empresa => ({
+        ...empresa,
+        data_cadastro: empresa.data_cadastro || new Date().toISOString(),
+        ultimo_acesso: empresa.ultimo_acesso || null
+      }));
+      
+      setEmpresasCadastradas(empresasComDatasCorrigidas);
+      const empresasComEmail = empresasComDatasCorrigidas.filter(e => e.email && e.email.trim() !== '').length;
+      const percentual = empresasComDatasCorrigidas.length > 0 ? (empresasComEmail / empresasComDatasCorrigidas.length) * 100 : 0;
       
       setStats(prev => ({
         ...prev,
-        empresasCadastradas: empresas.length,
+        empresasCadastradas: empresasComDatasCorrigidas.length,
         empresasComEmail,
         percentualEmails: percentual
       }));
@@ -131,7 +139,16 @@ const AdminPage = ({ onNavigate }) => {
   const calcularEstatisticas = useCallback((pedidosList) => {
     const total = pedidosList.reduce((sum, pedido) => sum + pedido.total, 0);
     const hoje = new Date().toDateString();
-    const pedidosHoje = pedidosList.filter(p => new Date(p.data).toDateString() === hoje).length;
+    const pedidosHoje = pedidosList.filter(p => {
+      try {
+        if (!p.data) return false;
+        const dataPedido = new Date(p.data);
+        return !isNaN(dataPedido.getTime()) && dataPedido.toDateString() === hoje;
+      } catch (error) {
+        console.error('Erro ao processar data do pedido:', error);
+        return false;
+      }
+    }).length;
 
     setStats(prev => ({
       ...prev,
@@ -394,13 +411,8 @@ const AdminPage = ({ onNavigate }) => {
   // Nova função para imprimir pedido
   const imprimirPedido = (pedido) => {
     const statusInfo = getStatusInfo(pedido.status);
-    const dataFormatada = new Date(pedido.data).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    const dataFormatada = formatarDataCompleta(pedido.data);
+    const dataGeracao = formatarDataCompleta(new Date().toISOString());
 
     const conteudoImpressao = `
       <!DOCTYPE html>
@@ -637,7 +649,7 @@ const AdminPage = ({ onNavigate }) => {
         </div>
 
         <div class="footer">
-          <p>Documento gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}</p>
+          <p>Documento gerado em ${dataGeracao}</p>
           <p>Fit In Box - Alimentação Corporativa Saudável</p>
         </div>
       </body>
@@ -678,6 +690,52 @@ const AdminPage = ({ onNavigate }) => {
   const formatarEmail = (email) => {
     if (!email) return 'Não informado';
     return email;
+  };
+
+  const formatarData = (dataString) => {
+    if (!dataString) return 'Não informado';
+    
+    try {
+      const data = new Date(dataString);
+      
+      // Verifica se a data é válida
+      if (isNaN(data.getTime())) {
+        return 'Data inválida';
+      }
+      
+      return data.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch (error) {
+      console.error('Erro ao formatar data:', error);
+      return 'Data inválida';
+    }
+  };
+
+  const formatarDataCompleta = (dataString) => {
+    if (!dataString) return 'Não informado';
+    
+    try {
+      const data = new Date(dataString);
+      
+      // Verifica se a data é válida
+      if (isNaN(data.getTime())) {
+        return 'Data inválida';
+      }
+      
+      return data.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error('Erro ao formatar data completa:', error);
+      return 'Data inválida';
+    }
   };
 
   // Verificação inicial de autenticação
@@ -1309,13 +1367,7 @@ const AdminPage = ({ onNavigate }) => {
                             {pedido.cliente} - {pedido.cnpj}
                           </p>
                           <p style={{ margin: '5px 0 0 0', color: '#6c757d', fontSize: '14px' }}>
-                            {new Date(pedido.data).toLocaleDateString('pt-BR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
+                            {formatarDataCompleta(pedido.data)}
                           </p>
                         </div>
                         <div style={{ textAlign: 'right' }}>
@@ -1540,17 +1592,11 @@ const AdminPage = ({ onNavigate }) => {
                           </p>
                         )}
                         <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>
-                          <strong>Cadastro:</strong> {new Date(empresa.data_cadastro).toLocaleDateString('pt-BR')}
+                          <strong>Cadastro:</strong> {formatarData(empresa.data_cadastro)}
                         </p>
                         {empresa.ultimo_acesso && (
                           <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
-                            <strong>Último acesso:</strong> {new Date(empresa.ultimo_acesso).toLocaleDateString('pt-BR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
+                            <strong>Último acesso:</strong> {formatarDataCompleta(empresa.ultimo_acesso)}
                           </p>
                         )}
                       </div>
