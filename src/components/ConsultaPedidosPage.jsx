@@ -51,46 +51,79 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
     
     carregarPedidos(sessao);
   }, [onNavigate]);
+// ConsultaPedidosPage.jsx - SUBSTITUA a função carregarPedidos (linha ~50):
 
-  const carregarPedidos = async (sessao) => {
-    setLoading(true);
-    try {
-      // Carrega pedidos do banco Supabase
-      const pedidosSupabase = await pedidoService.buscarPedidosPorEmpresa(sessao.cnpj);
-      
-      // Carrega também pedidos locais (localStorage) para compatibilidade
-      const pedidosLocais = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]')
-        .filter(p => p.cnpj === sessao.cnpj)
-        .map(p => ({
-          ...p,
-          origem: 'local'
-        }));
-      
-      // Combina pedidos (prioriza Supabase)
-      const todosPedidos = [...pedidosSupabase, ...pedidosLocais];
-      
-      // Remove duplicatas baseado no número do pedido
-      const pedidosUnicos = todosPedidos.reduce((acc, pedido) => {
-        const existing = acc.find(p => p.numero === pedido.numero);
-        if (!existing) {
-          acc.push(pedido);
-        }
-        return acc;
-      }, []);
-      
-      // Ordena por data (mais recente primeiro)
-      pedidosUnicos.sort((a, b) => new Date(b.data) - new Date(a.data));
-      
-      setPedidos(pedidosUnicos);
-      calcularEstatisticas(pedidosUnicos);
-      
-    } catch (error) {
-      console.error('Erro ao carregar pedidos:', error);
-      alert('Erro ao carregar pedidos. Tente novamente.');
-    } finally {
-      setLoading(false);
+const carregarPedidos = async (sessao) => {
+  setLoading(true);
+  try {
+    console.log('🔍 ConsultaPedidos - Carregando pedidos para sessão:', sessao);
+    console.log('🔍 CNPJ da sessão:', sessao.cnpj);
+    
+    // Carrega pedidos do banco Supabase
+    const pedidosSupabase = await pedidoService.buscarPedidosPorEmpresa(sessao.cnpj);
+    console.log('📦 Pedidos Supabase encontrados:', pedidosSupabase.length);
+    console.log('📦 Dados Supabase:', pedidosSupabase);
+    
+    // ✅ CORRIGIDO: Limpar CNPJ para comparação
+    const cnpjSessaoLimpo = sessao.cnpj?.replace(/\D/g, '');
+    
+    // Carrega também pedidos locais (localStorage) para compatibilidade
+    const pedidosLocais = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]')
+      .filter(p => {
+        const cnpjPedidoLimpo = p.cnpj?.replace(/\D/g, '');
+        const cnpjEmpresaLimpo = p.empresa_cnpj?.replace(/\D/g, '');
+        return cnpjPedidoLimpo === cnpjSessaoLimpo || cnpjEmpresaLimpo === cnpjSessaoLimpo;
+      })
+      .map(p => ({
+        ...p,
+        origem: 'local'
+      }));
+    
+    console.log('💾 Pedidos locais encontrados:', pedidosLocais.length);
+    console.log('💾 Dados locais:', pedidosLocais);
+    
+    // Combina pedidos (prioriza Supabase)
+    const todosPedidos = [...pedidosSupabase, ...pedidosLocais];
+    console.log('🔄 Total pedidos combinados:', todosPedidos.length);
+    
+    // Remove duplicatas baseado no número do pedido
+    const pedidosUnicos = todosPedidos.reduce((acc, pedido) => {
+      const existing = acc.find(p => p.numero === pedido.numero);
+      if (!existing) {
+        acc.push(pedido);
+      } else {
+        console.log('🔄 Pedido duplicado removido:', pedido.numero);
+      }
+      return acc;
+    }, []);
+    
+    console.log('✅ Pedidos únicos finais:', pedidosUnicos.length);
+    
+    // Ordena por data (mais recente primeiro)
+    pedidosUnicos.sort((a, b) => new Date(b.data) - new Date(a.data));
+    
+    setPedidos(pedidosUnicos);
+    calcularEstatisticas(pedidosUnicos);
+    
+    // ✅ MENSAGEM DE DEBUG FINAL:
+    if (pedidosUnicos.length === 0) {
+      console.log('⚠️ NENHUM PEDIDO ENCONTRADO FINAL!');
+      console.log('🔍 Verificações ConsultaPedidos:');
+      console.log('   - CNPJ da sessão:', sessao.cnpj);
+      console.log('   - CNPJ limpo:', cnpjSessaoLimpo);
+      console.log('   - Pedidos Supabase:', pedidosSupabase.length);
+      console.log('   - Pedidos locais:', pedidosLocais.length);
+    } else {
+      console.log('🎉 SUCESSO! Pedidos carregados:', pedidosUnicos.length);
     }
-  };
+    
+  } catch (error) {
+    console.error('❌ Erro ao carregar pedidos:', error);
+    alert('Erro ao carregar pedidos. Tente novamente.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const calcularEstatisticas = (pedidosList) => {
     if (pedidosList.length === 0) {
