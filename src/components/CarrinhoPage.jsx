@@ -3,10 +3,55 @@ import { useCep } from '../hooks/useCep';
 import { useNotification } from './NotificationSystem';
 import LogoComponent from './LogoComponent';
 
+// ✅ COMPONENTE SIMPLES PARA IMAGEM DO CARRINHO
+const ImagemProdutoCarrinho = ({ produto, isMobile }) => {
+  const [imagemError, setImagemError] = useState(false);
+  
+  // ✅ Usa diretamente imagem_url como no admin e produtos
+  const imagemUrl = produto.imagem_url;
+  
+  if (!imagemUrl || imagemError) {
+    return (
+      <div style={{
+        width: isMobile ? '100%' : '85px',
+        height: isMobile ? '160px' : '85px',
+        backgroundColor: '#f0f9f0',
+        borderRadius: '5px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: isMobile ? '60px' : '40px',
+        border: '2px solid #e0e0e0',
+        color: '#009245'
+      }}>
+        🍽️
+      </div>
+    );
+  }
+  
+  return (
+    <img
+      src={imagemUrl}
+      alt={produto.nome}
+      style={{
+        width: isMobile ? '100%' : '85px',
+        height: isMobile ? '160px' : '85px',
+        objectFit: 'cover',
+        borderRadius: '5px',
+        border: '1px solid #ddd'
+      }}
+      onError={() => setImagemError(true)}
+    />
+  );
+};
+
 const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, limparCarrinho, calcularQuantidadeTotal }) => {
   const [cnpj, setCnpj] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  const [processandoPedido, setProcessandoPedido] = useState(false);
+  const [showWhatsAppFallback, setShowWhatsAppFallback] = useState(false);
+  const [mensagemWhatsApp, setMensagemWhatsApp] = useState('');
   
   const { 
     endereco, 
@@ -75,7 +120,53 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     return calcularSubtotal() + calcularTaxaEntrega();
   };
 
-  const finalizarPedido = () => {
+  // ✅ FUNÇÃO para WhatsApp
+  const abrirWhatsAppCompleto = (mensagem) => {
+    const numeroWhatsApp = '5521964298123';
+    setMensagemWhatsApp(mensagem);
+    
+    const isMobileDevice = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobileDevice) {
+      const urlNativo = `whatsapp://send?phone=55${numeroWhatsApp}&text=${encodeURIComponent(mensagem)}`;
+      
+      try {
+        window.location.href = urlNativo;
+        setTimeout(() => {
+          setShowWhatsAppFallback(true);
+        }, 3000);
+      } catch (error) {
+        setShowWhatsAppFallback(true);
+      }
+    } else {
+      const urlDesktop = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
+      const novaJanela = window.open(urlDesktop, '_blank');
+      
+      setTimeout(() => {
+        if (!novaJanela || novaJanela.closed) {
+          setShowWhatsAppFallback(true);
+        }
+      }, 2000);
+    }
+  };
+
+  // ✅ FUNÇÃO para copiar mensagem
+  const copiarMensagem = () => {
+    navigator.clipboard.writeText(mensagemWhatsApp).then(() => {
+      alert('✅ Mensagem copiada! Cole no WhatsApp.');
+    }).catch(() => {
+      const textArea = document.createElement('textarea');
+      textArea.value = mensagemWhatsApp;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      alert('✅ Mensagem copiada! Cole no WhatsApp.');
+    });
+  };
+
+  // ✅ FUNÇÃO PRINCIPAL - Confirmar e Enviar
+  const confirmarEEnviarPedido = async () => {
     if (carrinho.length === 0) {
       showError('Carrinho está vazio!');
       return;
@@ -93,20 +184,119 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       return;
     }
 
-    const pedido = {
-      itens: carrinho,
-      subtotal: calcularSubtotal(),
-      taxaEntrega: calcularTaxaEntrega(),
-      total: calcularTotal(),
-      observacoes,
-      enderecoEntrega: formatarEnderecoCompleto(),
-      data: new Date().toISOString(),
-      numero: Math.floor(Math.random() * 10000) + 1000
-    };
+    setProcessandoPedido(true);
 
-    sessionStorage.setItem('pedidoAtual', JSON.stringify(pedido));
-    success('Pedido preparado! Redirecionando...');
-    setTimeout(() => onNavigate('resumo-pedido'), 1000);
+    try {
+      // Cria o pedido
+      const pedido = {
+        itens: carrinho,
+        subtotal: calcularSubtotal(),
+        taxaEntrega: calcularTaxaEntrega(),
+        total: calcularTotal(),
+        observacoes,
+        enderecoEntrega: formatarEnderecoCompleto(),
+        data: new Date().toISOString(),
+        numero: Math.floor(Math.random() * 10000) + 1000
+      };
+
+      // Salva no sessionStorage
+      sessionStorage.setItem('pedidoAtual', JSON.stringify(pedido));
+
+      // Busca nome da empresa
+      const sessaoAtiva = JSON.parse(sessionStorage.getItem('sessaoAtiva') || '{}');
+      const nomeEmpresa = sessaoAtiva.nomeEmpresa || sessaoAtiva.razaoSocial || '';
+      const cnpjFormatado = sessaoAtiva.cnpjFormatado || cnpj;
+      const nomeParaExibir = nomeEmpresa || cnpj;
+
+      // Salva no localStorage para admin
+      const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
+      const novoPedido = {
+        id: Date.now(),
+        numero: pedido.numero,
+        cliente: nomeParaExibir,
+        cnpj: cnpj,
+        total: pedido.total,
+        status: 'enviado',
+        data: pedido.data,
+        itens: pedido.itens,
+        enderecoEntrega: pedido.enderecoEntrega,
+        observacoes: pedido.observacoes || ''
+      };
+      
+      pedidosAdmin.push(novoPedido);
+      localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
+
+      // Tenta salvar no Supabase
+      try {
+        const { pedidoService } = await import('../services/pedidoService');
+        const dadosPedido = {
+          cnpj: cnpj.replace(/\D/g, ''),
+          empresaNome: nomeParaExibir,
+          itens: pedido.itens,
+          subtotal: pedido.subtotal,
+          taxaEntrega: pedido.taxaEntrega,
+          total: pedido.total,
+          enderecoEntrega: pedido.enderecoEntrega,
+          observacoes: pedido.observacoes || '',
+          metodoPagamento: 'whatsapp'
+        };
+        
+        await pedidoService.criarPedido(dadosPedido);
+      } catch (error) {
+        console.error('❌ Erro ao salvar pedido no Supabase:', error);
+      }
+      
+      // Formata mensagem do WhatsApp
+      let mensagem = `*NOVO PEDIDO - FIT IN BOX*\n\n`;
+      mensagem += `*Pedido:* #${pedido.numero}\n`;
+      mensagem += `*Empresa:* ${nomeParaExibir}\n`;
+      mensagem += `*CNPJ:* ${cnpjFormatado}\n`;
+      mensagem += `*Data:* ${new Date().toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })}\n\n`;
+      
+      mensagem += `*ITENS DO PEDIDO:*\n`;
+      pedido.itens.forEach(item => {
+        mensagem += `• ${item.quantidade}x ${item.nome} - R$ ${(item.quantidade * item.preco).toFixed(2)}\n`;
+      });
+      
+      mensagem += `\n*RESUMO FINANCEIRO:*\n`;
+      mensagem += `• Subtotal: R$ ${pedido.subtotal.toFixed(2)}\n`;
+      mensagem += `• Taxa de entrega: ${pedido.taxaEntrega === 0 ? 'GRATIS' : `R$ ${pedido.taxaEntrega.toFixed(2)}`}\n`;
+      mensagem += `• *TOTAL: R$ ${pedido.total.toFixed(2)}*\n\n`;
+      
+      mensagem += `*ENDERECO DE ENTREGA:*\n${pedido.enderecoEntrega}\n\n`;
+      
+      if (pedido.observacoes) {
+        mensagem += `*OBSERVACOES:*\n${pedido.observacoes}\n\n`;
+      }
+      
+      mensagem += `Aguardo confirmacao!`;
+
+      // Abre WhatsApp
+      abrirWhatsAppCompleto(mensagem);
+      
+      // Limpa carrinho
+      setTimeout(() => {
+        sessionStorage.removeItem('carrinho');
+        sessionStorage.removeItem('pedidoAtual');
+        limparCarrinho();
+        
+        if (!showWhatsAppFallback) {
+          success('Pedido enviado com sucesso!');
+          onNavigate('pedido-confirmado');
+        }
+      }, 4000);
+
+    } catch (error) {
+      showError('Erro ao enviar pedido. Tente novamente.');
+    } finally {
+      setProcessandoPedido(false);
+    }
   };
 
   const continuarComprando = () => {
@@ -344,16 +534,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   flexDirection: isMobile ? 'column' : 'row'
                 }}
               >
-                <img
-                  src={item.imagem_url} // Corrigido para imagem_url
-                  alt={item.nome}
-                  style={{
-                    width: isMobile ? '100%' : '85px',
-                    height: isMobile ? '160px' : '85px',
-                    objectFit: 'cover',
-                    borderRadius: '5px'
-                  }}
-                />
+                <ImagemProdutoCarrinho produto={item} isMobile={isMobile} />
                 
                 <div style={{ 
                   flex: 1,
@@ -836,12 +1017,13 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               <span>Total:</span>
               <span>R$ {calcularTotal().toFixed(2)}</span>
             </div>
-            
+
+            {/* ✅ BOTÃO WHATSAPP DIRETO */}
             <button
-              onClick={finalizarPedido}
-              disabled={calcularQuantidadeTotal() < 30}
+              onClick={confirmarEEnviarPedido}
+              disabled={calcularQuantidadeTotal() < 30 || processandoPedido}
               style={{
-                backgroundColor: calcularQuantidadeTotal() < 30 ? '#ccc' : '#f38e3c',
+                backgroundColor: calcularQuantidadeTotal() < 30 ? '#ccc' : processandoPedido ? '#ccc' : '#25D366',
                 color: 'white',
                 border: 'none',
                 padding: '18px',
@@ -849,16 +1031,26 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 borderRadius: '5px',
                 fontSize: isMobile ? '16px' : '18px',
                 fontWeight: 'bold',
-                cursor: calcularQuantidadeTotal() < 30 ? 'not-allowed' : 'pointer',
+                cursor: calcularQuantidadeTotal() < 30 || processandoPedido ? 'not-allowed' : 'pointer',
                 marginBottom: '15px',
-                opacity: calcularQuantidadeTotal() < 30 ? 0.6 : 1
+                opacity: calcularQuantidadeTotal() < 30 || processandoPedido ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
               }}
             >
-              {calcularQuantidadeTotal() < 30 ? 'Pedido Mínimo: 30 Marmitas' : 'Revisar Pedido'}
+              {processandoPedido ? 
+                'Enviando...' : 
+                calcularQuantidadeTotal() < 30 ? 
+                  'Pedido Mínimo: 30 Marmitas' : 
+                  <>📱 Confirmar e Enviar no WhatsApp</>
+              }
             </button>
             
             <button
               onClick={continuarComprando}
+              disabled={processandoPedido}
               style={{
                 backgroundColor: 'transparent',
                 color: '#009245',
@@ -868,7 +1060,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 borderRadius: '5px',
                 fontSize: '16px',
                 fontWeight: 'bold',
-                cursor: 'pointer'
+                cursor: processandoPedido ? 'not-allowed' : 'pointer',
+                opacity: processandoPedido ? 0.5 : 1
               }}
             >
               Continuar Comprando
@@ -876,9 +1069,111 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           </div>
         </div>
       </div>
+
+      {/* ✅ Modal WhatsApp Fallback */}
+      {showWhatsAppFallback && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '10px',
+            padding: '30px',
+            maxWidth: '500px',
+            width: '100%',
+            textAlign: 'center'
+          }}>
+            <h2 style={{ color: '#25D366', marginBottom: '20px' }}>
+              📱 WhatsApp não abriu?
+            </h2>
+            
+            <p style={{ color: '#666', marginBottom: '25px' }}>
+              Não se preocupe! Use uma das opções abaixo:
+            </p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <button
+                onClick={() => {
+                  const numeroWhatsApp = '5521964298123';
+                  const urlWeb = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagemWhatsApp)}`;
+                  window.open(urlWeb, '_blank');
+                }}
+                style={{
+                  backgroundColor: '#25D366',
+                  color: 'white',
+                  border: 'none',
+                  padding: '15px',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                🌐 Abrir WhatsApp Web
+              </button>
+              
+              <button
+                onClick={copiarMensagem}
+                style={{
+                  backgroundColor: '#007bff',
+                  color: 'white',
+                  border: 'none',
+                  padding: '15px',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                📋 Copiar Mensagem
+              </button>
+              
+              <div style={{
+                backgroundColor: '#f8f9fa',
+                padding: '15px',
+                borderRadius: '8px',
+                textAlign: 'left'
+              }}>
+                <strong>📞 Ou ligue/mande mensagem:</strong>
+                <br />
+                <span style={{ fontSize: '18px', color: '#25D366', fontWeight: 'bold' }}>
+                  (21) 96429-8123
+                </span>
+              </div>
+              
+              <button
+                onClick={() => {
+                  setShowWhatsAppFallback(false);
+                  onNavigate('pedido-confirmado');
+                }}
+                style={{
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+              >
+                Continuar sem WhatsApp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default CarrinhoPage;
-

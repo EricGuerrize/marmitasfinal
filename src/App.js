@@ -1,4 +1,4 @@
-// src/App.js - COM INICIALIZAÇÃO DE SEGURANÇA
+// src/App.js - COM INICIALIZAÇÃO DE SEGURANÇA E CORREÇÃO DE IMAGENS
 
 import React, { useState, useEffect } from 'react';
 import HomePage from './components/HomePage';
@@ -123,7 +123,7 @@ function AppContent() {
 
     try {
       if (carrinho.length > 0) {
-        // Valida dados antes de salvar
+        // ✅ CORRIGIDO: Valida dados preservando imagem_url
         const carrinhoValidado = carrinho.map(item => ({
           id: securityUtils.sanitizeInput(String(item.id)),
           nome: securityUtils.sanitizeInput(item.nome),
@@ -131,7 +131,10 @@ function AppContent() {
           preco: parseFloat(item.preco) || 0,
           quantidade: parseInt(item.quantidade) || 0,
           categoria: securityUtils.sanitizeInput(item.categoria || ''),
-          imagem: securityUtils.sanitizeInput(item.imagem || '')
+          imagem_url: securityUtils.sanitizeInput(item.imagem_url || ''), // ✅ CORRIGIDO: imagem_url em vez de imagem
+          // ✅ Preserva outros campos se existirem
+          disponivel: item.disponivel,
+          estoque: item.estoque
         }));
         
         sessionStorage.setItem('carrinho', JSON.stringify(carrinhoValidado));
@@ -162,23 +165,42 @@ function AppContent() {
     }
   };
 
-  // Função para adicionar ao carrinho com validação
+  // ✅ FUNÇÃO CORRIGIDA PARA ADICIONAR AO CARRINHO
   const adicionarAoCarrinho = (produto, quantidadeAdicionar = 1) => {
     try {
+      console.log('🛒 ADICIONANDO PRODUTO AO CARRINHO:', {
+        produtoOriginal: produto,
+        quantidade: quantidadeAdicionar,
+        temImagemUrl: !!produto.imagem_url,
+        imagemUrl: produto.imagem_url,
+        todosOsCampos: Object.keys(produto)
+      });
+
       // Validação rigorosa do produto
       if (!produto || typeof produto !== 'object') {
         throw new Error('Produto inválido');
       }
 
+      // ✅ ESSENCIAL: Preserva TODOS os campos do produto
       const produtoValidado = {
         id: parseInt(produto.id) || 0,
         nome: securityUtils.sanitizeInput(produto.nome || ''),
         descricao: securityUtils.sanitizeInput(produto.descricao || ''),
         preco: parseFloat(produto.preco) || 0,
         categoria: securityUtils.sanitizeInput(produto.categoria || ''),
-        imagem: securityUtils.sanitizeInput(produto.imagem || ''),
-        quantidade: parseInt(quantidadeAdicionar) || 1
+        imagem_url: securityUtils.sanitizeInput(produto.imagem_url || ''), // ✅ CORRIGIDO: Campo correto
+        disponivel: produto.disponivel,
+        estoque: produto.estoque,
+        quantidade: parseInt(quantidadeAdicionar) || 1,
+        ...produto // ✅ Spread para garantir que não perde nenhum campo
       };
+
+      console.log('✅ PRODUTO VALIDADO PARA CARRINHO:', {
+        nome: produtoValidado.nome,
+        imagem_url: produtoValidado.imagem_url,
+        temImagem: !!produtoValidado.imagem_url,
+        quantidade: produtoValidado.quantidade
+      });
 
       // Validações de negócio
       if (produtoValidado.id <= 0) throw new Error('ID do produto inválido');
@@ -196,14 +218,16 @@ function AppContent() {
           throw new Error('Quantidade máxima por produto: 999');
         }
         
+        // ✅ Preserva todos os campos ao atualizar
         setCarrinho(carrinho.map(item => 
           item.id === produtoValidado.id 
-            ? { ...item, quantidade: novaQuantidade }
+            ? { ...produtoValidado, quantidade: novaQuantidade }
             : item
         ));
         
         success(`${produtoValidado.quantidade}x ${produtoValidado.nome} adicionado ao carrinho`, 2000);
       } else {
+        // ✅ Adiciona produto com todos os campos
         setCarrinho([...carrinho, produtoValidado]);
         success(`${produtoValidado.nome} adicionado ao carrinho!`, 2000);
       }
@@ -243,6 +267,7 @@ function AppContent() {
           success(`${produto.nome} removido do carrinho`);
         }
       } else {
+        // ✅ Preserva todos os campos ao atualizar quantidade
         setCarrinho(carrinho.map(item =>
           item.id === idValidado
             ? { ...item, quantidade: quantidadeValidada }
