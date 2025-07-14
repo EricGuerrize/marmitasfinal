@@ -75,11 +75,37 @@ const AdminPage = ({ onNavigate }) => {
   }, []);
 
   const loadPedidos = useCallback(() => {
-    // TODO: Integrar com pedidoService para carregar pedidos do Supabase
-    const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
-    const pedidosSimulados = pedidosAdmin.length === 0 ? [
-      {
-        id: 1,
+    console.log('🔍 Carregando pedidos...');
+    
+    // Verifica múltiplas chaves possíveis no localStorage
+    const possiveisChaves = ['pedidosAdmin', 'pedidos', 'carrinho_pedidos', 'pedidos_finalizados'];
+    let todosPedidos = [];
+    
+    possiveisChaves.forEach(chave => {
+      try {
+        const pedidosData = localStorage.getItem(chave);
+        if (pedidosData) {
+          const pedidosParsed = JSON.parse(pedidosData);
+          if (Array.isArray(pedidosParsed)) {
+            console.log(`📦 Encontrados ${pedidosParsed.length} pedidos na chave '${chave}'`);
+            todosPedidos = [...todosPedidos, ...pedidosParsed];
+          }
+        }
+      } catch (error) {
+        console.error(`Erro ao carregar pedidos da chave ${chave}:`, error);
+      }
+    });
+
+    // Remove duplicatas baseado no ID
+    const pedidosUnicos = todosPedidos.filter((pedido, index, arr) => 
+      arr.findIndex(p => p.id === pedido.id) === index
+    );
+
+    // Se não houver pedidos, adiciona um exemplo
+    if (pedidosUnicos.length === 0) {
+      console.log('📝 Adicionando pedido de exemplo...');
+      const pedidoExemplo = {
+        id: Date.now(),
         numero: 1001,
         cliente: 'H Azevedo de Abreu',
         cnpj: '05.336.475/0001-77',
@@ -92,12 +118,14 @@ const AdminPage = ({ onNavigate }) => {
           { nome: 'Marmita Fitness Frango', quantidade: 15, preco: 18.9 },
           { nome: 'Marmita Vegana', quantidade: 15, preco: 16.9 }
         ]
-      }
-    ] : [];
+      };
+      pedidosUnicos.push(pedidoExemplo);
+      localStorage.setItem('pedidosAdmin', JSON.stringify([pedidoExemplo]));
+    }
 
-    const todosPedidos = [...pedidosSimulados, ...pedidosAdmin];
-    setPedidos(todosPedidos);
-    calcularEstatisticas(todosPedidos);
+    console.log(`✅ Total de pedidos carregados: ${pedidosUnicos.length}`);
+    setPedidos(pedidosUnicos);
+    calcularEstatisticas(pedidosUnicos);
   }, []);
 
   const calcularEstatisticas = useCallback((pedidosList) => {
@@ -113,8 +141,6 @@ const AdminPage = ({ onNavigate }) => {
       produtosMaisVendidos: ['Marmita Fitness Frango', 'Marmita Tradicional']
     }));
   }, []);
-
-  // Removido initializeDefaultProducts pois os produtos virão do Supabase
 
   // Verificação de autenticação simplificada
   const checkAdminAuth = useCallback(async () => {
@@ -292,19 +318,76 @@ const AdminPage = ({ onNavigate }) => {
 
   const alterarStatusPedido = (pedidoId, novoStatus) => {
     try {
-      const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
-      const pedidosAtualizados = pedidosAdmin.map(pedido => 
-        pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
-      );
+      // Atualiza em todas as possíveis chaves de localStorage
+      const possiveisChaves = ['pedidosAdmin', 'pedidos', 'carrinho_pedidos', 'pedidos_finalizados'];
       
-      localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAtualizados));
-      loadPedidos();
+      possiveisChaves.forEach(chave => {
+        try {
+          const pedidosData = localStorage.getItem(chave);
+          if (pedidosData) {
+            const pedidosParsed = JSON.parse(pedidosData);
+            if (Array.isArray(pedidosParsed)) {
+              const pedidosAtualizados = pedidosParsed.map(pedido => 
+                pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
+              );
+              localStorage.setItem(chave, JSON.stringify(pedidosAtualizados));
+            }
+          }
+        } catch (error) {
+          console.error(`Erro ao atualizar status na chave ${chave}:`, error);
+        }
+      });
+      
+      // Atualiza o estado local
+      setPedidos(prevPedidos => 
+        prevPedidos.map(pedido => 
+          pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
+        )
+      );
       
       const statusInfo = statusPedidos.find(s => s.value === novoStatus);
       alert(`Status alterado para: ${statusInfo.label}`);
     } catch (error) {
       console.error('Erro ao alterar status:', error);
       alert('Erro ao alterar status do pedido');
+    }
+  };
+
+  // Nova função para excluir pedidos
+  const excluirPedido = (pedidoId) => {
+    const pedido = pedidos.find(p => p.id === pedidoId);
+    if (!pedido) return;
+
+    if (window.confirm(`Tem certeza que deseja excluir o pedido #${pedido.numero}?`)) {
+      try {
+        // Remove de todas as possíveis chaves de localStorage
+        const possiveisChaves = ['pedidosAdmin', 'pedidos', 'carrinho_pedidos', 'pedidos_finalizados'];
+        
+        possiveisChaves.forEach(chave => {
+          try {
+            const pedidosData = localStorage.getItem(chave);
+            if (pedidosData) {
+              const pedidosParsed = JSON.parse(pedidosData);
+              if (Array.isArray(pedidosParsed)) {
+                const pedidosFiltrados = pedidosParsed.filter(p => p.id !== pedidoId);
+                localStorage.setItem(chave, JSON.stringify(pedidosFiltrados));
+              }
+            }
+          } catch (error) {
+            console.error(`Erro ao excluir pedido da chave ${chave}:`, error);
+          }
+        });
+        
+        // Atualiza o estado local
+        const pedidosAtualizados = pedidos.filter(p => p.id !== pedidoId);
+        setPedidos(pedidosAtualizados);
+        calcularEstatisticas(pedidosAtualizados);
+        
+        alert('Pedido excluído com sucesso!');
+      } catch (error) {
+        console.error('Erro ao excluir pedido:', error);
+        alert('Erro ao excluir pedido');
+      }
     }
   };
 
@@ -971,7 +1054,7 @@ const AdminPage = ({ onNavigate }) => {
                           </p>
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <div style={{ marginBottom: '10px' }}>
+                          <div style={{ marginBottom: '10px', display: 'flex', gap: '5px', alignItems: 'center' }}>
                             <select
                               value={pedido.status}
                               onChange={(e) => alterarStatusPedido(pedido.id, e.target.value)}
@@ -993,6 +1076,23 @@ const AdminPage = ({ onNavigate }) => {
                                 </option>
                               ))}
                             </select>
+                            <button
+                              onClick={() => excluirPedido(pedido.id)}
+                              style={{
+                                backgroundColor: '#dc3545',
+                                color: 'white',
+                                border: 'none',
+                                padding: '8px 12px',
+                                borderRadius: '20px',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                outline: 'none'
+                              }}
+                              title="Excluir pedido"
+                            >
+                              🗑️ Excluir
+                            </button>
                           </div>
                           <div style={{
                             fontSize: '24px',
@@ -1227,4 +1327,3 @@ const AdminPage = ({ onNavigate }) => {
 };
 
 export default AdminPage;
-
