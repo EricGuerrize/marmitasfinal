@@ -84,7 +84,7 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
       
       // MENSAGEM DO WHATSAPP COM NOME DA EMPRESA
-      const numeroWhatsApp = '552196429-8123';
+      const numeroWhatsApp = '5521964298123';
       let mensagem = `*NOVO PEDIDO - FIT IN BOX*\n\n`;
       mensagem += `*Pedido:* #${pedidoFinal.numero}\n`;
       mensagem += `*Empresa:* ${nomeParaExibir}\n`; // MOSTRAR NOME DA EMPRESA

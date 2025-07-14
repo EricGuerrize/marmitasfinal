@@ -147,7 +147,7 @@ const CnpjNaoCadastrado = ({ onNavigate }) => {
             
             <button 
               onClick={() => {
-                const numeroWhatsApp = '2196429-8123';
+                const numeroWhatsApp = '5521964298123';
                 const mensagem = '🍽️ Olá! Tenho dúvidas sobre o cadastro do meu CNPJ no sistema Fit In Box.';
                 const url = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
                 window.open(url, '_blank');

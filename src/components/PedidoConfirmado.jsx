@@ -520,7 +520,7 @@ const PedidoConfirmado = ({ onNavigate }) => {
               borderRadius: '8px'
             }}>
               <strong>WhatsApp</strong>
-              <div>+55 (21) 2196429-8123
+              <div>+55 (21) 96429-8123
               </div>
             </div>
             

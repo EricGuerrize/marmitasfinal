@@ -121,7 +121,7 @@ const PedidoProdutosPage = ({ onNavigate }) => {
 
       // Removido o salvamento no localStorage para o admin ver
 
-      const numeroWhatsApp = '(21)96429-8123';
+      const numeroWhatsApp = '5521964298123';
       let mensagem = `🍽️ *NOVO PEDIDO - FIT IN BOX*\n\n`;
       mensagem += `📋 *Pedido:* #${pedido.numero}\n`;
       mensagem += `🏢 *Empresa:* ${dadosEmpresa.razaoSocial}\n`;

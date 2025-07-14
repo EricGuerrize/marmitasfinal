@@ -358,7 +358,7 @@ const HomePage = ({ onNavigate }) => {
           <strong>Nosso</strong> Compromisso
         </h1>
         <p style={{ marginTop: '20px', fontSize: isMobile ? '1.1em' : '1.2em' }}>
-          ÁREA DO CLIENTE
+          ÁREA DO FORNECEDOR
         </p>
         <p style={{ fontSize: isMobile ? '1.1em' : '1.2em', margin: isMobile ? '10px 10px 0 10px' : '0' }}>
           {modo === 'login' ? 'Acesse sua conta' : 'Crie sua conta'}
@@ -954,7 +954,7 @@ const HomePage = ({ onNavigate }) => {
             </h4>
             <div style={{ color: '#bdc3c7', lineHeight: '1.8', fontSize: '14px' }}>
               <div style={{ marginBottom: '8px' }}>
-                <strong>📱 WhatsApp:</strong><br />(21) 2196429-8123
+                <strong>📱 WhatsApp:</strong><br />(21) 96429-8123
               </div>
               <div style={{ marginBottom: '8px' }}>
                 <strong>📧 Email:</strong><br />Fitinboxcg@hotmail.com
