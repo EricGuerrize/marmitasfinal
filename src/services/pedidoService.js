@@ -136,7 +136,7 @@ const verificarSeEAdmin = async () => {
     try {
       const { data: empresaAdmin, error } = await supabase
         .from('empresas')
-        .select('id_uuid, tipo_usuario, ativo')
+        .select('id, tipo_usuario, ativo')
         .eq('cnpj', cnpjAdmin)
         .eq('tipo_usuario', 'admin')
         .eq('ativo', true)
