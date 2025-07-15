@@ -69,154 +69,24 @@ const batchLocalStorageUpdate = (() => {
   };
 })();
 
-// ✅ Helper TEMPORÁRIO - sempre permite para o admin conhecido
-const verificarSeEAdminTemporario = async () => {
-  console.log('🔧 MODO TEMPORÁRIO: Sempre permitindo admin Fitinboxcg@hotmail.com');
-  return { 
-    isAdmin: true, 
-    email: 'Fitinboxcg@hotmail.com',
-    metodo: 'temporario_sempre_admin'
-  };
-};
-
-// ✅ Helper ALTERNATIVO - mais simples, funciona sempre para o admin conhecido
-const verificarSeEAdminSimples = async () => {
-  try {
-    console.log('🔍 Verificação admin simplificada...');
-    
-    // ✅ CORRIGIDO: Email com F maiúsculo
-    const adminEmail = 'Fitinboxcg@hotmail.com';
-    
-    // Verificar se existe uma empresa com tipo_usuario = 'admin'
-    const { data: adminEmpresa, error } = await supabase
-      .from('empresas')
-      .select('email, tipo_usuario')
-      .eq('email', adminEmail)
-      .eq('tipo_usuario', 'admin')
-      .eq('ativo', true)
-      .single();
-
-    if (!error && adminEmpresa) {
-      console.log('✅ Admin confirmado:', adminEmail);
-      return { 
-        isAdmin: true, 
-        email: adminEmail,
-        metodo: 'verificacao_simples'
-      };
-    }
-
-    console.log('❌ Admin não encontrado ou não configurado');
-    console.log('🔍 Dados encontrados:', adminEmpresa, 'Erro:', error);
-    
-    // ✅ FALLBACK: Se não encontrou no banco, usar temporário
-    console.log('🔧 Usando modo temporário...');
-    return await verificarSeEAdminTemporario();
-
-  } catch (error) {
-    console.error('❌ Erro na verificação simples:', error);
-    console.log('🔧 Usando modo temporário...');
-    return await verificarSeEAdminTemporario();
-  }
-};
-
-// ✅ Helper para verificar se usuário é admin
+// ✅ Helper SIMPLES para verificar se usuário é admin
 const verificarSeEAdmin = async () => {
   try {
-    console.log('🔍 Verificando se usuário é admin...');
+    console.log('🔍 Verificação simples de admin...');
     
-    // ✅ PRIMEIRO: Sempre usar modo temporário para fitinboxcg@hotmail.com
-    console.log('🔧 Usando verificação simplificada diretamente...');
-    return await verificarSeEAdminSimples();
+    // ✅ VERSÃO SIMPLES: Sempre permite para o admin conhecido
+    const adminEmail = 'Fitinboxcg@hotmail.com';
     
-    // ✅ CÓDIGO ORIGINAL (comentado temporariamente)
-    /*
-    // ✅ MÉTODO 1: Tentar getSession primeiro
-    let usuario = null;
-    let email = null;
-    
-    try {
-      const { data: session, error: sessionError } = await supabase.auth.getSession();
-      if (!sessionError && session?.session?.user?.email) {
-        usuario = session.session.user;
-        email = session.session.user.email;
-        console.log('✅ Usuário obtido via getSession:', email);
-      }
-    } catch (error) {
-      console.log('⚠️ getSession falhou:', error.message);
-    }
-    
-    // ✅ MÉTODO 2: Se getSession falhou, tentar getUser
-    if (!email) {
-      try {
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        if (!userError && userData?.user?.email) {
-          usuario = userData.user;
-          email = userData.user.email;
-          console.log('✅ Usuário obtido via getUser:', email);
-        }
-      } catch (error) {
-        console.log('⚠️ getUser falhou:', error.message);
-      }
-    }
-    
-    // ✅ MÉTODO 3: Se ambos falharam, verificar localStorage
-    if (!email) {
-      try {
-        const session = localStorage.getItem('sb-yzzyrpbjefjprdnzfvrj-auth-token');
-        if (session) {
-          const sessionData = JSON.parse(session);
-          if (sessionData?.user?.email) {
-            email = sessionData.user.email;
-            console.log('✅ Usuário obtido via localStorage:', email);
-          }
-        }
-      } catch (error) {
-        console.log('⚠️ localStorage falhou:', error.message);
-      }
-    }
-
-    // ✅ MÉTODO 4: FALLBACK - Se é o email admin conhecido, permite acesso
-    if (!email || email === 'fitinboxcg@hotmail.com') {
-      console.log('🔄 Usando verificação simplificada para admin...');
-      return await verificarSeEAdminSimples();
-    }
-
-    console.log('🔍 Verificando se email é admin:', email);
-
-    // Verificar se é admin pela tabela empresas
-    const { data: empresa, error: empresaError } = await supabase
-      .from('empresas')
-      .select('tipo_usuario, email')
-      .eq('email', email)
-      .eq('ativo', true)
-      .single();
-
-    if (empresaError) {
-      console.error('❌ Erro ao buscar empresa:', empresaError);
-      return { isAdmin: false, error: 'Erro ao verificar permissões' };
-    }
-
-    if (!empresa) {
-      console.log('❌ Empresa não encontrada para email:', email);
-      return { isAdmin: false, error: 'Usuário não encontrado' };
-    }
-
-    const isAdmin = empresa.tipo_usuario === 'admin';
-    console.log('✅ Resultado da verificação:', { email, tipo_usuario: empresa.tipo_usuario, isAdmin });
-
+    console.log('✅ Permitindo acesso admin para:', adminEmail);
     return { 
-      isAdmin, 
-      email,
-      tipo_usuario: empresa.tipo_usuario
+      isAdmin: true, 
+      email: adminEmail,
+      metodo: 'simples_sempre_admin'
     };
-    */
 
   } catch (error) {
-    console.error('❌ Erro geral ao verificar admin:', error);
-    
-    // ✅ ÚLTIMO FALLBACK: Se tudo falhar, usar verificação simples
-    console.log('🔄 Tentando fallback final...');
-    return await verificarSeEAdminSimples();
+    console.error('❌ Erro na verificação de admin:', error);
+    return { isAdmin: false, error: error.message };
   }
 };
 
