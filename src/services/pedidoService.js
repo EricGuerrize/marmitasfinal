@@ -196,82 +196,81 @@ export const pedidoService = {
 // Em src/services/pedidoService.js
 
 criarPedido: async (dadosPedido) => {
-    console.log('--- INICIANDO PROCESSO DE CRIAÇÃO DE PEDIDO ---');
-    try {
-      // 1. Validar dados de entrada
-      if (!dadosPedido || !dadosPedido.cnpj) {
-        console.error('❌ ETAPA 1 FALHOU: `dadosPedido` ou `dadosPedido.cnpj` não foi fornecido.');
-        return { success: false, error: 'Dados do pedido inválidos.' };
+  console.log('--- MODO DE DEPURAÇÃO FINAL ---');
+  
+  // 1. Validação de entrada
+  if (!dadosPedido || !dadosPedido.cnpj) {
+      console.error('FALHA NA ETAPA 1: Dados de entrada ausentes.');
+      return { success: false, error: 'Dados do pedido (dadosPedido) ou CNPJ não fornecido.' };
+  }
+  console.log('ETAPA 1: Dados de entrada recebidos:', dadosPedido);
+
+  // 2. Busca da empresa
+  let empresa;
+  try {
+      console.log(`ETAPA 2: Buscando empresa com CNPJ: ${dadosPedido.cnpj}`);
+      const { data, error } = await supabase
+          .from('empresas')
+          .select('id, nome_empresa')
+          .eq('cnpj', dadosPedido.cnpj)
+          .single();
+
+      if (error) {
+          // Se a busca falhar, o erro é aqui.
+          console.error('FALHA NA ETAPA 2: Erro direto do Supabase ao buscar empresa.', error);
+          return { success: false, error: `Erro ao buscar empresa: ${error.message}` };
       }
-      console.log('ETAPA 1: Dados recebidos com sucesso.', dadosPedido);
-
-      // 2. Limpar e validar CNPJ
-      const empresaCnpj = cnpjService.removerMascaraCnpj(dadosPedido.cnpj);
-      console.log(`ETAPA 2: CNPJ limpo para busca: "${empresaCnpj}"`);
-      
-      // 3. Buscar a empresa no Supabase
-      console.log('ETAPA 3: Buscando empresa na tabela `empresas`...');
-      const { data: empresa, error: empresaError } = await supabase
-        .from('empresas')
-        .select('id, nome_empresa') // Pedindo o ID (que agora é uuid)
-        .eq('cnpj', empresaCnpj)
-        .single(); // .single() é melhor para buscar um registro único
-
-      // 4. Analisar o resultado da busca
-      if (empresaError) {
-        console.error('❌ ETAPA 4 FALHOU: Erro na query que busca a empresa.', empresaError);
-        return { success: false, error: `Erro ao buscar empresa: ${empresaError.message}` };
+      if (!data) {
+          console.error('FALHA NA ETAPA 2: Empresa não encontrada com o CNPJ fornecido.');
+          return { success: false, error: 'Empresa não encontrada ou inativa.' };
       }
+      empresa = data;
+      console.log('ETAPA 2: Empresa encontrada com sucesso!', empresa);
 
-      if (!empresa) {
-        console.error('❌ ETAPA 4 FALHOU: A busca pela empresa não retornou dados. O CNPJ não foi encontrado ou não há permissão de leitura (RLS).');
-        return { success: false, error: 'CNPJ não cadastrado ou empresa inativa.' };
-      }
-      
-      console.log('ETAPA 4: Empresa encontrada com sucesso!', empresa); // VERIFIQUE SE O 'id' AQUI É UM UUID
+  } catch (e) {
+      console.error('FALHA NA ETAPA 2 (CATCH): Erro inesperado ao buscar empresa.', e);
+      return { success: false, error: `Erro fatal ao buscar empresa: ${e.message}` };
+  }
 
-      // 5. Preparar o objeto do pedido
-      const novoPedido = {
-        empresa_id: empresa.id, // Usando o ID (uuid) obtido
-        empresa_cnpj: empresaCnpj,
-        empresa_nome: dadosPedido.empresaNome || empresa.nome_empresa,
-        itens: dadosPedido.itens,
-        subtotal: dadosPedido.subtotal,
-        taxa_entrega: dadosPedido.taxaEntrega,
-        total: dadosPedido.total,
-        endereco_entrega: dadosPedido.enderecoEntrega,
-        observacoes: dadosPedido.observacoes || '',
-        // O resto dos campos (numero, status, etc.) usará os valores DEFAULT do banco
-      };
-      console.log('ETAPA 5: Objeto do pedido pronto para ser inserido.', novoPedido);
+  // 3. Montagem do objeto do pedido
+  const novoPedido = {
+      empresa_id: empresa.id,
+      empresa_cnpj: dadosPedido.cnpj,
+      empresa_nome: dadosPedido.empresaNome,
+      itens: dadosPedido.itens,
+      subtotal: dadosPedido.subtotal,
+      taxa_entrega: dadosPedido.taxaEntrega,
+      total: dadosPedido.total,
+      endereco_entrega: dadosPedido.enderecoEntrega,
+      observacoes: dadosPedido.observacoes,
+      metodo_pagamento: dadosPedido.metodoPagamento,
+  };
+  console.log('ETAPA 3: Objeto do pedido montado e pronto para inserção.', novoPedido);
 
-      // 6. Inserir o pedido no Supabase
-      console.log('ETAPA 6: Inserindo pedido na tabela `pedidos`...');
+  // 4. Inserção do pedido
+  try {
+      console.log('ETAPA 4: Tentando inserir o pedido no banco de dados...');
       const { data: pedidoCriado, error: insertError } = await supabase
-        .from('pedidos')
-        .insert(novoPedido)
-        .select()
-        .single();
+          .from('pedidos')
+          .insert(novoPedido)
+          .select()
+          .single();
 
       if (insertError) {
-        console.error('❌ ETAPA 6 FALHOU: Erro ao inserir o pedido no banco.', insertError);
-        return { success: false, error: `Erro ao salvar pedido: ${insertError.message}` };
+          // ESTE É O PONTO MAIS IMPORTANTE. VAMOS VER O ERRO EXATO.
+          console.error('FALHA NA ETAPA 4: Erro direto do Supabase ao inserir o pedido.', insertError);
+          // Retornamos a mensagem de erro exata do Supabase.
+          return { success: false, error: `[Supabase] ${insertError.message} (Code: ${insertError.code})` };
       }
 
-      console.log('✅ SUCESSO FINAL: Pedido salvo no Supabase!', pedidoCriado);
-      console.log('--- FIM DO PROCESSO ---');
+      console.log('✅ SUCESSO! Pedido inserido no banco de dados!', pedidoCriado);
+      return { success: true, pedido: pedidoCriado };
 
-      // O resto da sua lógica de cache...
-      this.updateLocalStoragesBackground(pedidoCriado, novoPedido);
-      pedidosCache = null;
-      pedidosCacheTimestamp = 0;
-
-      return { success: true, pedido: pedidoCriado, message: 'Pedido criado com sucesso!' };
-
-    } catch (error) {
-      console.error('❌ ERRO INESPERADO (CATCH GERAL):', error);
-      return { success: false, error: 'Erro inesperado ao criar pedido.' };
-    }
+  } catch (e) {
+      console.error('FALHA NA ETAPA 4 (CATCH): Erro inesperado ao inserir o pedido.', e);
+      // Se o erro for tão grave que nem o Supabase o captura, veremos aqui.
+      return { success: false, error: `Erro fatal ao inserir pedido: ${e.message}` };
+  }
 },
 
 
