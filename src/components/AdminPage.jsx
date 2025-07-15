@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
 import { produtoService } from '../services/produtoService';
-import { pedidoService } from '../services/pedidoService'; // Import do pedidoService existente
+import { pedidoService } from '../services/pedidoService';
 import ImageUpload from './ImageUpload';
+import supabase from '../lib/supabase'; // ✅ IMPORTANTE: Importar o cliente Supabase
 
 const AdminPage = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -20,7 +21,7 @@ const AdminPage = ({ onNavigate }) => {
     descricao: '',
     preco: '',
     categoria: 'fitness',
-    imagem_url: '', // Alterado de 'imagem' para 'imagem_url'
+    imagem_url: '',
     disponivel: true,
     estoque: 100
   });
@@ -36,14 +37,54 @@ const AdminPage = ({ onNavigate }) => {
   });
 
   const statusPedidos = [
-    { value: 'a_preparar', label: 'A Preparar', color: '#ffc107', icon: '⏳' },
+    { value: 'pendente', label: 'Pendente', color: '#6c757d', icon: '⚪' },
+    { value: 'enviado', label: 'Enviado', color: '#17a2b8', icon: '✉️' },
+    { value: 'confirmado', label: 'Confirmado', color: '#ffc107', icon: '👍' },
+    { value: 'a_preparar', label: 'A Preparar', color: '#fd7e14', icon: '⏳' },
     { value: 'em_producao', label: 'Em Produção', color: '#007bff', icon: '👨‍🍳' },
     { value: 'pronto_entrega', label: 'Pronto para Entrega', color: '#28a745', icon: '📦' },
-    { value: 'entregue', label: 'Entregue', color: '#6c757d', icon: '✅' },
+    { value: 'entregue', label: 'Entregue', color: '#20c997', icon: '✅' },
     { value: 'cancelado', label: 'Cancelado', color: '#dc3545', icon: '❌' }
   ];
 
-  // Funções de carregamento
+  // ✅ FUNÇÃO DE CARREGAMENTO DE PEDIDOS SIMPLIFICADA
+  const loadPedidos = useCallback(async () => {
+    try {
+      console.log('🔍 Carregando pedidos do Supabase...');
+      const resultado = await pedidoService.listarTodosPedidos();
+      
+      if (resultado.success) {
+        console.log(`✅ ${resultado.data.length} pedidos carregados do Supabase`);
+        setPedidos(resultado.data);
+        // A função de estatísticas será chamada separadamente para maior clareza
+      } else {
+        console.error('❌ Erro ao carregar pedidos:', resultado.error);
+        setPedidos([]); // Limpa os pedidos em caso de erro
+      }
+    } catch (error) {
+      console.error('❌ Erro inesperado ao carregar pedidos:', error);
+      setPedidos([]);
+    }
+  }, []);
+
+  // ✅ FUNÇÃO DE ESTATÍSTICAS SEPARADA
+  const calcularEstatisticas = useCallback(async () => {
+    try {
+      const resultado = await pedidoService.obterEstatisticas();
+      if (resultado.success) {
+        setStats(prev => ({
+          ...prev,
+          totalPedidos: resultado.data.totalPedidos,
+          totalVendas: resultado.data.totalVendas,
+          pedidosHoje: resultado.data.pedidosHoje,
+        }));
+      }
+    } catch (error) {
+      console.error('Erro ao calcular estatísticas:', error);
+    }
+  }, []);
+
+  // ✅ DEMAIS FUNÇÕES DE CARREGAMENTO (sem grandes alterações)
   const loadEmpresasCadastradas = useCallback(async () => {
     try {
       const empresas = await authSupabaseService.listarEmpresas();
@@ -80,119 +121,6 @@ const AdminPage = ({ onNavigate }) => {
     } catch (error) {
       console.error('Erro ao carregar produtos do Supabase:', error);
       setProdutos([]);
-    }
-  }, []);
-
-  const loadPedidos = useCallback(async () => {
-    try {
-      console.log('🔍 Carregando pedidos do Supabase...');
-      
-      const resultado = await pedidoService.listarTodosPedidos();
-      
-      if (resultado.success) {
-        console.log(`✅ ${resultado.data.length} pedidos carregados do Supabase`);
-        setPedidos(resultado.data);
-        await calcularEstatisticas(resultado.data);
-      } else {
-        console.error('❌ Erro ao carregar pedidos:', resultado.error);
-        
-        // Fallback: tenta carregar do localStorage se Supabase falhar
-        console.log('🔄 Tentando fallback com localStorage...');
-        const possiveisChaves = ['pedidosAdmin', 'pedidos', 'carrinho_pedidos', 'pedidos_finalizados'];
-        let todosPedidos = [];
-        
-        possiveisChaves.forEach(chave => {
-          try {
-            const pedidosData = localStorage.getItem(chave);
-            if (pedidosData) {
-              const pedidosParsed = JSON.parse(pedidosData);
-              if (Array.isArray(pedidosParsed)) {
-                console.log(`📦 Encontrados ${pedidosParsed.length} pedidos na chave '${chave}'`);
-                todosPedidos = [...todosPedidos, ...pedidosParsed];
-              }
-            }
-          } catch (error) {
-            console.error(`Erro ao carregar pedidos da chave ${chave}:`, error);
-          }
-        });
-
-        // Remove duplicatas baseado no ID
-        const pedidosUnicos = todosPedidos.filter((pedido, index, arr) => 
-          arr.findIndex(p => p.id === pedido.id) === index
-        );
-
-        // Se não houver pedidos, adiciona um exemplo
-        if (pedidosUnicos.length === 0) {
-          console.log('📝 Adicionando pedido de exemplo...');
-          const pedidoExemplo = {
-            id: Date.now(),
-            numero: 1001,
-            cliente: 'H Azevedo de Abreu',
-            cnpj: '05.336.475/0001-77',
-            total: 567.0,
-            status: 'em_producao',
-            data: new Date().toISOString(),
-            enderecoEntrega: 'Rua das Flores, 123 - Centro, São Paulo/SP - CEP: 01234-567',
-            observacoes: 'Entregar na portaria',
-            itens: [
-              { nome: 'Marmita Fitness Frango', quantidade: 15, preco: 18.9 },
-              { nome: 'Marmita Vegana', quantidade: 15, preco: 16.9 }
-            ]
-          };
-          pedidosUnicos.push(pedidoExemplo);
-        }
-
-        console.log(`✅ Total de pedidos carregados (fallback): ${pedidosUnicos.length}`);
-        setPedidos(pedidosUnicos);
-        await calcularEstatisticas(pedidosUnicos);
-      }
-    } catch (error) {
-      console.error('❌ Erro inesperado ao carregar pedidos:', error);
-      setPedidos([]);
-    }
-  }, []);
-
-  const calcularEstatisticas = useCallback(async (pedidosList = null) => {
-    try {
-      // Se não foi passada lista, busca estatísticas otimizadas do service
-      if (!pedidosList) {
-        const resultado = await pedidoService.obterEstatisticas();
-        if (resultado.success) {
-          setStats(prev => ({
-            ...prev,
-            totalPedidos: resultado.data.totalPedidos,
-            totalVendas: resultado.data.totalVendas,
-            pedidosHoje: resultado.data.pedidosHoje,
-            produtosMaisVendidos: resultado.data.produtosMaisVendidos || ['Marmita Fitness Frango', 'Marmita Tradicional']
-          }));
-          return;
-        }
-      }
-
-      // Fallback: cálculo local se foi passada uma lista ou se o service falhou
-      const pedidos = pedidosList || [];
-      const total = pedidos.reduce((sum, pedido) => sum + (parseFloat(pedido.total) || 0), 0);
-      const hoje = new Date().toDateString();
-      const pedidosHoje = pedidos.filter(p => {
-        try {
-          if (!p.data) return false;
-          const dataPedido = new Date(p.data);
-          return !isNaN(dataPedido.getTime()) && dataPedido.toDateString() === hoje;
-        } catch (error) {
-          console.error('Erro ao processar data do pedido:', error);
-          return false;
-        }
-      }).length;
-
-      setStats(prev => ({
-        ...prev,
-        totalPedidos: pedidos.length,
-        totalVendas: total,
-        pedidosHoje,
-        produtosMaisVendidos: ['Marmita Fitness Frango', 'Marmita Tradicional']
-      }));
-    } catch (error) {
-      console.error('Erro ao calcular estatísticas:', error);
     }
   }, []);
 
@@ -257,10 +185,10 @@ const AdminPage = ({ onNavigate }) => {
     if (!product.preco || isNaN(product.preco) || product.preco <= 0) {
       throw new Error('Preço deve ser um número maior que zero');
     }
-    if (!product.imagem_url?.trim()) throw new Error('URL da imagem é obrigatória'); // Alterado para imagem_url
+    if (!product.imagem_url?.trim()) throw new Error('URL da imagem é obrigatória');
     
     try {
-      new URL(product.imagem_url); // Alterado para imagem_url
+      new URL(product.imagem_url);
     } catch {
       throw new Error('URL da imagem inválida');
     }
@@ -278,7 +206,7 @@ const AdminPage = ({ onNavigate }) => {
         descricao: productForm.descricao.trim(),
         preco: parseFloat(productForm.preco),
         categoria: productForm.categoria,
-        imagem_url: productForm.imagem_url.trim(), // Alterado para imagem_url
+        imagem_url: productForm.imagem_url.trim(),
         disponivel: productForm.disponivel,
         estoque: parseInt(productForm.estoque) || 100
       };
@@ -309,7 +237,7 @@ const AdminPage = ({ onNavigate }) => {
         descricao: '',
         preco: '',
         categoria: 'fitness',
-        imagem_url: '', // Alterado para imagem_url
+        imagem_url: '',
         disponivel: true,
         estoque: 100
       });
@@ -362,7 +290,7 @@ const AdminPage = ({ onNavigate }) => {
       descricao: produto.descricao,
       preco: produto.preco.toString(),
       categoria: produto.categoria,
-      imagem_url: produto.imagem_url, // Alterado para imagem_url
+      imagem_url: produto.imagem_url,
       disponivel: produto.disponivel,
       estoque: produto.estoque.toString()
     });
@@ -411,7 +339,7 @@ const AdminPage = ({ onNavigate }) => {
           // Atualiza o estado local
           const pedidosAtualizados = pedidos.filter(p => p.id !== pedidoId);
           setPedidos(pedidosAtualizados);
-          await calcularEstatisticas(pedidosAtualizados);
+          await calcularEstatisticas();
           
           alert('Pedido excluído com sucesso!');
         } else {
@@ -755,37 +683,55 @@ const AdminPage = ({ onNavigate }) => {
     }
   };
 
-  // Verificação inicial de autenticação
+  // ✅ EFEITO DE AUTENTICAÇÃO E CARREGAMENTO INICIAL
   useEffect(() => {
-    const initAuth = async () => {
+    const init = async () => {
       setLoading(true);
       const isAuth = await checkAdminAuth();
-      
       if (!isAuth) {
-        console.log('🚫 Redirecionando para home...');
         onNavigate('home');
         return;
       }
-      
+      // Carrega todos os dados iniciais em paralelo
+      await Promise.all([
+        loadProducts(),
+        loadPedidos(),
+        loadEmpresasCadastradas(),
+        calcularEstatisticas()
+      ]);
       setLoading(false);
     };
+    init();
+  }, [checkAdminAuth, onNavigate, loadProducts, loadPedidos, loadEmpresasCadastradas, calcularEstatisticas]);
 
-    initAuth();
-  }, [checkAdminAuth, onNavigate]);
-
-  // Carregamento de dados quando autenticado
+  // ✅ NOVO EFEITO PARA ATUALIZAÇÃO EM TEMPO REAL (REALTIME)
   useEffect(() => {
-    if (isAuthenticated && !loading) {
-      console.log('📊 Carregando dados do admin...');
-      const carregarDados = async () => {
-        await loadProducts();
-        await loadPedidos();
-        await loadEmpresasCadastradas();
-        // calcularEstatisticas será chamado dentro de loadPedidos
-      };
-      carregarDados();
-    }
-  }, [isAuthenticated, loading, loadProducts, loadPedidos, loadEmpresasCadastradas]);
+    // Só ativa o listener se o usuário estiver autenticado
+    if (!isAuthenticated) return;
+
+    console.log('📡 Ativando listener de tempo real para novos pedidos...');
+
+    const channel = supabase
+      .channel('pedidos-changes')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'pedidos' },
+        (payload) => {
+          console.log('✅ Novo pedido recebido em tempo real!', payload.new);
+          // Adiciona o novo pedido no topo da lista, sem precisar recarregar tudo
+          setPedidos(prevPedidos => [payload.new, ...prevPedidos]);
+          // Atualiza as estatísticas
+          calcularEstatisticas();
+        }
+      )
+      .subscribe();
+
+    // Função de limpeza para remover o listener quando o componente for desmontado
+    return () => {
+      console.log('🔌 Desativando listener de tempo real.');
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated, calcularEstatisticas]); // Depende de isAuthenticated para rodar
 
   // Loading state
   if (loading) {
@@ -800,7 +746,7 @@ const AdminPage = ({ onNavigate }) => {
         gap: '20px'
       }}>
         <div style={{ fontSize: '48px' }}>🔄</div>
-        <div style={{ fontSize: '18px', color: '#666' }}>Verificando acesso admin...</div>
+        <div style={{ fontSize: '18px', color: '#666' }}>Carregando Painel Admin...</div>
       </div>
     );
   }
@@ -989,7 +935,7 @@ const AdminPage = ({ onNavigate }) => {
                     descricao: '',
                     preco: '',
                     categoria: 'fitness',
-                    imagem_url: '', // Alterado para imagem_url
+                    imagem_url: '',
                     disponivel: true,
                     estoque: 100
                   });
@@ -1163,9 +1109,9 @@ const AdminPage = ({ onNavigate }) => {
                   </div>
                   <div style={{ marginBottom: '25px' }}>
                     <ImageUpload
-                      currentImage={productForm.imagem_url} // Alterado para imagem_url
+                      currentImage={productForm.imagem_url}
                       onImageUpload={(imageUrl) =>
-                        setProductForm({ ...productForm, imagem_url: imageUrl }) // Alterado para imagem_url
+                        setProductForm({ ...productForm, imagem_url: imageUrl })
                       }
                       placeholder="URL da imagem do produto"
                     />
@@ -1227,7 +1173,7 @@ const AdminPage = ({ onNavigate }) => {
                   }}
                 >
                   <img
-                    src={produto.imagem_url} // Alterado para imagem_url
+                    src={produto.imagem_url}
                     alt={produto.nome}
                     style={{
                       width: '100%',
