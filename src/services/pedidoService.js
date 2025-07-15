@@ -1,4 +1,4 @@
-// ✅ CORRIGIDO: Usar cliente singleton
+
 import supabase from '../lib/supabase';
 import { cnpjService } from './cnpjService';
 
@@ -69,19 +69,34 @@ const batchLocalStorageUpdate = (() => {
   };
 })();
 
-// ✅ Helper SIMPLES para verificar se usuário é admin (só para operações que precisam)
+// ✅ Helper para verificar se usuário é admin
 const verificarSeEAdmin = async () => {
   try {
-    console.log('🔧 Verificação simples: sempre permite admin');
-    // ✅ SEMPRE RETORNA TRUE para não bloquear nada
+    const { data: usuario } = await supabase.auth.getUser();
+    if (!usuario?.user?.email) {
+      return { isAdmin: false, error: 'Usuário não autenticado' };
+    }
+
+    // Verificar se é admin pela tabela empresas
+    const { data: empresa, error: empresaError } = await supabase
+      .from('empresas')
+      .select('tipo_usuario')
+      .eq('email', usuario.user.email)
+      .eq('ativo', true)
+      .single();
+
+    if (empresaError || !empresa) {
+      return { isAdmin: false, error: 'Usuário não encontrado' };
+    }
+
     return { 
-      isAdmin: true, 
-      email: 'Fitinboxcg@hotmail.com',
-      metodo: 'sempre_admin'
+      isAdmin: empresa.tipo_usuario === 'admin', 
+      email: usuario.user.email 
     };
+
   } catch (error) {
-    console.error('❌ Erro na verificação de admin:', error);
-    return { isAdmin: true, email: 'admin' }; // ✅ Sempre permite
+    console.error('Erro ao verificar admin:', error);
+    return { isAdmin: false, error: error.message };
   }
 };
 
