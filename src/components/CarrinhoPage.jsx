@@ -1,7 +1,12 @@
+// COMMIT: fix-carrinho-page-supabase-integration
+
 import React, { useState, useEffect } from 'react';
 import { useCep } from '../hooks/useCep';
 import { useNotification } from './NotificationSystem';
 import LogoComponent from './LogoComponent';
+// ✅ ADICIONADO: Importações dos serviços
+import { pedidoService } from '../services/pedidoService'; 
+import { authSupabaseService } from '../services/authSupabaseService';
 
 // ✅ COMPONENTE SIMPLES PARA IMAGEM DO CARRINHO
 const ImagemProdutoCarrinho = ({ produto, isMobile }) => {
@@ -46,12 +51,16 @@ const ImagemProdutoCarrinho = ({ produto, isMobile }) => {
 };
 
 const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, limparCarrinho, calcularQuantidadeTotal }) => {
-  const [cnpj, setCnpj] = useState('');
+  // ✅ REMOVIDO: const [cnpj, setCnpj] = useState('');
+  
   const [observacoes, setObservacoes] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   const [processandoPedido, setProcessandoPedido] = useState(false);
   const [showWhatsAppFallback, setShowWhatsAppFallback] = useState(false);
   const [mensagemWhatsApp, setMensagemWhatsApp] = useState('');
+  
+  // ✅ NOVO: Estado para dados da empresa
+  const [dadosEmpresa, setDadosEmpresa] = useState(null);
   
   const { 
     endereco, 
@@ -75,10 +84,62 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // ✅ NOVO: useEffect para buscar dados da sessão
   useEffect(() => {
-    const cnpjInfo = sessionStorage.getItem('cnpj') || '';
-    setCnpj(cnpjInfo);
+    const buscarDadosSessao = async () => {
+      try {
+        console.log('🔍 Buscando dados da sessão...');
+        
+        // Tenta buscar da sessão atual
+        const sessao = await authSupabaseService.verificarSessao();
+        
+        if (sessao && sessao.cnpj) {
+          console.log('✅ Sessão encontrada:', {
+            cnpj: sessao.cnpjFormatado,
+            empresa: sessao.nomeEmpresa
+          });
+          setDadosEmpresa(sessao);
+        } else {
+          // Fallback: tenta do sessionStorage
+          const cnpjInfo = sessionStorage.getItem('cnpj');
+          const sessaoAtiva = sessionStorage.getItem('sessaoAtiva');
+          
+          if (cnpjInfo || sessaoAtiva) {
+            const dadosFallback = {
+              cnpj: cnpjInfo || '',
+              cnpjFormatado: cnpjInfo || '',
+              nomeEmpresa: 'Empresa',
+              razaoSocial: 'Empresa'
+            };
+            
+            if (sessaoAtiva) {
+              try {
+                const sessaoData = JSON.parse(sessaoAtiva);
+                Object.assign(dadosFallback, sessaoData);
+              } catch (error) {
+                console.error('Erro ao parse sessaoAtiva:', error);
+              }
+            }
+            
+            console.log('✅ Usando dados de fallback:', dadosFallback);
+            setDadosEmpresa(dadosFallback);
+          } else {
+            console.error('❌ Nenhuma sessão encontrada');
+            showError("Sessão inválida. Por favor, faça o login novamente.");
+            onNavigate('home');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Erro ao buscar sessão:', error);
+        showError("Erro ao carregar dados da sessão.");
+        onNavigate('home');
+      }
+    };
     
+    buscarDadosSessao();
+  }, [onNavigate, showError]);
+
+  useEffect(() => {
     const handlePopState = (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -165,8 +226,11 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     });
   };
 
-  // ✅ FUNÇÃO PRINCIPAL - Confirmar e Enviar
+  // ✅ FUNÇÃO PRINCIPAL CORRIGIDA - Confirmar e Enviar
   const confirmarEEnviarPedido = async () => {
+    console.log('🚀 Iniciando confirmação do pedido...');
+    
+    // 1. Validações iniciais
     if (carrinho.length === 0) {
       showError('Carrinho está vazio!');
       return;
@@ -183,74 +247,86 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       showError(validacao.mensagem);
       return;
     }
+    
+    if (!dadosEmpresa || !dadosEmpresa.cnpj) {
+      showError("Erro: Dados da empresa não encontrados. Faça o login novamente.");
+      return;
+    }
 
     setProcessandoPedido(true);
 
     try {
-      // Cria o pedido
-      const pedido = {
-        itens: carrinho,
+      console.log('📝 Montando dados do pedido...');
+      
+      // 2. Monta o objeto de dados para o serviço
+      const dadosParaSalvar = {
+        cnpj: dadosEmpresa.cnpj.replace(/\D/g, ''), // Remove máscara
+        empresaNome: dadosEmpresa.nomeEmpresa || dadosEmpresa.razaoSocial || 'Empresa',
+        itens: carrinho.map(item => ({
+          id: item.id,
+          nome: item.nome,
+          quantidade: item.quantidade,
+          preco: item.preco
+        })),
         subtotal: calcularSubtotal(),
         taxaEntrega: calcularTaxaEntrega(),
         total: calcularTotal(),
-        observacoes,
         enderecoEntrega: formatarEnderecoCompleto(),
-        data: new Date().toISOString(),
-        numero: Math.floor(Math.random() * 10000) + 1000
+        observacoes: observacoes || '',
+        metodoPagamento: 'whatsapp'
       };
 
-      // Salva no sessionStorage
-      sessionStorage.setItem('pedidoAtual', JSON.stringify(pedido));
+      console.log('🔍 Dados que serão enviados para o Supabase:', {
+        cnpj: dadosParaSalvar.cnpj,
+        empresaNome: dadosParaSalvar.empresaNome,
+        total: dadosParaSalvar.total,
+        itens_count: dadosParaSalvar.itens.length
+      });
 
-      // Busca nome da empresa
-      const sessaoAtiva = JSON.parse(sessionStorage.getItem('sessaoAtiva') || '{}');
-      const nomeEmpresa = sessaoAtiva.nomeEmpresa || sessaoAtiva.razaoSocial || '';
-      const cnpjFormatado = sessaoAtiva.cnpjFormatado || cnpj;
-      const nomeParaExibir = nomeEmpresa || cnpj;
+      // 3. Tenta salvar o pedido no Supabase
+      console.log('💾 Salvando pedido no Supabase...');
+      const resultado = await pedidoService.criarPedido(dadosParaSalvar);
 
-      // Salva no localStorage para admin
-      const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
-      const novoPedido = {
-        id: Date.now(),
-        numero: pedido.numero,
-        cliente: nomeParaExibir,
-        cnpj: cnpj,
-        total: pedido.total,
-        status: 'enviado',
-        data: pedido.data,
-        itens: pedido.itens,
-        enderecoEntrega: pedido.enderecoEntrega,
-        observacoes: pedido.observacoes || ''
-      };
-      
-      pedidosAdmin.push(novoPedido);
-      localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
+      console.log('📥 Resultado do Supabase:', resultado);
 
-      // Tenta salvar no Supabase
+      // 4. Verifica o resultado
+      if (!resultado.success) {
+        console.error('❌ Erro ao salvar no Supabase:', resultado.error);
+        showError(`Erro ao salvar pedido: ${resultado.error}`);
+        setProcessandoPedido(false);
+        return;
+      }
+
+      console.log('✅ PEDIDO SALVO COM SUCESSO NO SUPABASE!', resultado.pedido);
+      success('Pedido salvo com sucesso! Redirecionando para o WhatsApp...');
+
+      // 5. Salva backup no localStorage para admin
       try {
-        const { pedidoService } = await import('../services/pedidoService');
-        const dadosPedido = {
-          cnpj: cnpj.replace(/\D/g, ''),
-          empresaNome: nomeParaExibir,
-          itens: pedido.itens,
-          subtotal: pedido.subtotal,
-          taxaEntrega: pedido.taxaEntrega,
-          total: pedido.total,
-          enderecoEntrega: pedido.enderecoEntrega,
-          observacoes: pedido.observacoes || '',
-          metodoPagamento: 'whatsapp'
+        const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
+        const novoPedido = {
+          id: resultado.pedido.id,
+          numero: resultado.pedido.numero,
+          cliente: dadosParaSalvar.empresaNome,
+          cnpj: dadosEmpresa.cnpjFormatado || dadosEmpresa.cnpj,
+          total: dadosParaSalvar.total,
+          status: 'enviado',
+          data: new Date().toISOString(),
+          itens: dadosParaSalvar.itens,
+          enderecoEntrega: dadosParaSalvar.enderecoEntrega,
+          observacoes: dadosParaSalvar.observacoes
         };
         
-        await pedidoService.criarPedido(dadosPedido);
+        pedidosAdmin.push(novoPedido);
+        localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
       } catch (error) {
-        console.error('❌ Erro ao salvar pedido no Supabase:', error);
+        console.error('Erro ao salvar backup no localStorage:', error);
       }
       
-      // Formata mensagem do WhatsApp
+      // 6. Formata a mensagem para o WhatsApp
       let mensagem = `*NOVO PEDIDO - FIT IN BOX*\n\n`;
-      mensagem += `*Pedido:* #${pedido.numero}\n`;
-      mensagem += `*Empresa:* ${nomeParaExibir}\n`;
-      mensagem += `*CNPJ:* ${cnpjFormatado}\n`;
+      mensagem += `*Pedido:* #${resultado.pedido.numero}\n`;
+      mensagem += `*Empresa:* ${dadosParaSalvar.empresaNome}\n`;
+      mensagem += `*CNPJ:* ${dadosEmpresa.cnpjFormatado || dadosEmpresa.cnpj}\n`;
       mensagem += `*Data:* ${new Date().toLocaleDateString('pt-BR', {
         day: '2-digit',
         month: '2-digit', 
@@ -260,30 +336,29 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       })}\n\n`;
       
       mensagem += `*ITENS DO PEDIDO:*\n`;
-      pedido.itens.forEach(item => {
+      dadosParaSalvar.itens.forEach(item => {
         mensagem += `• ${item.quantidade}x ${item.nome} - R$ ${(item.quantidade * item.preco).toFixed(2)}\n`;
       });
       
       mensagem += `\n*RESUMO FINANCEIRO:*\n`;
-      mensagem += `• Subtotal: R$ ${pedido.subtotal.toFixed(2)}\n`;
-      mensagem += `• Taxa de entrega: ${pedido.taxaEntrega === 0 ? 'GRATIS' : `R$ ${pedido.taxaEntrega.toFixed(2)}`}\n`;
-      mensagem += `• *TOTAL: R$ ${pedido.total.toFixed(2)}*\n\n`;
+      mensagem += `• Subtotal: R$ ${dadosParaSalvar.subtotal.toFixed(2)}\n`;
+      mensagem += `• Taxa de entrega: ${dadosParaSalvar.taxaEntrega === 0 ? 'GRATIS' : `R$ ${dadosParaSalvar.taxaEntrega.toFixed(2)}`}\n`;
+      mensagem += `• *TOTAL: R$ ${dadosParaSalvar.total.toFixed(2)}*\n\n`;
       
-      mensagem += `*ENDERECO DE ENTREGA:*\n${pedido.enderecoEntrega}\n\n`;
+      mensagem += `*ENDEREÇO DE ENTREGA:*\n${dadosParaSalvar.enderecoEntrega}\n\n`;
       
-      if (pedido.observacoes) {
-        mensagem += `*OBSERVACOES:*\n${pedido.observacoes}\n\n`;
+      if (dadosParaSalvar.observacoes) {
+        mensagem += `*OBSERVAÇÕES:*\n${dadosParaSalvar.observacoes}\n\n`;
       }
       
-      mensagem += `Aguardo confirmacao!`;
+      mensagem += `Aguardo confirmação!`;
 
-      // Abre WhatsApp
+      // 7. Abre o WhatsApp
       abrirWhatsAppCompleto(mensagem);
       
-      // Limpa carrinho
+      // 8. Limpa carrinho e navega
       setTimeout(() => {
         sessionStorage.removeItem('carrinho');
-        sessionStorage.removeItem('pedidoAtual');
         limparCarrinho();
         
         if (!showWhatsAppFallback) {
@@ -293,6 +368,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       }, 4000);
 
     } catch (error) {
+      console.error('❌ Erro crítico em confirmarEEnviarPedido:', error);
       showError('Erro ao enviar pedido. Tente novamente.');
     } finally {
       setProcessandoPedido(false);
@@ -315,6 +391,25 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       atualizarQuantidade(itemId, novaQuantidade);
     }
   };
+
+  // ✅ NOVO: Loading state enquanto busca dados da empresa
+  if (!dadosEmpresa) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        fontFamily: 'Arial, sans-serif',
+        backgroundColor: '#f5f5f5',
+        flexDirection: 'column',
+        gap: '20px'
+      }}>
+        <div style={{ fontSize: '48px' }}>🔄</div>
+        <div style={{ fontSize: '18px', color: '#666' }}>Carregando dados da sessão...</div>
+      </div>
+    );
+  }
 
   if (carrinho.length === 0) {
     return (
@@ -351,7 +446,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               fontSize: isMobile ? '14px' : '14px',
               textAlign: 'center'
             }}>
-              CNPJ: {cnpj}
+              CNPJ: {dadosEmpresa.cnpjFormatado || dadosEmpresa.cnpj}
             </span>
             <button 
               onClick={continuarComprando}
@@ -457,7 +552,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             fontSize: isMobile ? '14px' : '14px',
             textAlign: 'center'
           }}>
-            CNPJ: {cnpj}
+            CNPJ: {dadosEmpresa.cnpjFormatado || dadosEmpresa.cnpj}
           </span>
           <button 
             onClick={continuarComprando}

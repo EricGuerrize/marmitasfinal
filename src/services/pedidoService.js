@@ -193,173 +193,87 @@ export const pedidoService = {
   },
 
   // ✅ CORRIGIDO: Criar pedido otimizado para UUID
-  criarPedido: async (dadosPedido) => {
+// Em src/services/pedidoService.js
+
+criarPedido: async (dadosPedido) => {
+    console.log('--- INICIANDO PROCESSO DE CRIAÇÃO DE PEDIDO ---');
     try {
-      console.log('📝 Criando novo pedido:', dadosPedido);
-      
-      // ✅ Validação rápida
+      // 1. Validar dados de entrada
+      if (!dadosPedido || !dadosPedido.cnpj) {
+        console.error('❌ ETAPA 1 FALHOU: `dadosPedido` ou `dadosPedido.cnpj` não foi fornecido.');
+        return { success: false, error: 'Dados do pedido inválidos.' };
+      }
+      console.log('ETAPA 1: Dados recebidos com sucesso.', dadosPedido);
+
+      // 2. Limpar e validar CNPJ
       const empresaCnpj = cnpjService.removerMascaraCnpj(dadosPedido.cnpj);
-      console.log('📝 CNPJ limpo para salvar:', empresaCnpj);
+      console.log(`ETAPA 2: CNPJ limpo para busca: "${empresaCnpj}"`);
       
-      const validacaoCnpj = cnpjService.validarCnpj(empresaCnpj);
-      if (!validacaoCnpj.valido) {
-        console.error('❌ CNPJ inválido:', validacaoCnpj.erro);
-        return {
-          success: false,
-          error: validacaoCnpj.erro
-        };
-      }
-
-      // ✅ CORREÇÃO PRINCIPAL: Buscar empresa usando id_uuid correto
-      console.log('🔍 Buscando empresa no Supabase...');
-      
-      const empresaPromise = supabase
+      // 3. Buscar a empresa no Supabase
+      console.log('ETAPA 3: Buscando empresa na tabela `empresas`...');
+      const { data: empresa, error: empresaError } = await supabase
         .from('empresas')
-        .select('id_uuid, nome_empresa, razao_social') // ✅ CORRIGIDO: usar id_uuid
+        .select('id, nome_empresa') // Pedindo o ID (que agora é uuid)
         .eq('cnpj', empresaCnpj)
-        .eq('ativo', true)
-        .single();
+        .single(); // .single() é melhor para buscar um registro único
 
-      const { data: empresa, error: empresaError } = await withTimeout(empresaPromise, 3000);
-
-      if (empresaError || !empresa) {
-        console.error('❌ Empresa não encontrada:', empresaError?.message || 'CNPJ não cadastrado');
-        console.log('💡 Detalhes do erro:', empresaError);
-        
-        // Se a empresa não existe e é o CNPJ admin, criar automaticamente
-        if (empresaCnpj === '05336475000177') {
-          console.log('🔧 Criando empresa admin automaticamente...');
-          
-          const { data: novaEmpresa, error: errorCriar } = await supabase
-            .from('empresas')
-            .insert({
-              cnpj: empresaCnpj,
-              cnpj_formatado: dadosPedido.cnpj,
-              razao_social: dadosPedido.empresaNome || 'Administrador',
-              nome_empresa: dadosPedido.empresaNome || 'Admin',
-              senha_hash: 'admin123',
-              tipo_usuario: 'admin',
-              ativo: true
-            })
-            .select('id_uuid, nome_empresa, razao_social')
-            .single();
-          
-          if (errorCriar) {
-            console.error('❌ Erro ao criar empresa admin:', errorCriar);
-            return {
-              success: false,
-              error: 'Erro ao registrar empresa'
-            };
-          }
-          
-          console.log('✅ Empresa admin criada:', novaEmpresa);
-          empresa = novaEmpresa;
-        } else {
-          return {
-            success: false,
-            error: 'CNPJ não cadastrado ou empresa inativa'
-          };
-        }
+      // 4. Analisar o resultado da busca
+      if (empresaError) {
+        console.error('❌ ETAPA 4 FALHOU: Erro na query que busca a empresa.', empresaError);
+        return { success: false, error: `Erro ao buscar empresa: ${empresaError.message}` };
       }
 
-      console.log('✅ Empresa encontrada:', empresa);
-
-      // ✅ CORREÇÃO: Usar id_uuid como empresa_id
-      const empresaId = empresa.id_uuid;
+      if (!empresa) {
+        console.error('❌ ETAPA 4 FALHOU: A busca pela empresa não retornou dados. O CNPJ não foi encontrado ou não há permissão de leitura (RLS).');
+        return { success: false, error: 'CNPJ não cadastrado ou empresa inativa.' };
+      }
       
-      if (!empresaId) {
-        console.error('❌ Erro: id_uuid não encontrado na empresa');
-        return {
-          success: false,
-          error: 'Erro interno: ID da empresa não encontrado'
-        };
-      }
+      console.log('ETAPA 4: Empresa encontrada com sucesso!', empresa); // VERIFIQUE SE O 'id' AQUI É UM UUID
 
-      console.log('🔑 Usando empresa_id (UUID):', empresaId);
-
-      // ✅ Preparar dados do pedido com UUID correto
+      // 5. Preparar o objeto do pedido
       const novoPedido = {
-        empresa_id: empresaId, // ✅ CORRIGIDO: usar UUID
+        empresa_id: empresa.id, // Usando o ID (uuid) obtido
         empresa_cnpj: empresaCnpj,
-        empresa_nome: dadosPedido.empresaNome || empresa.nome_empresa || empresa.razao_social,
+        empresa_nome: dadosPedido.empresaNome || empresa.nome_empresa,
         itens: dadosPedido.itens,
         subtotal: dadosPedido.subtotal,
-        taxa_entrega: dadosPedido.taxaEntrega || 0,
+        taxa_entrega: dadosPedido.taxaEntrega,
         total: dadosPedido.total,
         endereco_entrega: dadosPedido.enderecoEntrega,
         observacoes: dadosPedido.observacoes || '',
-        status: 'pendente', // ✅ Status inicial correto
-        metodo_pagamento: dadosPedido.metodoPagamento || 'pix',
-        origem: 'sistema',
-        previsao_entrega: dadosPedido.previsaoEntrega || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        // O resto dos campos (numero, status, etc.) usará os valores DEFAULT do banco
       };
+      console.log('ETAPA 5: Objeto do pedido pronto para ser inserido.', novoPedido);
 
-      console.log('📝 Dados do pedido que será salvo:', {
-        empresa_id: novoPedido.empresa_id,
-        empresa_cnpj: novoPedido.empresa_cnpj,
-        empresa_nome: novoPedido.empresa_nome,
-        total: novoPedido.total,
-        status: novoPedido.status,
-        itens_count: novoPedido.itens?.length || 0
-      });
-
-      // ✅ Salvar no Supabase com timeout e debug detalhado
-      console.log('💾 Salvando pedido no Supabase...');
-      
-      const insertPromise = supabase
+      // 6. Inserir o pedido no Supabase
+      console.log('ETAPA 6: Inserindo pedido na tabela `pedidos`...');
+      const { data: pedidoCriado, error: insertError } = await supabase
         .from('pedidos')
         .insert(novoPedido)
-        .select('*') // ✅ Selecionar todos os campos para debug
+        .select()
         .single();
 
-      const { data, error } = await withTimeout(insertPromise, 10000); // Timeout maior
-
-      if (error) {
-        console.error('❌ ERRO DETALHADO ao criar pedido no Supabase:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-          dadosEnviados: novoPedido
-        });
-        
-        return {
-          success: false,
-          error: `Erro ao criar pedido: ${error.message}`
-        };
+      if (insertError) {
+        console.error('❌ ETAPA 6 FALHOU: Erro ao inserir o pedido no banco.', insertError);
+        return { success: false, error: `Erro ao salvar pedido: ${insertError.message}` };
       }
 
-      console.log('✅ PEDIDO SALVO COM SUCESSO no Supabase!');
-      console.log('📦 Dados do pedido salvo:', data);
+      console.log('✅ SUCESSO FINAL: Pedido salvo no Supabase!', pedidoCriado);
+      console.log('--- FIM DO PROCESSO ---');
 
-      // ✅ Atualizar storages em background (não bloqueia retorno)
-      setTimeout(() => {
-        this.updateLocalStoragesBackground(data, novoPedido);
-      }, 0);
-
-      // ✅ Limpa cache
+      // O resto da sua lógica de cache...
+      this.updateLocalStoragesBackground(pedidoCriado, novoPedido);
       pedidosCache = null;
       pedidosCacheTimestamp = 0;
 
-      return {
-        success: true,
-        pedido: data,
-        message: 'Pedido criado com sucesso!'
-      };
-      
+      return { success: true, pedido: pedidoCriado, message: 'Pedido criado com sucesso!' };
+
     } catch (error) {
-      console.error('❌ Erro geral ao criar pedido:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-      
-      return {
-        success: false,
-        error: error.message === 'Timeout' ? 'Tempo esgotado. Tente novamente.' : `Erro ao criar pedido: ${error.message}`
-      };
+      console.error('❌ ERRO INESPERADO (CATCH GERAL):', error);
+      return { success: false, error: 'Erro inesperado ao criar pedido.' };
     }
-  },
+},
+
 
   // ✅ Helper para atualizar localStorage em background
   updateLocalStoragesBackground: async (data, novoPedido) => {
