@@ -69,6 +69,37 @@ const batchLocalStorageUpdate = (() => {
   };
 })();
 
+// ✅ Helper para verificar se usuário é admin
+const verificarSeEAdmin = async () => {
+  try {
+    const { data: usuario } = await supabase.auth.getUser();
+    if (!usuario?.user?.email) {
+      return { isAdmin: false, error: 'Usuário não autenticado' };
+    }
+
+    // Verificar se é admin pela tabela empresas
+    const { data: empresa, error: empresaError } = await supabase
+      .from('empresas')
+      .select('tipo_usuario')
+      .eq('email', usuario.user.email)
+      .eq('ativo', true)
+      .single();
+
+    if (empresaError || !empresa) {
+      return { isAdmin: false, error: 'Usuário não encontrado' };
+    }
+
+    return { 
+      isAdmin: empresa.tipo_usuario === 'admin', 
+      email: usuario.user.email 
+    };
+
+  } catch (error) {
+    console.error('Erro ao verificar admin:', error);
+    return { isAdmin: false, error: error.message };
+  }
+};
+
 export const pedidoService = {
   
   // ✅ Banco de dados mock otimizado
@@ -338,10 +369,70 @@ export const pedidoService = {
     }
   },
 
+  // ✅ NOVO: Listar todos os pedidos para AdminPage
+  listarTodosPedidos: async () => {
+    try {
+      console.log('🔍 Carregando todos os pedidos para AdminPage...');
+      
+      // ✅ Verificar se usuário é admin
+      const adminCheck = await verificarSeEAdmin();
+      if (!adminCheck.isAdmin) {
+        return { success: false, error: adminCheck.error || 'Acesso negado: apenas administradores podem listar todos os pedidos' };
+      }
+
+      console.log('✅ Usuário confirmado como admin:', adminCheck.email);
+      
+      const pedidosPromise = supabase
+        .from('pedidos')
+        .select('*')
+        .order('data_pedido', { ascending: false });
+
+      const { data: pedidos, error } = await withTimeout(pedidosPromise, 8000);
+
+      if (error) {
+        console.error('❌ Erro ao listar pedidos:', error);
+        return { success: false, error: error.message };
+      }
+
+      // ✅ Formatar dados para AdminPage
+      const pedidosFormatados = pedidos.map(pedido => ({
+        id: pedido.id,
+        numero: pedido.numero,
+        cliente: pedido.empresa_nome || 'Cliente não informado',
+        cnpj: pedido.empresa_cnpj || pedido.cnpj || 'CNPJ não informado',
+        total: parseFloat(pedido.total || 0),
+        status: pedido.status || 'a_preparar',
+        data: pedido.data_pedido || pedido.created_at,
+        enderecoEntrega: pedido.endereco_entrega,
+        observacoes: pedido.observacoes,
+        empresa_id: pedido.empresa_id,
+        // Converte itens JSONB para array esperado pelo AdminPage
+        itens: Array.isArray(pedido.itens) ? pedido.itens.map(item => ({
+          nome: item.nome || item.produto?.nome || 'Produto não encontrado',
+          quantidade: item.quantidade || 1,
+          preco: parseFloat(item.preco || item.preco_unitario || 0)
+        })) : []
+      }));
+
+      console.log(`✅ ${pedidosFormatados.length} pedidos formatados para AdminPage`);
+      return { success: true, data: pedidosFormatados };
+
+    } catch (error) {
+      console.error('❌ Erro ao listar pedidos:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
   // ✅ Atualizar status otimizado
   atualizarStatusPedido: async (pedidoId, novoStatus) => {
     try {
       console.log('🔄 Atualizando status do pedido:', pedidoId, 'para:', novoStatus);
+
+      // ✅ Verificar se usuário é admin
+      const adminCheck = await verificarSeEAdmin();
+      if (!adminCheck.isAdmin) {
+        return { success: false, error: adminCheck.error || 'Acesso negado: apenas administradores podem alterar status de pedidos' };
+      }
 
       // ✅ Atualizar no Supabase com timeout
       const updatePromise = supabase
@@ -413,6 +504,77 @@ export const pedidoService = {
     }, 0);
   },
 
+  // ✅ NOVO: Excluir pedido (para AdminPage)
+  excluirPedido: async (pedidoId) => {
+    try {
+      console.log('🗑️ Excluindo pedido:', pedidoId);
+
+      // ✅ Verificar se usuário é admin
+      const adminCheck = await verificarSeEAdmin();
+      if (!adminCheck.isAdmin) {
+        return { success: false, error: adminCheck.error || 'Acesso negado: apenas administradores podem excluir pedidos' };
+      }
+
+      const deletePromise = supabase
+        .from('pedidos')
+        .delete()
+        .eq('id', pedidoId)
+        .select()
+        .single();
+
+      const { data, error } = await withTimeout(deletePromise, 3000);
+
+      if (error) {
+        console.error('❌ Erro ao excluir pedido no Supabase:', error);
+        return {
+          success: false,
+          error: 'Erro ao excluir pedido'
+        };
+      }
+
+      // ✅ Remover do localStorage em background
+      this.updateDeleteLocalStorageBackground(pedidoId);
+
+      // ✅ Limpar cache
+      pedidosCache = null;
+      pedidosCacheTimestamp = 0;
+
+      console.log('✅ Pedido excluído com sucesso');
+      return {
+        success: true,
+        data,
+        message: 'Pedido excluído com sucesso!'
+      };
+
+    } catch (error) {
+      console.error('❌ Erro ao excluir pedido:', error);
+      return {
+        success: false,
+        error: error.message === 'Timeout' ? 'Tempo esgotado. Tente novamente.' : 'Erro ao excluir pedido'
+      };
+    }
+  },
+
+  // ✅ Helper para excluir do localStorage em background
+  updateDeleteLocalStorageBackground: (pedidoId) => {
+    setTimeout(async () => {
+      try {
+        // Remover do pedidos database
+        const pedidos = await this.getPedidosDatabase();
+        const pedidosFiltrados = pedidos.filter(p => p.id !== pedidoId);
+        await this.savePedidosDatabase(pedidosFiltrados);
+
+        // Remover do pedidos admin
+        const pedidosAdmin = await localStorageAsync.getItem('pedidosAdmin') || [];
+        const adminFiltrados = pedidosAdmin.filter(p => p.id !== pedidoId);
+        batchLocalStorageUpdate('pedidosAdmin', adminFiltrados);
+        
+      } catch (error) {
+        console.error('Erro ao excluir do localStorage:', error);
+      }
+    }, 0);
+  },
+
   // ✅ Buscar pedido por número otimizado
   buscarPedidoPorNumero: async (numero) => {
     try {
@@ -458,41 +620,26 @@ export const pedidoService = {
     }
   },
 
-  // ✅ Listar todos os pedidos otimizado
-  listarTodosPedidos: async () => {
-    try {
-      const pedidosPromise = supabase
-        .from('pedidos')
-        .select('*')
-        .order('data_pedido', { ascending: false });
-
-      const { data: pedidos, error } = await withTimeout(pedidosPromise, 8000);
-
-      if (error) {
-        console.error('Erro ao listar pedidos:', error);
-        return [];
-      }
-
-      return pedidos.map(pedido => ({
-        id: pedido.id,
-        numero: pedido.numero,
-        empresa_cnpj: pedido.empresa_cnpj,
-        empresa_nome: pedido.empresa_nome,
-        total: pedido.total,
-        status: pedido.status,
-        data: pedido.data_pedido,
-        itens_count: pedido.itens ? pedido.itens.length : 0,
-        origem: pedido.origem
-      }));
-    } catch (error) {
-      console.error('Erro ao listar pedidos:', error);
-      return [];
-    }
-  },
-
-  // ✅ Estatísticas otimizadas
+  // ✅ NOVO: Obter estatísticas para AdminPage
   obterEstatisticas: async () => {
     try {
+      console.log('📊 Calculando estatísticas para AdminPage...');
+      
+      // ✅ Verificar se usuário é admin
+      const adminCheck = await verificarSeEAdmin();
+      if (!adminCheck.isAdmin) {
+        return { 
+          success: false, 
+          error: adminCheck.error || 'Acesso negado: apenas administradores podem acessar estatísticas globais',
+          data: {
+            totalPedidos: 0,
+            pedidosHoje: 0,
+            totalVendas: 0,
+            produtosMaisVendidos: []
+          }
+        };
+      }
+      
       const estatisticasPromise = supabase
         .from('pedidos')
         .select('status, total, data_pedido');
@@ -500,21 +647,23 @@ export const pedidoService = {
       const { data: pedidos, error } = await withTimeout(estatisticasPromise, 5000);
 
       if (error) {
-        console.error('Erro ao obter estatísticas:', error);
-        return {
-          totalPedidos: 0,
-          pedidosHoje: 0,
-          totalVendas: 0,
-          statusCount: {},
-          ticketMedio: 0
+        console.error('❌ Erro ao obter estatísticas:', error);
+        return { 
+          success: false, 
+          error: error.message,
+          data: {
+            totalPedidos: 0,
+            pedidosHoje: 0,
+            totalVendas: 0,
+            produtosMaisVendidos: []
+          }
         };
       }
 
-      // ✅ Cálculos otimizados
+      // ✅ Cálculos otimizados para AdminPage
       const hoje = new Date().toDateString();
       let pedidosHojeCount = 0;
       let totalVendas = 0;
-      const statusCount = {};
 
       for (const pedido of pedidos) {
         // Contar pedidos de hoje
@@ -523,27 +672,30 @@ export const pedidoService = {
         }
         
         // Somar vendas
-        totalVendas += pedido.total || 0;
-        
-        // Contar status
-        statusCount[pedido.status] = (statusCount[pedido.status] || 0) + 1;
+        totalVendas += parseFloat(pedido.total || 0);
       }
 
-      return {
+      const estatisticas = {
         totalPedidos: pedidos.length,
         pedidosHoje: pedidosHojeCount,
         totalVendas: totalVendas,
-        statusCount: statusCount,
-        ticketMedio: pedidos.length > 0 ? totalVendas / pedidos.length : 0
+        produtosMaisVendidos: ['Marmita Fitness Frango', 'Marmita Tradicional'] // TODO: Calcular dos items JSONB
       };
+
+      console.log('✅ Estatísticas calculadas para AdminPage:', estatisticas);
+      return { success: true, data: estatisticas };
+
     } catch (error) {
-      console.error('Erro ao obter estatísticas:', error);
-      return {
-        totalPedidos: 0,
-        pedidosHoje: 0,
-        totalVendas: 0,
-        statusCount: {},
-        ticketMedio: 0
+      console.error('❌ Erro ao obter estatísticas:', error);
+      return { 
+        success: false, 
+        error: error.message,
+        data: {
+          totalPedidos: 0,
+          pedidosHoje: 0,
+          totalVendas: 0,
+          produtosMaisVendidos: []
+        }
       };
     }
   },
@@ -626,5 +778,8 @@ export const pedidoService = {
     pedidosCache = null;
     pedidosCacheTimestamp = 0;
     console.log('🗑️ Cache de pedidos limpo');
-  }
+  },
+
+  // ✅ NOVO: Helper público para verificar se usuário é admin
+  verificarSeEAdmin: verificarSeEAdmin
 };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authSupabaseService } from '../services/authSupabaseService';
-import { produtoService } from '../services/produtoService'; // Importar produtoService
+import { produtoService } from '../services/produtoService';
+import { pedidoService } from '../services/pedidoService'; // Import do pedidoService existente
 import ImageUpload from './ImageUpload';
 
 const AdminPage = ({ onNavigate }) => {
@@ -82,81 +83,117 @@ const AdminPage = ({ onNavigate }) => {
     }
   }, []);
 
-  const loadPedidos = useCallback(() => {
-    console.log('🔍 Carregando pedidos...');
-    
-    // Verifica múltiplas chaves possíveis no localStorage
-    const possiveisChaves = ['pedidosAdmin', 'pedidos', 'carrinho_pedidos', 'pedidos_finalizados'];
-    let todosPedidos = [];
-    
-    possiveisChaves.forEach(chave => {
-      try {
-        const pedidosData = localStorage.getItem(chave);
-        if (pedidosData) {
-          const pedidosParsed = JSON.parse(pedidosData);
-          if (Array.isArray(pedidosParsed)) {
-            console.log(`📦 Encontrados ${pedidosParsed.length} pedidos na chave '${chave}'`);
-            todosPedidos = [...todosPedidos, ...pedidosParsed];
+  const loadPedidos = useCallback(async () => {
+    try {
+      console.log('🔍 Carregando pedidos do Supabase...');
+      
+      const resultado = await pedidoService.listarTodosPedidos();
+      
+      if (resultado.success) {
+        console.log(`✅ ${resultado.data.length} pedidos carregados do Supabase`);
+        setPedidos(resultado.data);
+        await calcularEstatisticas(resultado.data);
+      } else {
+        console.error('❌ Erro ao carregar pedidos:', resultado.error);
+        
+        // Fallback: tenta carregar do localStorage se Supabase falhar
+        console.log('🔄 Tentando fallback com localStorage...');
+        const possiveisChaves = ['pedidosAdmin', 'pedidos', 'carrinho_pedidos', 'pedidos_finalizados'];
+        let todosPedidos = [];
+        
+        possiveisChaves.forEach(chave => {
+          try {
+            const pedidosData = localStorage.getItem(chave);
+            if (pedidosData) {
+              const pedidosParsed = JSON.parse(pedidosData);
+              if (Array.isArray(pedidosParsed)) {
+                console.log(`📦 Encontrados ${pedidosParsed.length} pedidos na chave '${chave}'`);
+                todosPedidos = [...todosPedidos, ...pedidosParsed];
+              }
+            }
+          } catch (error) {
+            console.error(`Erro ao carregar pedidos da chave ${chave}:`, error);
           }
+        });
+
+        // Remove duplicatas baseado no ID
+        const pedidosUnicos = todosPedidos.filter((pedido, index, arr) => 
+          arr.findIndex(p => p.id === pedido.id) === index
+        );
+
+        // Se não houver pedidos, adiciona um exemplo
+        if (pedidosUnicos.length === 0) {
+          console.log('📝 Adicionando pedido de exemplo...');
+          const pedidoExemplo = {
+            id: Date.now(),
+            numero: 1001,
+            cliente: 'H Azevedo de Abreu',
+            cnpj: '05.336.475/0001-77',
+            total: 567.0,
+            status: 'em_producao',
+            data: new Date().toISOString(),
+            enderecoEntrega: 'Rua das Flores, 123 - Centro, São Paulo/SP - CEP: 01234-567',
+            observacoes: 'Entregar na portaria',
+            itens: [
+              { nome: 'Marmita Fitness Frango', quantidade: 15, preco: 18.9 },
+              { nome: 'Marmita Vegana', quantidade: 15, preco: 16.9 }
+            ]
+          };
+          pedidosUnicos.push(pedidoExemplo);
         }
-      } catch (error) {
-        console.error(`Erro ao carregar pedidos da chave ${chave}:`, error);
+
+        console.log(`✅ Total de pedidos carregados (fallback): ${pedidosUnicos.length}`);
+        setPedidos(pedidosUnicos);
+        await calcularEstatisticas(pedidosUnicos);
       }
-    });
-
-    // Remove duplicatas baseado no ID
-    const pedidosUnicos = todosPedidos.filter((pedido, index, arr) => 
-      arr.findIndex(p => p.id === pedido.id) === index
-    );
-
-    // Se não houver pedidos, adiciona um exemplo
-    if (pedidosUnicos.length === 0) {
-      console.log('📝 Adicionando pedido de exemplo...');
-      const pedidoExemplo = {
-        id: Date.now(),
-        numero: 1001,
-        cliente: 'H Azevedo de Abreu',
-        cnpj: '05.336.475/0001-77',
-        total: 567.0,
-        status: 'em_producao',
-        data: new Date().toISOString(),
-        enderecoEntrega: 'Rua das Flores, 123 - Centro, São Paulo/SP - CEP: 01234-567',
-        observacoes: 'Entregar na portaria',
-        itens: [
-          { nome: 'Marmita Fitness Frango', quantidade: 15, preco: 18.9 },
-          { nome: 'Marmita Vegana', quantidade: 15, preco: 16.9 }
-        ]
-      };
-      pedidosUnicos.push(pedidoExemplo);
-      localStorage.setItem('pedidosAdmin', JSON.stringify([pedidoExemplo]));
+    } catch (error) {
+      console.error('❌ Erro inesperado ao carregar pedidos:', error);
+      setPedidos([]);
     }
-
-    console.log(`✅ Total de pedidos carregados: ${pedidosUnicos.length}`);
-    setPedidos(pedidosUnicos);
-    calcularEstatisticas(pedidosUnicos);
   }, []);
 
-  const calcularEstatisticas = useCallback((pedidosList) => {
-    const total = pedidosList.reduce((sum, pedido) => sum + pedido.total, 0);
-    const hoje = new Date().toDateString();
-    const pedidosHoje = pedidosList.filter(p => {
-      try {
-        if (!p.data) return false;
-        const dataPedido = new Date(p.data);
-        return !isNaN(dataPedido.getTime()) && dataPedido.toDateString() === hoje;
-      } catch (error) {
-        console.error('Erro ao processar data do pedido:', error);
-        return false;
+  const calcularEstatisticas = useCallback(async (pedidosList = null) => {
+    try {
+      // Se não foi passada lista, busca estatísticas otimizadas do service
+      if (!pedidosList) {
+        const resultado = await pedidoService.obterEstatisticas();
+        if (resultado.success) {
+          setStats(prev => ({
+            ...prev,
+            totalPedidos: resultado.data.totalPedidos,
+            totalVendas: resultado.data.totalVendas,
+            pedidosHoje: resultado.data.pedidosHoje,
+            produtosMaisVendidos: resultado.data.produtosMaisVendidos || ['Marmita Fitness Frango', 'Marmita Tradicional']
+          }));
+          return;
+        }
       }
-    }).length;
 
-    setStats(prev => ({
-      ...prev,
-      totalPedidos: pedidosList.length,
-      totalVendas: total,
-      pedidosHoje,
-      produtosMaisVendidos: ['Marmita Fitness Frango', 'Marmita Tradicional']
-    }));
+      // Fallback: cálculo local se foi passada uma lista ou se o service falhou
+      const pedidos = pedidosList || [];
+      const total = pedidos.reduce((sum, pedido) => sum + (parseFloat(pedido.total) || 0), 0);
+      const hoje = new Date().toDateString();
+      const pedidosHoje = pedidos.filter(p => {
+        try {
+          if (!p.data) return false;
+          const dataPedido = new Date(p.data);
+          return !isNaN(dataPedido.getTime()) && dataPedido.toDateString() === hoje;
+        } catch (error) {
+          console.error('Erro ao processar data do pedido:', error);
+          return false;
+        }
+      }).length;
+
+      setStats(prev => ({
+        ...prev,
+        totalPedidos: pedidos.length,
+        totalVendas: total,
+        pedidosHoje,
+        produtosMaisVendidos: ['Marmita Fitness Frango', 'Marmita Tradicional']
+      }));
+    } catch (error) {
+      console.error('Erro ao calcular estatísticas:', error);
+    }
   }, []);
 
   // Verificação de autenticação simplificada
@@ -333,76 +370,56 @@ const AdminPage = ({ onNavigate }) => {
     setShowAddProduct(true);
   };
 
-  const alterarStatusPedido = (pedidoId, novoStatus) => {
+  const alterarStatusPedido = async (pedidoId, novoStatus) => {
     try {
-      // Atualiza em todas as possíveis chaves de localStorage
-      const possiveisChaves = ['pedidosAdmin', 'pedidos', 'carrinho_pedidos', 'pedidos_finalizados'];
+      console.log(`🔄 Alterando status do pedido ${pedidoId} para ${novoStatus}...`);
       
-      possiveisChaves.forEach(chave => {
-        try {
-          const pedidosData = localStorage.getItem(chave);
-          if (pedidosData) {
-            const pedidosParsed = JSON.parse(pedidosData);
-            if (Array.isArray(pedidosParsed)) {
-              const pedidosAtualizados = pedidosParsed.map(pedido => 
-                pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
-              );
-              localStorage.setItem(chave, JSON.stringify(pedidosAtualizados));
-            }
-          }
-        } catch (error) {
-          console.error(`Erro ao atualizar status na chave ${chave}:`, error);
-        }
-      });
+      const resultado = await pedidoService.atualizarStatusPedido(pedidoId, novoStatus);
       
-      // Atualiza o estado local
-      setPedidos(prevPedidos => 
-        prevPedidos.map(pedido => 
-          pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
-        )
-      );
-      
-      const statusInfo = statusPedidos.find(s => s.value === novoStatus);
-      alert(`Status alterado para: ${statusInfo.label}`);
+      if (resultado.success) {
+        // Atualiza o estado local
+        setPedidos(prevPedidos => 
+          prevPedidos.map(pedido => 
+            pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
+          )
+        );
+        
+        const statusInfo = statusPedidos.find(s => s.value === novoStatus);
+        alert(`Status alterado para: ${statusInfo.label}`);
+      } else {
+        console.error('❌ Erro ao alterar status no Supabase:', resultado.error);
+        alert(`Erro ao alterar status: ${resultado.error}`);
+      }
     } catch (error) {
-      console.error('Erro ao alterar status:', error);
+      console.error('❌ Erro inesperado ao alterar status:', error);
       alert('Erro ao alterar status do pedido');
     }
   };
 
   // Nova função para excluir pedidos
-  const excluirPedido = (pedidoId) => {
+  const excluirPedido = async (pedidoId) => {
     const pedido = pedidos.find(p => p.id === pedidoId);
     if (!pedido) return;
 
     if (window.confirm(`Tem certeza que deseja excluir o pedido #${pedido.numero}?`)) {
       try {
-        // Remove de todas as possíveis chaves de localStorage
-        const possiveisChaves = ['pedidosAdmin', 'pedidos', 'carrinho_pedidos', 'pedidos_finalizados'];
+        console.log(`🗑️ Excluindo pedido ${pedidoId}...`);
         
-        possiveisChaves.forEach(chave => {
-          try {
-            const pedidosData = localStorage.getItem(chave);
-            if (pedidosData) {
-              const pedidosParsed = JSON.parse(pedidosData);
-              if (Array.isArray(pedidosParsed)) {
-                const pedidosFiltrados = pedidosParsed.filter(p => p.id !== pedidoId);
-                localStorage.setItem(chave, JSON.stringify(pedidosFiltrados));
-              }
-            }
-          } catch (error) {
-            console.error(`Erro ao excluir pedido da chave ${chave}:`, error);
-          }
-        });
+        const resultado = await pedidoService.excluirPedido(pedidoId);
         
-        // Atualiza o estado local
-        const pedidosAtualizados = pedidos.filter(p => p.id !== pedidoId);
-        setPedidos(pedidosAtualizados);
-        calcularEstatisticas(pedidosAtualizados);
-        
-        alert('Pedido excluído com sucesso!');
+        if (resultado.success) {
+          // Atualiza o estado local
+          const pedidosAtualizados = pedidos.filter(p => p.id !== pedidoId);
+          setPedidos(pedidosAtualizados);
+          await calcularEstatisticas(pedidosAtualizados);
+          
+          alert('Pedido excluído com sucesso!');
+        } else {
+          console.error('❌ Erro ao excluir no Supabase:', resultado.error);
+          alert(`Erro ao excluir pedido: ${resultado.error}`);
+        }
       } catch (error) {
-        console.error('Erro ao excluir pedido:', error);
+        console.error('❌ Erro inesperado ao excluir pedido:', error);
         alert('Erro ao excluir pedido');
       }
     }
@@ -760,9 +777,13 @@ const AdminPage = ({ onNavigate }) => {
   useEffect(() => {
     if (isAuthenticated && !loading) {
       console.log('📊 Carregando dados do admin...');
-      loadProducts();
-      loadPedidos();
-      loadEmpresasCadastradas();
+      const carregarDados = async () => {
+        await loadProducts();
+        await loadPedidos();
+        await loadEmpresasCadastradas();
+        // calcularEstatisticas será chamado dentro de loadPedidos
+      };
+      carregarDados();
     }
   }, [isAuthenticated, loading, loadProducts, loadPedidos, loadEmpresasCadastradas]);
 
