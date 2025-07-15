@@ -164,7 +164,6 @@ export const pedidoService = {
         numero: Math.floor(Math.random() * 10000) + 1000,
         empresa_id: empresa.id,
         empresa_cnpj: empresaCnpj, // ✅ CNPJ limpo sem formatação
-        cnpj: empresaCnpj,         // ✅ CAMPO ADICIONAL para compatibilidade
         empresa_nome: dadosPedido.empresaNome || empresa.nome_empresa,
         itens: dadosPedido.itens,
         subtotal: dadosPedido.subtotal,
