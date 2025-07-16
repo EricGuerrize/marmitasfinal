@@ -355,6 +355,9 @@ const AdminPage = ({ onNavigate }) => {
 
   // Nova função para imprimir pedido
 // Nova função para imprimir pedido
+// Nova função para imprimir pedido
+// Nova função para imprimir pedido
+// Nova função para imprimir pedido
 const imprimirPedido = (pedido) => {
   const statusInfo = getStatusInfo(pedido.status);
   const dataFormatada = formatarDataCompleta(pedido.data);
@@ -588,6 +591,7 @@ const imprimirPedido = (pedido) => {
         </div>
         <div class="marmitas-total">${quantidadeTotalMarmitas} unidades</div>
         <div style="font-size: 12px; color: #6c757d; margin-top: 5px;">
+          (Soma de todas as quantidades)
         </div>
       </div>
 
