@@ -358,6 +358,7 @@ const AdminPage = ({ onNavigate }) => {
 // Nova função para imprimir pedido
 // Nova função para imprimir pedido
 // Nova função para imprimir pedido
+// Nova função para imprimir pedido - SUBSTITUA a função existente por esta
 const imprimirPedido = (pedido) => {
   const statusInfo = getStatusInfo(pedido.status);
   const dataFormatada = formatarDataCompleta(pedido.data);
@@ -382,27 +383,28 @@ const imprimirPedido = (pedido) => {
         
         body {
           font-family: Arial, sans-serif;
-          line-height: 1.4;
+          line-height: 1.3;
           color: #333;
           max-width: 800px;
           margin: 0 auto;
-          padding: 20px;
+          padding: 15px;
+          font-size: 14px;
         }
         
         .header {
           text-align: center;
-          border-bottom: 3px solid #009245;
-          padding-bottom: 20px;
-          margin-bottom: 30px;
+          border-bottom: 2px solid #009245;
+          padding-bottom: 15px;
+          margin-bottom: 20px;
         }
         
         .logo {
-          font-size: 32px;
-          margin-bottom: 10px;
+          font-size: 24px;
+          margin-bottom: 8px;
         }
         
         .empresa-nome {
-          font-size: 24px;
+          font-size: 20px;
           font-weight: bold;
           color: #009245;
           margin: 0;
@@ -410,26 +412,28 @@ const imprimirPedido = (pedido) => {
         
         .subtitle {
           color: #666;
-          margin: 5px 0 0 0;
+          margin: 3px 0 0 0;
+          font-size: 13px;
         }
         
         .info-section {
           background-color: #f8f9fa;
-          padding: 15px;
-          border-radius: 8px;
-          margin-bottom: 20px;
-          border-left: 4px solid #009245;
+          padding: 12px;
+          border-radius: 6px;
+          margin-bottom: 15px;
+          border-left: 3px solid #009245;
         }
         
         .info-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 20px;
-          margin-bottom: 20px;
+          gap: 15px;
+          margin-bottom: 15px;
         }
         
         .info-item {
-          margin-bottom: 10px;
+          margin-bottom: 8px;
+          font-size: 13px;
         }
         
         .label {
@@ -437,33 +441,25 @@ const imprimirPedido = (pedido) => {
           color: #009245;
         }
         
-        .status-badge {
-          display: inline-block;
-          padding: 4px 12px;
-          border-radius: 20px;
-          font-size: 12px;
-          font-weight: bold;
-          color: white;
-          background-color: ${statusInfo.color};
-        }
-        
         .items-table {
           width: 100%;
           border-collapse: collapse;
-          margin: 20px 0;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          margin: 15px 0;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          font-size: 13px;
         }
         
         .items-table th {
           background-color: #009245;
           color: white;
-          padding: 12px;
+          padding: 8px;
           text-align: left;
           font-weight: bold;
+          font-size: 12px;
         }
         
         .items-table td {
-          padding: 10px 12px;
+          padding: 6px 8px;
           border-bottom: 1px solid #ddd;
         }
         
@@ -478,41 +474,26 @@ const imprimirPedido = (pedido) => {
         
         .total-section {
           background-color: #e8f5e8;
-          padding: 15px;
-          border-radius: 8px;
+          padding: 12px;
+          border-radius: 6px;
           text-align: right;
           border: 2px solid #009245;
-          margin-bottom: 20px;
+          margin-bottom: 15px;
         }
         
         .total-value {
-          font-size: 24px;
+          font-size: 20px;
           font-weight: bold;
           color: #009245;
-        }
-        
-        .marmitas-info {
-          background-color: #fff3cd;
-          border: 2px solid #ffc107;
-          padding: 15px;
-          border-radius: 8px;
-          text-align: center;
-          margin: 20px 0;
-        }
-        
-        .marmitas-total {
-          font-size: 28px;
-          font-weight: bold;
-          color: #856404;
-          margin: 5px 0;
         }
         
         .endereco-section, .obs-section {
           background-color: #fff3cd;
           border: 1px solid #ffeaa7;
-          padding: 15px;
-          border-radius: 8px;
-          margin: 20px 0;
+          padding: 10px;
+          border-radius: 6px;
+          margin: 12px 0;
+          font-size: 13px;
         }
         
         .obs-section {
@@ -523,8 +504,8 @@ const imprimirPedido = (pedido) => {
         .section-title {
           font-weight: bold;
           color: #856404;
-          margin-bottom: 8px;
-          font-size: 14px;
+          margin-bottom: 6px;
+          font-size: 12px;
         }
         
         .obs-section .section-title {
@@ -533,21 +514,28 @@ const imprimirPedido = (pedido) => {
         
         .footer {
           text-align: center;
-          margin-top: 40px;
-          padding-top: 20px;
+          margin-top: 20px;
+          padding-top: 15px;
           border-top: 1px solid #ddd;
           color: #666;
-          font-size: 12px;
+          font-size: 11px;
         }
         
         @media print {
           body { 
             margin: 0;
-            padding: 15px;
+            padding: 10px;
+            font-size: 12px;
           }
           .info-grid {
             grid-template-columns: 1fr;
-            gap: 10px;
+            gap: 8px;
+          }
+          .header {
+            margin-bottom: 15px;
+          }
+          .items-table {
+            margin: 10px 0;
           }
         }
       </style>
@@ -568,10 +556,6 @@ const imprimirPedido = (pedido) => {
             <div class="info-item">
               <span class="label">Data:</span> ${dataFormatada}
             </div>
-            <div class="info-item">
-              <span class="label">Status:</span> 
-              <span class="status-badge">${statusInfo.icon} ${statusInfo.label}</span>
-            </div>
           </div>
           <div>
             <div class="info-item">
@@ -581,17 +565,6 @@ const imprimirPedido = (pedido) => {
               <span class="label">CNPJ:</span> ${pedido.cnpj}
             </div>
           </div>
-        </div>
-      </div>
-
-      <!-- Seção de informações das marmitas -->
-      <div class="marmitas-info">
-        <div style="font-size: 16px; color: #856404; margin-bottom: 5px;">
-          📦 Total de Marmitas no Pedido
-        </div>
-        <div class="marmitas-total">${quantidadeTotalMarmitas} unidades</div>
-        <div style="font-size: 12px; color: #6c757d; margin-top: 5px;">
-          (Soma de todas as quantidades)
         </div>
       </div>
 
