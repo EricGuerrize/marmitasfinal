@@ -245,36 +245,58 @@ function AppContent() {
     }
   };
 
-  // Função para atualizar quantidade com validação
+  // ✅ FUNÇÃO CORRIGIDA PARA ATUALIZAR QUANTIDADE
   const atualizarQuantidade = (id, novaQuantidade) => {
     try {
-      const idValidado = parseInt(id);
+      console.log('🔄 atualizarQuantidade chamada:', { 
+        id, 
+        novaQuantidade, 
+        tipoId: typeof id,
+        carrinhoAtual: carrinho.map(item => ({ id: item.id, nome: item.nome, quantidade: item.quantidade }))
+      });
+
+      // ✅ CORREÇÃO: Converte ambos para string para comparação
+      const idString = String(id);
       const quantidadeValidada = parseInt(novaQuantidade);
-      
-      if (isNaN(idValidado) || idValidado <= 0) {
-        throw new Error('ID inválido');
-      }
       
       if (isNaN(quantidadeValidada) || quantidadeValidada < 0 || quantidadeValidada > 999) {
         throw new Error('Quantidade deve estar entre 0 e 999');
       }
 
-      const produto = carrinho.find(item => item.id === idValidado);
+      const produto = carrinho.find(item => String(item.id) === idString);
+      console.log('🔍 Produto encontrado:', produto);
       
+      if (!produto) {
+        console.error('❌ Produto não encontrado no carrinho. IDs disponíveis:', 
+          carrinho.map(item => ({ id: item.id, tipo: typeof item.id }))
+        );
+        throw new Error('Produto não encontrado no carrinho');
+      }
+
       if (quantidadeValidada <= 0) {
-        setCarrinho(carrinho.filter(item => item.id !== idValidado));
-        if (produto) {
-          success(`${produto.nome} removido do carrinho`);
-        }
+        console.log('🗑️ Removendo produto do carrinho');
+        setCarrinho(prevCarrinho => {
+          const novoCarrinho = prevCarrinho.filter(item => String(item.id) !== idString);
+          console.log('✅ Carrinho após remoção:', novoCarrinho.length, 'itens');
+          return novoCarrinho;
+        });
+        success(`${produto.nome} removido do carrinho`);
       } else {
-        // ✅ Preserva todos os campos ao atualizar quantidade
-        setCarrinho(carrinho.map(item =>
-          item.id === idValidado
-            ? { ...item, quantidade: quantidadeValidada }
-            : item
-        ));
+        console.log('📝 Atualizando quantidade do produto');
+        setCarrinho(prevCarrinho => {
+          const novoCarrinho = prevCarrinho.map(item =>
+            String(item.id) === idString
+              ? { ...item, quantidade: quantidadeValidada }
+              : item
+          );
+          console.log('✅ Carrinho após atualização:', 
+            novoCarrinho.map(item => ({ id: item.id, nome: item.nome, quantidade: item.quantidade }))
+          );
+          return novoCarrinho;
+        });
       }
     } catch (err) {
+      console.error('❌ Erro em atualizarQuantidade:', err);
       securityUtils.safeLog('Erro ao atualizar quantidade:', err.message);
       showError(err.message || 'Erro ao atualizar quantidade');
     }
@@ -283,18 +305,27 @@ function AppContent() {
   // Função para remover item com validação
   const removerItem = (id) => {
     try {
-      const idValidado = parseInt(id);
-      if (isNaN(idValidado) || idValidado <= 0) {
-        throw new Error('ID inválido');
-      }
-
-      const produto = carrinho.find(item => item.id === idValidado);
-      setCarrinho(carrinho.filter(item => item.id !== idValidado));
+      const idString = String(id);
+      const produto = carrinho.find(item => String(item.id) === idString);
+      
+      console.log('🗑️ removerItem chamada:', { 
+        id, 
+        idString, 
+        produtoEncontrado: !!produto,
+        carrinhoAtual: carrinho.length 
+      });
+      
+      setCarrinho(prevCarrinho => {
+        const novoCarrinho = prevCarrinho.filter(item => String(item.id) !== idString);
+        console.log('✅ Carrinho após remoção manual:', novoCarrinho.length, 'itens');
+        return novoCarrinho;
+      });
       
       if (produto) {
         success(`${produto.nome} removido do carrinho`);
       }
     } catch (err) {
+      console.error('❌ Erro em removerItem:', err);
       securityUtils.safeLog('Erro ao remover item:', err.message);
       showError(err.message || 'Erro ao remover item');
     }
