@@ -3,10 +3,11 @@ import { authSupabaseService } from '../services/authSupabaseService';
 import { produtoService } from '../services/produtoService';
 import { pedidoService } from '../services/pedidoService';
 import ImageUpload from './ImageUpload';
-import supabase from '../lib/supabase'; // ✅ IMPORTANTE: Importar o cliente Supabase
+import supabase from '../lib/supabase';
 
 const AdminPage = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeOrderTab, setActiveOrderTab] = useState('pendentes'); // Nova state para abas de pedidos
   const [produtos, setProdutos] = useState([]);
   const [pedidos, setPedidos] = useState([]);
   const [empresasCadastradas, setEmpresasCadastradas] = useState([]);
@@ -36,18 +37,74 @@ const AdminPage = ({ onNavigate }) => {
     percentualEmails: 0
   });
 
+  // ✅ STATUS SIMPLIFICADOS - apenas 3 categorias principais
   const statusPedidos = [
-    { value: 'pendente', label: 'Pendente', color: '#6c757d', icon: '⚪' },
-    { value: 'enviado', label: 'Enviado', color: '#17a2b8', icon: '✉️' },
-    { value: 'confirmado', label: 'Confirmado', color: '#ffc107', icon: '👍' },
-    { value: 'a_preparar', label: 'A Preparar', color: '#fd7e14', icon: '⏳' },
-    { value: 'em_producao', label: 'Em Produção', color: '#007bff', icon: '👨‍🍳' },
-    { value: 'pronto_entrega', label: 'Pronto para Entrega', color: '#28a745', icon: '📦' },
-    { value: 'entregue', label: 'Entregue', color: '#20c997', icon: '✅' },
-    { value: 'cancelado', label: 'Cancelado', color: '#dc3545', icon: '❌' }
+    { value: 'pendente', label: 'Pendente', color: '#ffc107', icon: '⏳', categoria: 'pendentes' },
+    { value: 'em_preparo', label: 'Em Preparo', color: '#007bff', icon: '👨‍🍳', categoria: 'pendentes' },
+    { value: 'pronto', label: 'Pronto', color: '#28a745', icon: '✅', categoria: 'pendentes' },
+    { value: 'entregue', label: 'Entregue', color: '#20c997', icon: '📦', categoria: 'finalizados' },
+    { value: 'cancelado', label: 'Cancelado', color: '#dc3545', icon: '❌', categoria: 'cancelados' }
   ];
 
-  // ✅ FUNÇÃO DE CARREGAMENTO DE PEDIDOS SIMPLIFICADA
+  // ✅ ABAS DE PEDIDOS ORGANIZADAS
+  const orderTabs = [
+    { 
+      id: 'pendentes', 
+      label: '⏳ Pendentes', 
+      count: pedidos.filter(p => ['pendente', 'em_preparo', 'pronto'].includes(p.status)).length,
+      description: 'Pedidos que precisam de ação'
+    },
+    { 
+      id: 'finalizados', 
+      label: '✅ Finalizados', 
+      count: pedidos.filter(p => p.status === 'entregue').length,
+      description: 'Pedidos entregues com sucesso'
+    },
+    { 
+      id: 'cancelados', 
+      label: '❌ Cancelados', 
+      count: pedidos.filter(p => p.status === 'cancelado').length,
+      description: 'Pedidos cancelados'
+    },
+    { 
+      id: 'todos', 
+      label: '📋 Todos', 
+      count: pedidos.length,
+      description: 'Visualizar todos os pedidos'
+    }
+  ];
+
+  // ✅ FUNÇÃO PARA FILTRAR PEDIDOS POR ABA
+  const getPedidosPorAba = (tabId) => {
+    switch (tabId) {
+      case 'pendentes':
+        return pedidos.filter(p => ['pendente', 'em_preparo', 'pronto'].includes(p.status));
+      case 'finalizados':
+        return pedidos.filter(p => p.status === 'entregue');
+      case 'cancelados':
+        return pedidos.filter(p => p.status === 'cancelado');
+      case 'todos':
+        return pedidos;
+      default:
+        return pedidos;
+    }
+  };
+
+  // ✅ FUNÇÃO PARA OBTER STATUS DISPONÍVEIS POR ABA
+  const getStatusDisponiveis = (tabId) => {
+    switch (tabId) {
+      case 'pendentes':
+        return statusPedidos.filter(s => ['pendente', 'em_preparo', 'pronto', 'entregue', 'cancelado'].includes(s.value));
+      case 'finalizados':
+        return statusPedidos.filter(s => ['entregue', 'pendente'].includes(s.value)); // Permite "reabrir" pedido
+      case 'cancelados':
+        return statusPedidos.filter(s => ['cancelado', 'pendente'].includes(s.value)); // Permite "reabrir" pedido
+      default:
+        return statusPedidos;
+    }
+  };
+
+  // ✅ FUNÇÃO DE CARREGAMENTO DE PEDIDOS COM MELHOR DEBUG
   const loadPedidos = useCallback(async () => {
     try {
       console.log('🔍 Carregando pedidos do Supabase...');
@@ -55,11 +112,38 @@ const AdminPage = ({ onNavigate }) => {
       
       if (resultado.success) {
         console.log(`✅ ${resultado.data.length} pedidos carregados do Supabase`);
-        setPedidos(resultado.data);
-        // A função de estatísticas será chamada separadamente para maior clareza
+        
+        // ✅ Debug melhorado: mostra tipos dos IDs
+        if (resultado.data.length > 0) {
+          console.log('🔍 Primeiros 3 pedidos carregados:', 
+            resultado.data.slice(0, 3).map(p => ({ 
+              id: p.id, 
+              numero: p.numero, 
+              tipo_id: typeof p.id,
+              tipo_numero: typeof p.numero,
+              status: p.status 
+            }))
+          );
+        }
+        
+        // ✅ Ordena pedidos: pendentes primeiro, depois por data mais recente
+        const pedidosOrdenados = resultado.data.sort((a, b) => {
+          // Primeiro critério: status (pendentes primeiro)
+          const statusPriorityA = ['pendente', 'em_preparo', 'pronto'].includes(a.status) ? 0 : 1;
+          const statusPriorityB = ['pendente', 'em_preparo', 'pronto'].includes(b.status) ? 0 : 1;
+          
+          if (statusPriorityA !== statusPriorityB) {
+            return statusPriorityA - statusPriorityB;
+          }
+          
+          // Segundo critério: data mais recente primeiro
+          return new Date(b.data) - new Date(a.data);
+        });
+        
+        setPedidos(pedidosOrdenados);
       } else {
         console.error('❌ Erro ao carregar pedidos:', resultado.error);
-        setPedidos([]); // Limpa os pedidos em caso de erro
+        setPedidos([]);
       }
     } catch (error) {
       console.error('❌ Erro inesperado ao carregar pedidos:', error);
@@ -67,7 +151,6 @@ const AdminPage = ({ onNavigate }) => {
     }
   }, []);
 
-  // ✅ FUNÇÃO DE ESTATÍSTICAS SEPARADA
   const calcularEstatisticas = useCallback(async () => {
     try {
       const resultado = await pedidoService.obterEstatisticas();
@@ -84,12 +167,10 @@ const AdminPage = ({ onNavigate }) => {
     }
   }, []);
 
-  // ✅ DEMAIS FUNÇÕES DE CARREGAMENTO (sem grandes alterações)
   const loadEmpresasCadastradas = useCallback(async () => {
     try {
       const empresas = await authSupabaseService.listarEmpresas();
       
-      // Verifica e corrige datas inválidas
       const empresasComDatasCorrigidas = empresas.map(empresa => ({
         ...empresa,
         data_cadastro: empresa.data_cadastro || new Date().toISOString(),
@@ -124,17 +205,15 @@ const AdminPage = ({ onNavigate }) => {
     }
   }, []);
 
-  // Verificação de autenticação simplificada
   const checkAdminAuth = useCallback(async () => {
     try {
       console.log('🔐 Verificando autenticação admin...');
       
-      // Verifica se veio do ProsseguirPage com pré-auth
       const preAuth = sessionStorage.getItem('adminPreAuthenticated');
       if (preAuth) {
         try {
           const { timestamp } = JSON.parse(preAuth);
-          if (Date.now() - timestamp < 30 * 60 * 1000) { // 30 min
+          if (Date.now() - timestamp < 30 * 60 * 1000) {
             console.log('✅ Pré-autenticação válida');
             sessionStorage.removeItem('adminPreAuthenticated');
             setIsAuthenticated(true);
@@ -146,7 +225,6 @@ const AdminPage = ({ onNavigate }) => {
         sessionStorage.removeItem('adminPreAuthenticated');
       }
 
-      // Verifica se tem sessão válida do sistema principal
       const sessao = await authSupabaseService.verificarSessao();
       if (sessao && sessao.isAdmin) {
         console.log('✅ Admin autenticado via sessão principal');
@@ -163,7 +241,6 @@ const AdminPage = ({ onNavigate }) => {
     }
   }, []);
 
-  // Logout simplificado
   const handleLogout = async () => {
     if (window.confirm('Tem certeza que deseja sair do painel admin?')) {
       try {
@@ -178,7 +255,6 @@ const AdminPage = ({ onNavigate }) => {
     }
   };
 
-  // Validação simples de produto
   const validateProduct = (product) => {
     if (!product.nome?.trim()) throw new Error('Nome é obrigatório');
     if (!product.descricao?.trim()) throw new Error('Descrição é obrigatória');
@@ -194,7 +270,6 @@ const AdminPage = ({ onNavigate }) => {
     }
   };
 
-  // Funções de produto integradas com Supabase
   const handleProductSubmit = async (e) => {
     e.preventDefault();
     
@@ -229,9 +304,8 @@ const AdminPage = ({ onNavigate }) => {
         }
       }
       
-      loadProducts(); // Recarrega a lista de produtos do Supabase
+      loadProducts();
       
-      // Reset form
       setProductForm({
         nome: '',
         descricao: '',
@@ -257,7 +331,7 @@ const AdminPage = ({ onNavigate }) => {
         const result = await produtoService.deletarProduto(id);
         if (result.success) {
           alert('Produto excluído com sucesso!');
-          loadProducts(); // Recarrega a lista de produtos
+          loadProducts();
         } else {
           throw new Error(result.error);
         }
@@ -275,7 +349,7 @@ const AdminPage = ({ onNavigate }) => {
       const result = await produtoService.atualizarProduto(id, { disponivel: !produto.disponivel });
       if (result.success) {
         alert('Status do produto atualizado com sucesso!');
-        loadProducts(); // Recarrega a lista de produtos
+        loadProducts();
       } else {
         throw new Error(result.error);
       }
@@ -298,48 +372,133 @@ const AdminPage = ({ onNavigate }) => {
     setShowAddProduct(true);
   };
 
+  // ✅ FUNÇÃO ATUALIZADA DE ALTERAR STATUS COM CORREÇÕES
   const alterarStatusPedido = async (pedidoId, novoStatus) => {
     try {
-      console.log(`🔄 Alterando status do pedido ${pedidoId} para ${novoStatus}...`);
+      console.log(`🔄 Iniciando alteração de status...`);
+      console.log(`📋 ID recebido: ${pedidoId} (tipo: ${typeof pedidoId})`);
+      console.log(`📝 Novo status: ${novoStatus}`);
       
-      const resultado = await pedidoService.atualizarStatusPedido(pedidoId, novoStatus);
+      // ✅ BUSCA MAIS ROBUSTA - tenta com diferentes tipos
+      let pedidoExistente = pedidos.find(p => String(p.id) === String(pedidoId));
+      
+      if (!pedidoExistente) {
+        // Tenta buscar por número do pedido como fallback
+        pedidoExistente = pedidos.find(p => p.numero === pedidoId || String(p.numero) === String(pedidoId));
+      }
+      
+      if (!pedidoExistente) {
+        console.error('❌ Pedido não encontrado no estado local:', pedidoId);
+        console.log('📊 Pedidos disponíveis:', pedidos.map(p => ({ 
+          id: p.id, 
+          numero: p.numero, 
+          tipo_id: typeof p.id,
+          tipo_numero: typeof p.numero 
+        })));
+        
+        // ✅ RECARREGA OS PEDIDOS EM VEZ DE RECARREGAR A PÁGINA
+        console.log('🔄 Recarregando lista de pedidos...');
+        await loadPedidos();
+        alert('Lista de pedidos atualizada. Tente novamente.');
+        return;
+      }
+      
+      console.log(`✅ Pedido encontrado: #${pedidoExistente.numero} (ID: ${pedidoExistente.id})`);
+      
+      // ✅ VALIDAÇÃO DO STATUS
+      const statusValido = statusPedidos.find(s => s.value === novoStatus);
+      if (!statusValido) {
+        console.error('❌ Status inválido:', novoStatus);
+        alert('Erro: Status inválido selecionado');
+        return;
+      }
+      
+      console.log(`🔄 Chamando pedidoService.atualizarStatusPedido com ID: ${pedidoExistente.id}`);
+      
+      // ✅ USA O ID CORRETO DO PEDIDO ENCONTRADO
+      const resultado = await pedidoService.atualizarStatusPedido(pedidoExistente.id, novoStatus);
+      
+      console.log('📥 Resultado do service:', resultado);
       
       if (resultado.success) {
-        // Atualiza o estado local
-        setPedidos(prevPedidos => 
-          prevPedidos.map(pedido => 
-            pedido.id === pedidoId ? { ...pedido, status: novoStatus } : pedido
-          )
-        );
+        console.log('✅ Status atualizado com sucesso no backend');
+        
+        // ✅ ATUALIZA O ESTADO LOCAL USANDO O ID CORRETO
+        setPedidos(prevPedidos => {
+          const novosPedidos = prevPedidos.map(pedido => 
+            String(pedido.id) === String(pedidoExistente.id) 
+              ? { ...pedido, status: novoStatus } 
+              : pedido
+          );
+          console.log('🔄 Estado local atualizado');
+          return novosPedidos;
+        });
         
         const statusInfo = statusPedidos.find(s => s.value === novoStatus);
-        alert(`Status alterado para: ${statusInfo.label}`);
+        
+        // ✅ AUTO-NAVEGAÇÃO PARA ABA CORRESPONDENTE
+        if (novoStatus === 'entregue') {
+          setActiveOrderTab('finalizados');
+          alert(`✅ Pedido #${pedidoExistente.numero} finalizado! Movido para "Finalizados"`);
+        } else if (novoStatus === 'cancelado') {
+          setActiveOrderTab('cancelados');
+          alert(`❌ Pedido #${pedidoExistente.numero} cancelado! Movido para "Cancelados"`);
+        } else if (['pendente', 'em_preparo', 'pronto'].includes(novoStatus)) {
+          setActiveOrderTab('pendentes');
+          alert(`${statusInfo.icon} Status do pedido #${pedidoExistente.numero} alterado para: ${statusInfo.label}`);
+        } else {
+          alert(`Status do pedido #${pedidoExistente.numero} alterado para: ${statusInfo.label}`);
+        }
+        
+        // ✅ RECARREGA ESTATÍSTICAS
+        calcularEstatisticas();
+        
       } else {
-        console.error('❌ Erro ao alterar status no Supabase:', resultado.error);
-        alert(`Erro ao alterar status: ${resultado.error}`);
+        console.error('❌ Erro retornado pelo service:', resultado.error);
+        
+        // ✅ TRATAMENTO DE ERROS ESPECÍFICOS
+        if (resultado.error?.includes('not found') || resultado.error?.includes('não encontrado')) {
+          alert(`Erro: Pedido #${pedidoExistente.numero} não foi encontrado no banco de dados. Recarregando a lista...`);
+          await loadPedidos(); // Recarrega a lista de pedidos
+        } else if (resultado.error?.includes('permission') || resultado.error?.includes('unauthorized')) {
+          alert('Erro: Sem permissão para alterar este pedido. Verifique sua autenticação.');
+        } else {
+          alert(`Erro ao alterar status do pedido #${pedidoExistente.numero}: ${resultado.error}`);
+        }
       }
     } catch (error) {
       console.error('❌ Erro inesperado ao alterar status:', error);
-      alert('Erro ao alterar status do pedido');
+      console.error('🔍 Stack trace:', error.stack);
+      alert(`Erro inesperado ao alterar status do pedido. Detalhes: ${error.message}`);
     }
   };
 
-  // Nova função para excluir pedidos
+  // ✅ FUNÇÃO ATUALIZADA DE EXCLUIR PEDIDO COM MESMAS CORREÇÕES
   const excluirPedido = async (pedidoId) => {
-    const pedido = pedidos.find(p => p.id === pedidoId);
-    if (!pedido) return;
+    // Busca mais robusta
+    let pedido = pedidos.find(p => String(p.id) === String(pedidoId));
+    
+    if (!pedido) {
+      pedido = pedidos.find(p => p.numero === pedidoId || String(p.numero) === String(pedidoId));
+    }
+    
+    if (!pedido) {
+      console.error('❌ Pedido não encontrado para exclusão:', pedidoId);
+      await loadPedidos();
+      alert('Lista de pedidos atualizada. Tente novamente.');
+      return;
+    }
 
     if (window.confirm(`Tem certeza que deseja excluir o pedido #${pedido.numero}?`)) {
       try {
-        console.log(`🗑️ Excluindo pedido ${pedidoId}...`);
+        console.log(`🗑️ Excluindo pedido ${pedido.id}...`);
         
-        const resultado = await pedidoService.excluirPedido(pedidoId);
+        const resultado = await pedidoService.excluirPedido(pedido.id);
         
         if (resultado.success) {
-          // Atualiza o estado local
-          const pedidosAtualizados = pedidos.filter(p => p.id !== pedidoId);
+          const pedidosAtualizados = pedidos.filter(p => String(p.id) !== String(pedido.id));
           setPedidos(pedidosAtualizados);
-          await calcularEstatisticas();
+          await calcularEstatisticas(); // ✅ CORRIGIDO: Chamada sem argumentos
           
           alert('Pedido excluído com sucesso!');
         } else {
@@ -353,290 +512,282 @@ const AdminPage = ({ onNavigate }) => {
     }
   };
 
-  // Nova função para imprimir pedido
-// Nova função para imprimir pedido
-// Nova função para imprimir pedido
-// Nova função para imprimir pedido
-// Nova função para imprimir pedido
-// Nova função para imprimir pedido - SUBSTITUA a função existente por esta
-const imprimirPedido = (pedido) => {
-  const statusInfo = getStatusInfo(pedido.status);
-  const dataFormatada = formatarDataCompleta(pedido.data);
-  const dataGeracao = formatarDataCompleta(new Date().toISOString());
-  
-  // Calcula a quantidade total de marmitas
-  const quantidadeTotalMarmitas = pedido.itens 
-    ? pedido.itens.reduce((total, item) => total + item.quantidade, 0)
-    : 0;
+  const imprimirPedido = (pedido) => {
+    const statusInfo = getStatusInfo(pedido.status);
+    const dataFormatada = formatarDataCompleta(pedido.data);
+    const dataGeracao = formatarDataCompleta(new Date().toISOString());
+    
+    const quantidadeTotalMarmitas = pedido.itens 
+      ? pedido.itens.reduce((total, item) => total + item.quantidade, 0)
+      : 0;
 
-  const conteudoImpressao = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <title>Pedido #${pedido.numero} - Fit In Box</title>
-      <style>
-        @media print {
-          body { margin: 0; }
-          .no-print { display: none !important; }
-        }
-        
-        body {
-          font-family: Arial, sans-serif;
-          line-height: 1.3;
-          color: #333;
-          max-width: 800px;
-          margin: 0 auto;
-          padding: 15px;
-          font-size: 14px;
-        }
-        
-        .header {
-          text-align: center;
-          border-bottom: 2px solid #009245;
-          padding-bottom: 15px;
-          margin-bottom: 20px;
-        }
-        
-        .logo {
-          font-size: 24px;
-          margin-bottom: 8px;
-        }
-        
-        .empresa-nome {
-          font-size: 20px;
-          font-weight: bold;
-          color: #009245;
-          margin: 0;
-        }
-        
-        .subtitle {
-          color: #666;
-          margin: 3px 0 0 0;
-          font-size: 13px;
-        }
-        
-        .info-section {
-          background-color: #f8f9fa;
-          padding: 12px;
-          border-radius: 6px;
-          margin-bottom: 15px;
-          border-left: 3px solid #009245;
-        }
-        
-        .info-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 15px;
-          margin-bottom: 15px;
-        }
-        
-        .info-item {
-          margin-bottom: 8px;
-          font-size: 13px;
-        }
-        
-        .label {
-          font-weight: bold;
-          color: #009245;
-        }
-        
-        .items-table {
-          width: 100%;
-          border-collapse: collapse;
-          margin: 15px 0;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-          font-size: 13px;
-        }
-        
-        .items-table th {
-          background-color: #009245;
-          color: white;
-          padding: 8px;
-          text-align: left;
-          font-weight: bold;
-          font-size: 12px;
-        }
-        
-        .items-table td {
-          padding: 6px 8px;
-          border-bottom: 1px solid #ddd;
-        }
-        
-        .items-table tr:nth-child(even) {
-          background-color: #f8f9fa;
-        }
-        
-        .items-table tfoot {
-          background-color: #e8f5e8;
-          font-weight: bold;
-        }
-        
-        .total-section {
-          background-color: #e8f5e8;
-          padding: 12px;
-          border-radius: 6px;
-          text-align: right;
-          border: 2px solid #009245;
-          margin-bottom: 15px;
-        }
-        
-        .total-value {
-          font-size: 20px;
-          font-weight: bold;
-          color: #009245;
-        }
-        
-        .endereco-section, .obs-section {
-          background-color: #fff3cd;
-          border: 1px solid #ffeaa7;
-          padding: 10px;
-          border-radius: 6px;
-          margin: 12px 0;
-          font-size: 13px;
-        }
-        
-        .obs-section {
-          background-color: #d1ecf1;
-          border-color: #bee5eb;
-        }
-        
-        .section-title {
-          font-weight: bold;
-          color: #856404;
-          margin-bottom: 6px;
-          font-size: 12px;
-        }
-        
-        .obs-section .section-title {
-          color: #0c5460;
-        }
-        
-        .footer {
-          text-align: center;
-          margin-top: 20px;
-          padding-top: 15px;
-          border-top: 1px solid #ddd;
-          color: #666;
-          font-size: 11px;
-        }
-        
-        @media print {
-          body { 
-            margin: 0;
-            padding: 10px;
-            font-size: 12px;
+    const conteudoImpressao = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Pedido #${pedido.numero} - Fit In Box</title>
+        <style>
+          @media print {
+            body { margin: 0; }
+            .no-print { display: none !important; }
           }
-          .info-grid {
-            grid-template-columns: 1fr;
-            gap: 8px;
+          
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.3;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 15px;
+            font-size: 14px;
           }
+          
           .header {
+            text-align: center;
+            border-bottom: 2px solid #009245;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+          }
+          
+          .logo {
+            font-size: 24px;
+            margin-bottom: 8px;
+          }
+          
+          .empresa-nome {
+            font-size: 20px;
+            font-weight: bold;
+            color: #009245;
+            margin: 0;
+          }
+          
+          .subtitle {
+            color: #666;
+            margin: 3px 0 0 0;
+            font-size: 13px;
+          }
+          
+          .info-section {
+            background-color: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            border-left: 3px solid #009245;
+          }
+          
+          .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
             margin-bottom: 15px;
           }
-          .items-table {
-            margin: 10px 0;
+          
+          .info-item {
+            margin-bottom: 8px;
+            font-size: 13px;
           }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <div class="logo">🍽️</div>
-        <h1 class="empresa-nome">Fit In Box</h1>
-        <p class="subtitle">Marmitas Saudáveis e Saborosas</p>
-      </div>
+          
+          .label {
+            font-weight: bold;
+            color: #009245;
+          }
+          
+          .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            font-size: 13px;
+          }
+          
+          .items-table th {
+            background-color: #009245;
+            color: white;
+            padding: 8px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 12px;
+          }
+          
+          .items-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #ddd;
+          }
+          
+          .items-table tr:nth-child(even) {
+            background-color: #f8f9fa;
+          }
+          
+          .items-table tfoot {
+            background-color: #e8f5e8;
+            font-weight: bold;
+          }
+          
+          .total-section {
+            background-color: #e8f5e8;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: right;
+            border: 2px solid #009245;
+            margin-bottom: 15px;
+          }
+          
+          .total-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #009245;
+          }
+          
+          .endereco-section, .obs-section {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 12px 0;
+            font-size: 13px;
+          }
+          
+          .obs-section {
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+          }
+          
+          .section-title {
+            font-weight: bold;
+            color: #856404;
+            margin-bottom: 6px;
+            font-size: 12px;
+          }
+          
+          .obs-section .section-title {
+            color: #0c5460;
+          }
+          
+          .footer {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+            color: #666;
+            font-size: 11px;
+          }
+          
+          @media print {
+            body { 
+              margin: 0;
+              padding: 10px;
+              font-size: 12px;
+            }
+            .info-grid {
+              grid-template-columns: 1fr;
+              gap: 8px;
+            }
+            .header {
+              margin-bottom: 15px;
+            }
+            .items-table {
+              margin: 10px 0;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo">🍽️</div>
+          <h1 class="empresa-nome">Fit In Box</h1>
+          <p class="subtitle">Marmitas Saudáveis e Saborosas</p>
+        </div>
 
-      <div class="info-section">
-        <div class="info-grid">
-          <div>
-            <div class="info-item">
-              <span class="label">Pedido:</span> #${pedido.numero}
+        <div class="info-section">
+          <div class="info-grid">
+            <div>
+              <div class="info-item">
+                <span class="label">Pedido:</span> #${pedido.numero}
+              </div>
+              <div class="info-item">
+                <span class="label">Data:</span> ${dataFormatada}
+              </div>
             </div>
-            <div class="info-item">
-              <span class="label">Data:</span> ${dataFormatada}
+            <div>
+              <div class="info-item">
+                <span class="label">Cliente:</span> ${pedido.cliente}
+              </div>
+              <div class="info-item">
+                <span class="label">CNPJ:</span> ${pedido.cnpj}
+              </div>
             </div>
           </div>
-          <div>
-            <div class="info-item">
-              <span class="label">Cliente:</span> ${pedido.cliente}
-            </div>
-            <div class="info-item">
-              <span class="label">CNPJ:</span> ${pedido.cnpj}
-            </div>
+        </div>
+
+        ${pedido.enderecoEntrega ? `
+          <div class="endereco-section">
+            <div class="section-title">📍 Endereço de Entrega:</div>
+            <div>${pedido.enderecoEntrega}</div>
           </div>
-        </div>
-      </div>
+        ` : ''}
 
-      ${pedido.enderecoEntrega ? `
-        <div class="endereco-section">
-          <div class="section-title">📍 Endereço de Entrega:</div>
-          <div>${pedido.enderecoEntrega}</div>
-        </div>
-      ` : ''}
+        ${pedido.observacoes ? `
+          <div class="obs-section">
+            <div class="section-title">💬 Observações:</div>
+            <div>${pedido.observacoes}</div>
+          </div>
+        ` : ''}
 
-      ${pedido.observacoes ? `
-        <div class="obs-section">
-          <div class="section-title">💬 Observações:</div>
-          <div>${pedido.observacoes}</div>
-        </div>
-      ` : ''}
-
-      <table class="items-table">
-        <thead>
-          <tr>
-            <th>Item</th>
-            <th>Qtd</th>
-            <th>Valor Unit.</th>
-            <th>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${pedido.itens ? pedido.itens.map(item => `
+        <table class="items-table">
+          <thead>
             <tr>
-              <td>${item.nome}</td>
-              <td>${item.quantidade}</td>
-              <td>R$ ${item.preco.toFixed(2)}</td>
-              <td>R$ ${(item.quantidade * item.preco).toFixed(2)}</td>
+              <th>Item</th>
+              <th>Qtd</th>
+              <th>Valor Unit.</th>
+              <th>Total</th>
             </tr>
-          `).join('') : ''}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td colspan="3" style="text-align: right; padding-right: 15px;">
-              <strong>Total de Marmitas:</strong>
-            </td>
-            <td style="text-align: left;">
-              <strong>${quantidadeTotalMarmitas} unidades</strong>
-            </td>
-          </tr>
-        </tfoot>
-      </table>
+          </thead>
+          <tbody>
+            ${pedido.itens ? pedido.itens.map(item => `
+              <tr>
+                <td>${item.nome}</td>
+                <td>${item.quantidade}</td>
+                <td>R$ ${item.preco.toFixed(2)}</td>
+                <td>R$ ${(item.quantidade * item.preco).toFixed(2)}</td>
+              </tr>
+            `).join('') : ''}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" style="text-align: right; padding-right: 15px;">
+                <strong>Total de Marmitas:</strong>
+              </td>
+              <td style="text-align: left;">
+                <strong>${quantidadeTotalMarmitas} unidades</strong>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
 
-      <div class="total-section">
-        <div style="margin-bottom: 5px;">Total do Pedido:</div>
-        <div class="total-value">R$ ${pedido.total.toFixed(2)}</div>
-      </div>
+        <div class="total-section">
+          <div style="margin-bottom: 5px;">Total do Pedido:</div>
+          <div class="total-value">R$ ${pedido.total.toFixed(2)}</div>
+        </div>
 
-      <div class="footer">
-        <p>Documento gerado em ${dataGeracao}</p>
-        <p>Fit In Box - Alimentação Corporativa Saudável</p>
-      </div>
-    </body>
-    </html>
-  `;
+        <div class="footer">
+          <p>Documento gerado em ${dataGeracao}</p>
+          <p>Fit In Box - Alimentação Corporativa Saudável</p>
+        </div>
+      </body>
+      </html>
+    `;
 
-  // Abre nova janela para impressão
-  const janelaImpressao = window.open('', '_blank');
-  janelaImpressao.document.write(conteudoImpressao);
-  janelaImpressao.document.close();
-  janelaImpressao.focus();
-  
-  // Aguarda o carregamento e executa a impressão
-  setTimeout(() => {
-    janelaImpressao.print();
-  }, 250);
-};
+    const janelaImpressao = window.open('', '_blank');
+    janelaImpressao.document.write(conteudoImpressao);
+    janelaImpressao.document.close();
+    janelaImpressao.focus();
+    
+    setTimeout(() => {
+      janelaImpressao.print();
+    }, 250);
+  };
+
   const getStatusInfo = (status) => {
     return statusPedidos.find(s => s.value === status) || statusPedidos[0];
   };
@@ -667,7 +818,6 @@ const imprimirPedido = (pedido) => {
     try {
       const data = new Date(dataString);
       
-      // Verifica se a data é válida
       if (isNaN(data.getTime())) {
         return 'Data inválida';
       }
@@ -689,7 +839,6 @@ const imprimirPedido = (pedido) => {
     try {
       const data = new Date(dataString);
       
-      // Verifica se a data é válida
       if (isNaN(data.getTime())) {
         return 'Data inválida';
       }
@@ -707,7 +856,6 @@ const imprimirPedido = (pedido) => {
     }
   };
 
-  // ✅ EFEITO DE AUTENTICAÇÃO E CARREGAMENTO INICIAL
   useEffect(() => {
     const init = async () => {
       setLoading(true);
@@ -716,7 +864,6 @@ const imprimirPedido = (pedido) => {
         onNavigate('home');
         return;
       }
-      // Carrega todos os dados iniciais em paralelo
       await Promise.all([
         loadProducts(),
         loadPedidos(),
@@ -728,9 +875,7 @@ const imprimirPedido = (pedido) => {
     init();
   }, [checkAdminAuth, onNavigate, loadProducts, loadPedidos, loadEmpresasCadastradas, calcularEstatisticas]);
 
-  // ✅ NOVO EFEITO PARA ATUALIZAÇÃO EM TEMPO REAL (REALTIME)
   useEffect(() => {
-    // Só ativa o listener se o usuário estiver autenticado
     if (!isAuthenticated) return;
 
     console.log('📡 Ativando listener de tempo real para novos pedidos...');
@@ -742,22 +887,22 @@ const imprimirPedido = (pedido) => {
         { event: 'INSERT', schema: 'public', table: 'pedidos' },
         (payload) => {
           console.log('✅ Novo pedido recebido em tempo real!', payload.new);
-          // Adiciona o novo pedido no topo da lista, sem precisar recarregar tudo
           setPedidos(prevPedidos => [payload.new, ...prevPedidos]);
-          // Atualiza as estatísticas
           calcularEstatisticas();
+          // ✅ Auto-navega para pedidos pendentes quando chega novo pedido
+          if (activeTab === 'pedidos') {
+            setActiveOrderTab('pendentes');
+          }
         }
       )
       .subscribe();
 
-    // Função de limpeza para remover o listener quando o componente for desmontado
     return () => {
       console.log('🔌 Desativando listener de tempo real.');
       supabase.removeChannel(channel);
     };
-  }, [isAuthenticated, calcularEstatisticas]); // Depende de isAuthenticated para rodar
+  }, [isAuthenticated, calcularEstatisticas, activeTab]);
 
-  // Loading state
   if (loading) {
     return (
       <div style={{
@@ -775,7 +920,6 @@ const imprimirPedido = (pedido) => {
     );
   }
 
-  // Se não autenticado, não renderiza (já redirecionou)
   if (!isAuthenticated) {
     return null;
   }
@@ -1293,7 +1437,7 @@ const imprimirPedido = (pedido) => {
           </div>
         )}
 
-        {/* Pedidos Tab */}
+        {/* ✅ PEDIDOS TAB COM NOVA ORGANIZAÇÃO */}
         {activeTab === 'pedidos' && (
           <div>
             <div style={{
@@ -1314,25 +1458,91 @@ const imprimirPedido = (pedido) => {
                 🔄 Atualização automática ativa
               </div>
             </div>
+
+            {/* ✅ ABAS DE ORGANIZAÇÃO DOS PEDIDOS */}
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '10px',
+              marginBottom: '20px',
+              overflow: 'hidden',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            }}>
+              <div style={{
+                display: 'flex',
+                borderBottom: '1px solid #dee2e6'
+              }}>
+                {orderTabs.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveOrderTab(tab.id)}
+                    style={{
+                      flex: 1,
+                      background: activeOrderTab === tab.id ? '#007bff' : 'white',
+                      color: activeOrderTab === tab.id ? 'white' : '#6c757d',
+                      border: 'none',
+                      padding: '15px 10px',
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      borderBottom: activeOrderTab === tab.id ? '3px solid #0056b3' : '3px solid transparent',
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    <div style={{ marginBottom: '3px' }}>{tab.label}</div>
+                    <div style={{ 
+                      fontSize: '18px', 
+                      fontWeight: 'bold',
+                      color: activeOrderTab === tab.id ? '#ffd700' : '#28a745'
+                    }}>
+                      {tab.count}
+                    </div>
+                    <div style={{ 
+                      fontSize: '10px', 
+                      opacity: 0.8,
+                      marginTop: '2px'
+                    }}>
+                      {tab.description}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ✅ LISTA DE PEDIDOS FILTRADA */}
             <div style={{
               display: 'flex',
               flexDirection: 'column',
               gap: '20px'
             }}>
-              {pedidos.length === 0 ? (
+              {getPedidosPorAba(activeOrderTab).length === 0 ? (
                 <div style={{
                   backgroundColor: 'white',
                   padding: '40px',
                   borderRadius: '10px',
                   textAlign: 'center',
-                  color: '#666'
+                  color: '#666',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                 }}>
-                  <div style={{ fontSize: '48px', marginBottom: '20px' }}>📋</div>
-                  <h3>Nenhum pedido encontrado</h3>
-                  <p>Os novos pedidos aparecerão aqui automaticamente.</p>
+                  <div style={{ fontSize: '48px', marginBottom: '20px' }}>
+                    {activeOrderTab === 'pendentes' ? '⏳' : 
+                     activeOrderTab === 'finalizados' ? '✅' : 
+                     activeOrderTab === 'cancelados' ? '❌' : '📋'}
+                  </div>
+                  <h3>
+                    {activeOrderTab === 'pendentes' ? 'Nenhum pedido pendente' :
+                     activeOrderTab === 'finalizados' ? 'Nenhum pedido finalizado' :
+                     activeOrderTab === 'cancelados' ? 'Nenhum pedido cancelado' :
+                     'Nenhum pedido encontrado'}
+                  </h3>
+                  <p>
+                    {activeOrderTab === 'pendentes' ? 'Novos pedidos aparecerão aqui automaticamente.' :
+                     activeOrderTab === 'finalizados' ? 'Pedidos entregues aparecerão aqui.' :
+                     activeOrderTab === 'cancelados' ? 'Pedidos cancelados aparecerão aqui.' :
+                     'Todos os pedidos aparecerão aqui.'}
+                  </p>
                 </div>
               ) : (
-                pedidos.map(pedido => {
+                getPedidosPorAba(activeOrderTab).map(pedido => {
                   const statusInfo = getStatusInfo(pedido.status);
                   return (
                     <div
@@ -1341,7 +1551,9 @@ const imprimirPedido = (pedido) => {
                         backgroundColor: 'white',
                         padding: '25px',
                         borderRadius: '10px',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        border: activeOrderTab === 'pendentes' && ['pendente', 'em_preparo'].includes(pedido.status) 
+                          ? '2px solid #ffc107' : 'none'
                       }}
                     >
                       <div style={{
@@ -1362,10 +1574,24 @@ const imprimirPedido = (pedido) => {
                           </p>
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <div style={{ marginBottom: '10px', display: 'flex', gap: '5px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          <div style={{ 
+                            marginBottom: '10px', 
+                            display: 'flex', 
+                            gap: '5px', 
+                            alignItems: 'center', 
+                            flexWrap: 'wrap', 
+                            justifyContent: 'flex-end' 
+                          }}>
                             <select
                               value={pedido.status}
-                              onChange={(e) => alterarStatusPedido(pedido.id, e.target.value)}
+                              onChange={(e) => {
+                                const novoStatus = e.target.value;
+                                console.log(`🎯 Select onChange - Status: ${novoStatus}, Pedido ID: ${pedido.id}, Pedido Número: ${pedido.numero}`);
+                                console.log(`🔍 Tipos - ID: ${typeof pedido.id}, Número: ${typeof pedido.numero}`);
+                                
+                                // ✅ PASSA O ID DO PEDIDO, NÃO O NÚMERO
+                                alterarStatusPedido(pedido.id, novoStatus);
+                              }}
                               style={{
                                 backgroundColor: statusInfo.color,
                                 color: 'white',
@@ -1378,7 +1604,7 @@ const imprimirPedido = (pedido) => {
                                 outline: 'none'
                               }}
                             >
-                              {statusPedidos.map(status => (
+                              {getStatusDisponiveis(activeOrderTab).map(status => (
                                 <option key={status.value} value={status.value}>
                                   {status.icon} {status.label}
                                 </option>
@@ -1402,7 +1628,10 @@ const imprimirPedido = (pedido) => {
                               🖨️ Imprimir
                             </button>
                             <button
-                              onClick={() => excluirPedido(pedido.id)}
+                              onClick={() => {
+                                console.log(`🗑️ Botão excluir clicado - Pedido ID: ${pedido.id}, Número: ${pedido.numero}`);
+                                excluirPedido(pedido.id); // Passa o ID, não o número
+                              }}
                               style={{
                                 backgroundColor: '#dc3545',
                                 color: 'white',
