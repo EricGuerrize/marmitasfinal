@@ -1,6 +1,6 @@
 // src/components/ConsultaPedidosPage.jsx
 import React, { useState, useEffect } from 'react';
-import { authSupabaseService } from '../services/authSupabaseService';
+import { firebaseAuthService } from '../services/firebaseAuthService';
 import { pedidoService } from '../services/pedidoService';
 
 const ConsultaPedidosPage = ({ onNavigate }) => {
@@ -41,7 +41,7 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
 
   useEffect(() => {
     // Verifica sessão
-    const sessao = authSupabaseService.verificarSessao();
+    const sessao = firebaseAuthService.verificarSessao();
     if (!sessao) {
       alert('Sessão expirada. Faça login novamente.');
       onNavigate('home');
@@ -285,7 +285,7 @@ const carregarPedidos = async (sessao) => {
 
   const handleLogout = () => {
     if (window.confirm('Tem certeza que deseja sair?')) {
-      authSupabaseService.logout();
+      firebaseAuthService.logout();
       onNavigate('home');
     }
   };

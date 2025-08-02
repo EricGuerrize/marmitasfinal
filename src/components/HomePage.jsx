@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { authSupabaseService } from '../services/authSupabaseService';
+import { firebaseAuthService } from '../services/firebaseAuthService';
 import { securityUtils } from '../utils/securityUtils';
 import LogoComponent from './LogoComponent';
+import { db } from '../lib/firebase.js';
+
 
 const HomePage = ({ onNavigate }) => {
   const [cnpj, setCnpj] = useState('');
@@ -22,6 +24,7 @@ const HomePage = ({ onNavigate }) => {
     setIsMobile(window.innerWidth <= 768);
   }, []);
 
+
   useEffect(() => {
     checkMobile();
     let timeoutId;
@@ -37,20 +40,27 @@ const HomePage = ({ onNavigate }) => {
     };
   }, [checkMobile]);
 
+
+
   // ✅ Verifica sessão existente (async com timeout)
   useEffect(() => {
     const verificarSessaoExistente = async () => {
-      let timeout; // Declaração movida para o escopo externo
+      let timeout;
       try {
         setCheckingSession(true);
         const controller = new AbortController();
         timeout = setTimeout(() => controller.abort(), 5000);
 
-        const sessaoAtiva = await authSupabaseService.verificarSessao({ signal: controller.signal });
-        if (sessaoAtiva) {
+        // ✅ CORREÇÃO: Verificar se a sessão é realmente válida
+        const sessaoData = await firebaseAuthService.verificarSessao({ signal: controller.signal });
+        
+        // ✅ VERIFICAÇÃO CORRETA: isAuthenticated deve ser true
+        if (sessaoData && sessaoData.isAuthenticated) {
           console.log('✅ Sessão existente encontrada, redirecionando...');
           onNavigate('prosseguir');
           return;
+        } else {
+          console.log('🚫 Nenhuma sessão válida encontrada');
         }
       } catch (error) {
         console.error('Erro ao verificar sessão existente:', error);
@@ -59,7 +69,7 @@ const HomePage = ({ onNavigate }) => {
         }
       } finally {
         setCheckingSession(false);
-        clearTimeout(timeout); // Agora funciona porque está no escopo
+        clearTimeout(timeout);
       }
     };
 
@@ -172,7 +182,7 @@ const HomePage = ({ onNavigate }) => {
       const controller = new AbortController();
       timeout = setTimeout(() => controller.abort(), 5000);
 
-      const result = await authSupabaseService.autenticarCnpj(cnpj, senha, { signal: controller.signal });
+      const result = await firebaseAuthService.signInWithCnpj(cnpj, senha);
       if (!result.success) throw new Error(result.error || 'Falha na autenticação');
       
       console.log('Login bem-sucedido:', result);
@@ -237,7 +247,7 @@ const HomePage = ({ onNavigate }) => {
 
     try {
       console.log('📝 Tentando cadastro para CNPJ:', cnpj);
-      const resultado = await authSupabaseService.registrarEmpresa(email || '', senha, dadosEmpresa);
+      const resultado = await firebaseAuthService.signUpWithCnpj(cnpj, email || 'temp@email.com', senha, dadosEmpresa);
 
       if (resultado.success) {
         alert('Cadastro realizado com sucesso! Agora você pode fazer login.');
@@ -275,8 +285,8 @@ const HomePage = ({ onNavigate }) => {
   // ✅ handleMeusPedidos async otimizado
   const handleMeusPedidos = useCallback(async () => {
     try {
-      const sessaoAtiva = await authSupabaseService.verificarSessao();
-      if (!sessaoAtiva) {
+      const sessaoData = await firebaseAuthService.verificarSessao();
+      if (!sessaoData.isAuthenticated) {
         alert('Faça login para acessar seus pedidos');
         return;
       }
@@ -605,13 +615,13 @@ const HomePage = ({ onNavigate }) => {
 
               <div style={{ marginBottom: '20px', textAlign: 'left' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
-                  Nome da Empresa (recomendado)
+                  Razão Social
                 </label>
                 <input
                   type="text"
                   value={nomeEmpresa}
                   onChange={(e) => setNomeEmpresa(e.target.value)}
-                  placeholder="Ex: Minha Empresa Ltda"
+                  placeholder="Razão Social da Empresa"
                   disabled={fazendoLogin || isBlocked}
                   maxLength="100"
                   autoComplete="organization"
@@ -630,7 +640,7 @@ const HomePage = ({ onNavigate }) => {
                   onBlur={(e) => e.target.style.borderColor = '#ddd'}
                 />
                 <small style={{ color: '#666', fontSize: '12px' }}>
-                  Nome fantasia ou razão social para identificação nos pedidos
+                  Razão social para identificação nos pedidos
                 </small>
               </div>
 

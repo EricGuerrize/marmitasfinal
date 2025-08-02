@@ -1,6 +1,6 @@
 // src/components/ForgotPasswordPage.jsx
 import React, { useState, useEffect } from 'react';
-import { authSupabaseService } from '../services/authSupabaseService';
+import { firebaseAuthService } from '../services/firebaseAuthService';
 
 const ForgotPasswordPage = ({ onNavigate }) => {
   const [etapa, setEtapa] = useState('email'); // email, sucesso
@@ -26,7 +26,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
     
     setLoading(true); setError('');
     try {
-      const res = await authSupabaseService.enviarCodigoRecuperacao(email);
+      const res = await firebaseAuthService.enviarCodigoRecuperacao(email);
       if (res.success) {
         setEtapa('codigo');
         if (res.codigo) {
@@ -49,7 +49,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
     
     setLoading(true); setError('');
     try {
-      const res = await authSupabaseService.confirmarCodigoEAlterarSenha(email, codigo, novaSenha);
+      const res = await firebaseAuthService.confirmarCodigoEAlterarSenha(email, codigo, novaSenha);
       if (res.success) {
         setEtapa('sucesso');
       } else {
@@ -198,7 +198,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
                 </h2>
                 <p style={{ color: '#666', fontSize: '14px' }}>
                   Um código de verificação foi enviado para<br />
-                  <strong>{authSupabaseService.mascarEmail ? authSupabaseService.mascarEmail(email) : email}</strong>
+                  <strong>{firebaseAuthService.mascarEmail ? firebaseAuthService.mascarEmail(email) : email}</strong>
                 </p>
               </div>
 

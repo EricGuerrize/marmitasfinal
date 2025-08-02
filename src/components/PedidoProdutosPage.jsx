@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { authSupabaseService } from '../services/authSupabaseService';
+import { firebaseAuthService } from '../services/firebaseAuthService';
 import { produtoService } from '../services/produtoService'; // Importar produtoService
+import { listarProdutos } from '../services/produtoService';
+
 
 const PedidoProdutosPage = ({ onNavigate }) => {
   const [produtos, setProdutos] = useState([]);
@@ -20,7 +22,7 @@ const PedidoProdutosPage = ({ onNavigate }) => {
   const [loadingProdutos, setLoadingProdutos] = useState(true); // Novo estado de carregamento
 
   useEffect(() => {
-    const sessao = authSupabaseService.verificarSessao();
+    const sessao = firebaseAuthService.verificarSessao();
     if (!sessao) {
       alert('Sessão expirada. Faça login novamente.');
       onNavigate('home');
@@ -47,18 +49,31 @@ const PedidoProdutosPage = ({ onNavigate }) => {
   };
 
   const carregarProdutos = async () => {
-    setLoadingProdutos(true); // Inicia o carregamento
     try {
-      const produtosSupabase = await produtoService.listarProdutos();
-      setProdutos(produtosSupabase.filter(p => p.disponivel));
+      setLoading(true);
+      setError(null);
+      
+      // ✅ ANTES: const data = await produtoService.listarProdutos();
+      // ✅ DEPOIS: const data = await listarProdutos();
+      const data = await listarProdutos();
+      
+      if (data && Array.isArray(data)) {
+        // Filtrar apenas produtos disponíveis
+        const produtosDisponiveis = data.filter(produto => produto.disponivel);
+        setProdutos(produtosDisponiveis);
+      } else {
+        setProdutos([]);
+      }
     } catch (error) {
-      console.error('Erro ao carregar produtos do Supabase:', error);
-      setProdutos([]); // Em caso de erro, define como array vazio
+      console.error('Erro ao carregar produtos:', error);
+      setError('Erro ao carregar produtos. Tente novamente.');
+      setProdutos([]);
     } finally {
-      setLoadingProdutos(false); // Finaliza o carregamento
+      setLoading(false);
     }
   };
 
+  
   const adicionarAoCarrinho = (produto) => {
     setCarrinho(prev => {
       const itemExistente = prev.find(item => item.id === produto.id);
@@ -166,7 +181,7 @@ const PedidoProdutosPage = ({ onNavigate }) => {
 
   const logout = () => {
     if (window.confirm('Tem certeza que deseja sair?')) {
-      authSupabaseService.logout();
+      firebaseAuthService.logout();
       onNavigate('home');
     }
   };

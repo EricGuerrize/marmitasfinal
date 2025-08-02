@@ -6,7 +6,7 @@ import { useNotification } from './NotificationSystem';
 import LogoComponent from './LogoComponent';
 // ✅ ADICIONADO: Importações dos serviços
 import { pedidoService } from '../services/pedidoService'; 
-import { authSupabaseService } from '../services/authSupabaseService';
+import { firebaseAuthService } from '../services/firebaseAuthService';
 
 // ✅ COMPONENTE SIMPLES PARA IMAGEM DO CARRINHO
 const ImagemProdutoCarrinho = ({ produto, isMobile }) => {
@@ -84,6 +84,9 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+    
+
+
   // ✅ NOVO: useEffect para buscar dados da sessão
   useEffect(() => {
     const buscarDadosSessao = async () => {
@@ -91,48 +94,96 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         console.log('🔍 Buscando dados da sessão...');
         
         // Tenta buscar da sessão atual
-        const sessao = await authSupabaseService.verificarSessao();
+        const sessao = await firebaseAuthService.verificarSessao();
         
-        if (sessao && sessao.cnpj) {
-          console.log('✅ Sessão encontrada:', {
-            cnpj: sessao.cnpjFormatado,
-            empresa: sessao.nomeEmpresa
-          });
-          setDadosEmpresa(sessao);
-        } else {
-          // Fallback: tenta do sessionStorage
-          const cnpjInfo = sessionStorage.getItem('cnpj');
-          const sessaoAtiva = sessionStorage.getItem('sessaoAtiva');
+        console.log('📦 Sessão recebida:', sessao);
+        
+        if (sessao && sessao.isAuthenticated) {
+          // ✅ CORREÇÃO: Verifica se é admin
+          if (sessao.isAdmin) {
+            console.log('🚫 Admin detectado tentando usar carrinho');
+            showError("Administradores não podem fazer pedidos. Use uma conta de empresa para testar o carrinho.");
+            setTimeout(() => onNavigate('admin'), 2000);
+            return;
+          }
           
-          if (cnpjInfo || sessaoAtiva) {
-            const dadosFallback = {
-              cnpj: cnpjInfo || '',
-              cnpjFormatado: cnpjInfo || '',
-              nomeEmpresa: 'Empresa',
-              razaoSocial: 'Empresa'
+          // ✅ CORREÇÃO: Busca dados da empresa corretamente
+          let dadosEmpresaEncontrados = null;
+          
+          // Opção 1: Dados diretos na sessão
+          if (sessao.cnpj) {
+            dadosEmpresaEncontrados = {
+              cnpj: sessao.cnpj,
+              cnpjFormatado: sessao.cnpjFormatado || sessao.cnpj,
+              nomeEmpresa: sessao.nomeEmpresa || sessao.razaoSocial,
+              razaoSocial: sessao.razaoSocial || sessao.nomeEmpresa,
+              email: sessao.email,
+              telefone: sessao.telefone,
+              endereco: sessao.endereco
             };
+          }
+          // Opção 2: Dados dentro de empresa
+          else if (sessao.empresa && sessao.empresa.cnpj) {
+            dadosEmpresaEncontrados = {
+              cnpj: sessao.empresa.cnpj,
+              cnpjFormatado: sessao.empresa.cnpjFormatado || sessao.empresa.cnpj,
+              nomeEmpresa: sessao.empresa.nomeFantasia || sessao.empresa.nome_fantasia || sessao.empresa.razaoSocial,
+              razaoSocial: sessao.empresa.razaoSocial || sessao.empresa.razao_social,
+              email: sessao.empresa.email,
+              telefone: sessao.empresa.telefone,
+              endereco: sessao.empresa.endereco
+            };
+          }
+          
+          if (dadosEmpresaEncontrados) {
+            console.log('✅ Dados da empresa encontrados:', dadosEmpresaEncontrados);
+            setDadosEmpresa(dadosEmpresaEncontrados);
             
-            if (sessaoAtiva) {
-              try {
-                const sessaoData = JSON.parse(sessaoAtiva);
-                Object.assign(dadosFallback, sessaoData);
-              } catch (error) {
-                console.error('Erro ao parse sessaoAtiva:', error);
-              }
-            }
+            // Salva no sessionStorage para compatibilidade
+            sessionStorage.setItem('cnpj', dadosEmpresaEncontrados.cnpj);
+            sessionStorage.setItem('nomeFantasia', dadosEmpresaEncontrados.nomeEmpresa);
             
-            console.log('✅ Usando dados de fallback:', dadosFallback);
-            setDadosEmpresa(dadosFallback);
-          } else {
-            console.error('❌ Nenhuma sessão encontrada');
-            showError("Sessão inválida. Por favor, faça o login novamente.");
-            onNavigate('home');
+            return;
           }
         }
+        
+        // ✅ FALLBACK: Tenta do sessionStorage
+        console.log('🔄 Tentando fallback do sessionStorage...');
+        const cnpjInfo = sessionStorage.getItem('cnpj');
+        const nomeFantasia = sessionStorage.getItem('nomeFantasia');
+        const sessaoAtiva = sessionStorage.getItem('sessaoAtiva');
+        
+        if (cnpjInfo) {
+          const dadosFallback = {
+            cnpj: cnpjInfo,
+            cnpjFormatado: cnpjInfo,
+            nomeEmpresa: nomeFantasia || 'Empresa',
+            razaoSocial: nomeFantasia || 'Empresa'
+          };
+          
+          if (sessaoAtiva) {
+            try {
+              const sessaoData = JSON.parse(sessaoAtiva);
+              Object.assign(dadosFallback, sessaoData);
+            } catch (error) {
+              console.error('Erro ao parse sessaoAtiva:', error);
+            }
+          }
+          
+          console.log('✅ Usando dados de fallback:', dadosFallback);
+          setDadosEmpresa(dadosFallback);
+          return;
+        }
+        
+        // ✅ ÚLTIMO RECURSO: Erro
+        console.error('❌ Nenhuma sessão encontrada');
+        showError("Sessão inválida. Por favor, faça o login novamente.");
+        setTimeout(() => onNavigate('home'), 2000);
+        
       } catch (error) {
         console.error('❌ Erro ao buscar sessão:', error);
         showError("Erro ao carregar dados da sessão.");
-        onNavigate('home');
+        setTimeout(() => onNavigate('home'), 2000);
       }
     };
     

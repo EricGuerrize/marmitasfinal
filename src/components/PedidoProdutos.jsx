@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+// ✅ CORREÇÃO: Importação corrigida - agora funciona com a exportação do objeto
 import { produtoService } from '../services/produtoService';
+
 import LogoComponent from './LogoComponent';
 import OptimizedImage from './OptimizedImage';
 
@@ -35,17 +37,22 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
     const cnpjInfo = sessionStorage.getItem('cnpj') || '';
     setCnpj(cnpjInfo);
 
-    // Carrega produtos do Supabase
+    // ✅ CORREÇÃO: Carrega produtos do Firebase (não mais Supabase)
     const carregarProdutos = async () => {
       try {
-        const produtosSupabase = await produtoService.listarProdutos();
-        if (produtosSupabase && produtosSupabase.length > 0) {
-          setProdutosDisponiveis(produtosSupabase.filter(p => p.disponivel));
+        // ✅ CORREÇÃO: Usando o objeto produtoService que agora está exportado
+        const produtosFirebase = await produtoService.listarProdutos();
+        
+        if (produtosFirebase && produtosFirebase.length > 0) {
+          // ✅ CORREÇÃO: Verifica tanto 'disponivel' quanto 'ativo' para compatibilidade
+          setProdutosDisponiveis(produtosFirebase.filter(p => 
+            p.disponivel === true || p.ativo === true
+          ));
         } else {
           setProdutosDisponiveis([]);
         }
       } catch (error) {
-        console.error('Erro ao carregar produtos:', error);
+        console.error('Erro ao carregar produtos do Firebase:', error);
         setProdutosDisponiveis([]);
       }
     };
@@ -306,7 +313,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
               >
                 {/* Imagem do Produto Otimizada */}
                 <OptimizedImage
-                  src={produto.imagem_url} // Corrigido para imagem_url
+                  src={produto.imagem_url}
                   alt={produto.nome}
                   width={300}
                   height={200}
@@ -456,55 +463,9 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
           }}>
             <div style={{ fontSize: isMobile ? '32px' : '48px', marginBottom: '20px' }}>🔍</div>
             <h3 style={{ fontSize: isMobile ? '18px' : '24px' }}>Nenhum produto encontrado</h3>
-            <p style={{ fontSize: isMobile ? '14px' : '16px' }}>Não há produtos disponíveis nesta categoria no momento.</p>
-          </div>
-        )}
-
-        {/* Resumo do Carrinho */}
-        {calcularQuantidadeTotal() > 0 && (
-          <div style={{
-            backgroundColor: '#009245',
-            color: 'white',
-            padding: isMobile ? '15px' : '20px',
-            borderRadius: '10px',
-            textAlign: 'center',
-            position: 'sticky',
-            bottom: isMobile ? '10px' : '20px',
-            margin: isMobile ? '0 10px' : '0',
-            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-          }}>
-            <p style={{ 
-              margin: '0 0 10px 0', 
-              fontSize: isMobile ? '14px' : '16px',
-              lineHeight: '1.4'
-            }}>
-              🛒 {calcularQuantidadeTotal()} marmita(s) no carrinho
-              {calcularQuantidadeTotal() < 30 && (
-                <span style={{ 
-                  display: 'block', 
-                  fontSize: isMobile ? '12px' : '14px', 
-                  marginTop: '5px' 
-                }}>
-                  ⚠️ Mínimo: 30 marmitas (faltam {30 - calcularQuantidadeTotal()})
-                </span>
-              )}
+            <p style={{ fontSize: isMobile ? '14px' : '16px' }}>
+              Não temos produtos disponíveis nesta categoria no momento.
             </p>
-            <button
-              onClick={irParaCarrinho}
-              style={{
-                backgroundColor: '#f38e3c',
-                color: 'white',
-                border: 'none',
-                padding: isMobile ? '12px 20px' : '15px 30px',
-                borderRadius: '5px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                fontSize: isMobile ? '14px' : '16px',
-                width: isMobile ? '100%' : 'auto'
-              }}
-            >
-              Ver Carrinho e Finalizar Pedido
-            </button>
           </div>
         )}
       </div>
@@ -513,5 +474,4 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
 };
 
 export default PedidoProdutos;
-
 

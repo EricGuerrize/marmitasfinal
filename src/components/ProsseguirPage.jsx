@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { authSupabaseService } from '../services/authSupabaseService';
+import { firebaseAuthService } from '../services/firebaseAuthService';
 import LogoComponent from './LogoComponent';
 
 const ProsseguirPage = ({ onNavigate }) => {
@@ -22,17 +22,17 @@ const ProsseguirPage = ({ onNavigate }) => {
         setLoading(true);
         console.log('🔍 Verificando sessão do usuário...');
         
-        const sessao = await authSupabaseService.verificarSessao();
+        const sessao = await firebaseAuthService.verificarSessao();
         console.log('📦 Dados da sessão recebidos:', sessao);
         
-        // Verifica se tem sessão válida - o authSupabaseService retorna null se não tiver
+        // Verifica se tem sessão válida - o firebaseAuthService retorna null se não tiver
         if (!sessao) {
           console.warn('⚠️ Sessão inválida ou expirada. Redirecionando para home.');
           onNavigate('home');
           return;
         }
         
-        // O authSupabaseService já retorna os dados estruturados
+        // O firebaseAuthService já retorna os dados estruturados
         const userIsAdmin = sessao.isAdmin || sessao.tipoUsuario === 'admin';
         
         const sessaoData = {
@@ -128,7 +128,7 @@ const ProsseguirPage = ({ onNavigate }) => {
     if (window.confirm('Tem certeza que deseja sair?')) {
       try {
         setLoading(true);
-        const success = await authSupabaseService.logout();
+        const success = await firebaseAuthService.logout();
         
         if (success) {
           console.log('✅ Logout realizado com sucesso');

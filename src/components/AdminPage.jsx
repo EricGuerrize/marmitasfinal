@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { authSupabaseService } from '../services/authSupabaseService';
+import { firebaseAuthService } from '../services/firebaseAuthService';
 import { produtoService } from '../services/produtoService';
 import { pedidoService } from '../services/pedidoService';
 import ImageUpload from './ImageUpload';
-import supabase from '../lib/supabase';
+import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
+import { db } from '../services/firebaseConfig';
+
+
 
 const AdminPage = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [activeOrderTab, setActiveOrderTab] = useState('pendentes'); // Nova state para abas de pedidos
+  const [activeOrderTab, setActiveOrderTab] = useState('pendentes');; // Nova state para abas de pedidos
   const [produtos, setProdutos] = useState([]);
   const [pedidos, setPedidos] = useState([]);
   const [empresasCadastradas, setEmpresasCadastradas] = useState([]);
@@ -107,11 +110,11 @@ const AdminPage = ({ onNavigate }) => {
   // ✅ FUNÇÃO DE CARREGAMENTO DE PEDIDOS COM MELHOR DEBUG
   const loadPedidos = useCallback(async () => {
     try {
-      console.log('🔍 Carregando pedidos do Supabase...');
+      console.log('🔍 Carregando pedidos do Firebase...');
       const resultado = await pedidoService.listarTodosPedidos();
       
       if (resultado.success) {
-        console.log(`✅ ${resultado.data.length} pedidos carregados do Supabase`);
+        console.log(`✅ ${resultado.data.length} pedidos carregados do Firebase`);
         
         // ✅ Debug melhorado: mostra tipos dos IDs
         if (resultado.data.length > 0) {
@@ -169,7 +172,7 @@ const AdminPage = ({ onNavigate }) => {
 
   const loadEmpresasCadastradas = useCallback(async () => {
     try {
-      const empresas = await authSupabaseService.listarEmpresas();
+      const empresas = await firebaseAuthService.listarEmpresas();
       
       const empresasComDatasCorrigidas = empresas.map(empresa => ({
         ...empresa,
@@ -200,7 +203,7 @@ const AdminPage = ({ onNavigate }) => {
         setProdutos(data);
       }
     } catch (error) {
-      console.error('Erro ao carregar produtos do Supabase:', error);
+      console.error('Erro ao carregar produtos do Firebase:', error);
       setProdutos([]);
     }
   }, []);
@@ -225,7 +228,7 @@ const AdminPage = ({ onNavigate }) => {
         sessionStorage.removeItem('adminPreAuthenticated');
       }
 
-      const sessao = await authSupabaseService.verificarSessao();
+      const sessao = await firebaseAuthService.verificarSessao();
       if (sessao && sessao.isAdmin) {
         console.log('✅ Admin autenticado via sessão principal');
         setIsAuthenticated(true);
@@ -245,7 +248,7 @@ const AdminPage = ({ onNavigate }) => {
     if (window.confirm('Tem certeza que deseja sair do painel admin?')) {
       try {
         setLoading(true);
-        await authSupabaseService.logout();
+        await firebaseAuthService.logout();
         sessionStorage.removeItem('adminPreAuthenticated');
         onNavigate('home');
       } catch (error) {
@@ -502,7 +505,7 @@ const AdminPage = ({ onNavigate }) => {
           
           alert('Pedido excluído com sucesso!');
         } else {
-          console.error('❌ Erro ao excluir no Supabase:', resultado.error);
+          console.error('❌ Erro ao excluir no Firebase:', resultado.error);
           alert(`Erro ao excluir pedido: ${resultado.error}`);
         }
       } catch (error) {
@@ -794,7 +797,7 @@ const AdminPage = ({ onNavigate }) => {
 
   const toggleEmpresaAtiva = async (empresaId, ativo) => {
     try {
-      const resultado = await authSupabaseService.toggleEmpresaAtiva(empresaId, !ativo);
+      const resultado = await firebaseAuthService.toggleEmpresaAtiva(empresaId, !ativo);
       if (resultado.success) {
         alert(resultado.message);
         loadEmpresasCadastradas();
@@ -875,33 +878,137 @@ const AdminPage = ({ onNavigate }) => {
     init();
   }, [checkAdminAuth, onNavigate, loadProducts, loadPedidos, loadEmpresasCadastradas, calcularEstatisticas]);
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
+  // ✅ FIREBASE REAL-TIME LISTENER (Removido temporariamente)
+// ✅ CÓDIGO CORRIGIDO (funcional):
+useEffect(() => {
+  if (!isAuthenticated) return;
 
-    console.log('📡 Ativando listener de tempo real para novos pedidos...');
-
-    const channel = supabase
-      .channel('pedidos-changes')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'pedidos' },
-        (payload) => {
-          console.log('✅ Novo pedido recebido em tempo real!', payload.new);
-          setPedidos(prevPedidos => [payload.new, ...prevPedidos]);
+  console.log('📡 Iniciando Firebase real-time listener...');
+  
+  try {
+    // ✅ Configura listener para pedidos em tempo real
+    const pedidosRef = collection(db, 'pedidos');
+    const q = query(pedidosRef, orderBy('data', 'desc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      console.log('🔄 Mudanças detectadas nos pedidos:', snapshot.docChanges().length);
+      
+      snapshot.docChanges().forEach((change) => {
+        const pedidoData = { id: change.doc.id, ...change.doc.data() };
+        
+        if (change.type === 'added') {
+          console.log('✅ Novo pedido detectado:', pedidoData.numero);
+          
+          // Atualiza lista de pedidos
+          setPedidos(prevPedidos => {
+            // Verifica se o pedido já existe para evitar duplicatas
+            const jaExiste = prevPedidos.some(p => p.id === pedidoData.id);
+            if (jaExiste) return prevPedidos;
+            
+            // Adiciona novo pedido no início da lista
+            return [pedidoData, ...prevPedidos];
+          });
+          
+          // Recalcula estatísticas
           calcularEstatisticas();
-          // ✅ Auto-navega para pedidos pendentes quando chega novo pedido
-          if (activeTab === 'pedidos') {
+          
+          // Navega para aba de pedidos pendentes se novo pedido
+          if (activeTab !== 'pedidos') {
+            console.log('🔔 Novo pedido! Navegando para aba de pedidos...');
+            setActiveTab('pedidos');
             setActiveOrderTab('pendentes');
           }
+          
+          // Notificação visual (opcional)
+          if (Notification.permission === 'granted') {
+            new Notification('Novo Pedido!', {
+              body: `Pedido #${pedidoData.numero} recebido`,
+              icon: '/favicon.ico'
+            });
+          }
+          
+        } else if (change.type === 'modified') {
+          console.log('📝 Pedido atualizado:', pedidoData.numero);
+          
+          // Atualiza pedido existente
+          setPedidos(prevPedidos => 
+            prevPedidos.map(p => 
+              p.id === pedidoData.id ? pedidoData : p
+            )
+          );
+          
+          // Recalcula estatísticas
+          calcularEstatisticas();
+          
+        } else if (change.type === 'removed') {
+          console.log('🗑️ Pedido removido:', pedidoData.numero);
+          
+          // Remove pedido da lista
+          setPedidos(prevPedidos => 
+            prevPedidos.filter(p => p.id !== pedidoData.id)
+          );
+          
+          // Recalcula estatísticas
+          calcularEstatisticas();
         }
-      )
-      .subscribe();
+      });
+    }, (error) => {
+      console.error('❌ Erro no listener de pedidos:', error);
+    });
 
+    // ✅ Listener para produtos em tempo real
+    const produtosRef = collection(db, 'produtos');
+    const unsubscribeProdutos = onSnapshot(produtosRef, (snapshot) => {
+      console.log('🔄 Mudanças detectadas nos produtos:', snapshot.docChanges().length);
+      
+      snapshot.docChanges().forEach((change) => {
+        const produtoData = { id: change.doc.id, ...change.doc.data() };
+        
+        if (change.type === 'added') {
+          console.log('✅ Novo produto detectado:', produtoData.nome);
+          
+          setProdutos(prevProdutos => {
+            const jaExiste = prevProdutos.some(p => p.id === produtoData.id);
+            if (jaExiste) return prevProdutos;
+            return [...prevProdutos, produtoData];
+          });
+          
+        } else if (change.type === 'modified') {
+          console.log('📝 Produto atualizado:', produtoData.nome);
+          
+          setProdutos(prevProdutos => 
+            prevProdutos.map(p => 
+              p.id === produtoData.id ? produtoData : p
+            )
+          );
+          
+        } else if (change.type === 'removed') {
+          console.log('🗑️ Produto removido:', produtoData.nome);
+          
+          setProdutos(prevProdutos => 
+            prevProdutos.filter(p => p.id !== produtoData.id)
+          );
+        }
+      });
+    }, (error) => {
+      console.error('❌ Erro no listener de produtos:', error);
+    });
+
+    console.log('✅ Firebase real-time listeners configurados com sucesso!');
+
+    // ✅ Cleanup function - remove listeners quando componente desmonta
     return () => {
-      console.log('🔌 Desativando listener de tempo real.');
-      supabase.removeChannel(channel);
+      console.log('🔌 Desconectando Firebase listeners...');
+      unsubscribe();
+      unsubscribeProdutos();
     };
-  }, [isAuthenticated, calcularEstatisticas, activeTab]);
+    
+  } catch (error) {
+    console.error('❌ Erro ao configurar Firebase listeners:', error);
+  }
+  
+}, [isAuthenticated, calcularEstatisticas, activeTab]);
+
 
   if (loading) {
     return (
@@ -1455,7 +1562,7 @@ const AdminPage = ({ onNavigate }) => {
                 fontSize: '12px',
                 fontWeight: 'bold'
               }}>
-                🔄 Atualização automática ativa
+                🔄 Atualização manual
               </div>
             </div>
 
@@ -1535,7 +1642,7 @@ const AdminPage = ({ onNavigate }) => {
                      'Nenhum pedido encontrado'}
                   </h3>
                   <p>
-                    {activeOrderTab === 'pendentes' ? 'Novos pedidos aparecerão aqui automaticamente.' :
+                    {activeOrderTab === 'pendentes' ? 'Novos pedidos aparecerão aqui.' :
                      activeOrderTab === 'finalizados' ? 'Pedidos entregues aparecerão aqui.' :
                      activeOrderTab === 'cancelados' ? 'Pedidos cancelados aparecerão aqui.' :
                      'Todos os pedidos aparecerão aqui.'}
