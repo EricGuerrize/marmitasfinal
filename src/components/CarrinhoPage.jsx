@@ -100,7 +100,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         
         if (sessao && sessao.isAuthenticated) {
           // ✅ CORREÇÃO: Verifica se é admin
-          /*if (sessao.isAdmin) {
+          /* if (sessao.isAdmin) {
             console.log('🚫 Admin detectado tentando usar carrinho');
             showError("Administradores não podem fazer pedidos. Use uma conta de empresa para testar o carrinho.");
             setTimeout(() => onNavigate('admin'), 2000);
