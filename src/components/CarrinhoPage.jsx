@@ -7,6 +7,8 @@ import LogoComponent from './LogoComponent';
 // ✅ ADICIONADO: Importações dos serviços
 import { pedidoService } from '../services/pedidoService'; 
 import { firebaseAuthService } from '../services/firebaseAuthService';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../services/firebaseConfig';
 
 // ✅ COMPONENTE SIMPLES PARA IMAGEM DO CARRINHO
 const ImagemProdutoCarrinho = ({ produto, isMobile }) => {
@@ -49,6 +51,14 @@ const ImagemProdutoCarrinho = ({ produto, isMobile }) => {
     />
   );
 };
+
+const obterNumeroPedido = (pedido) => {
+  return pedido.numero || 
+         pedido.numeroPedido || 
+         pedido.id?.substring(0, 8) || 
+         'S/N';
+};
+
 
 const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, limparCarrinho, calcularQuantidadeTotal }) => {
   // ✅ REMOVIDO: const [cnpj, setCnpj] = useState('');
@@ -282,7 +292,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     console.log('🚀 Iniciando confirmação do pedido...');
     
     // 1. Validações iniciais
-    if (carrinho.length === 0) {
+    if (carrinho.length === 0 || calcularQuantidadeTotal() < 30 || !validarEndereco().isValid || !dadosEmpresa) {
       showError('Carrinho está vazio!');
       return;
     }
@@ -356,7 +366,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         const pedidosAdmin = JSON.parse(localStorage.getItem('pedidosAdmin') || '[]');
         const novoPedido = {
           id: resultado.pedido.id,
-          numero: resultado.pedido.numero,
+          numero: obterNumeroPedido(resultado.pedido),
           cliente: dadosParaSalvar.empresaNome,
           cnpj: dadosEmpresa.cnpjFormatado || dadosEmpresa.cnpj,
           total: dadosParaSalvar.total,
@@ -375,7 +385,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       
       // 6. Formata a mensagem para o WhatsApp
       let mensagem = `*NOVO PEDIDO - FIT IN BOX*\n\n`;
-      mensagem += `*Pedido:* #${resultado.pedido.numero}\n`;
+      mensagem += `*Pedido:* #${obterNumeroPedido(resultado.pedido)}\n`;
       mensagem += `*Empresa:* ${dadosParaSalvar.empresaNome}\n`;
       mensagem += `*CNPJ:* ${dadosEmpresa.cnpjFormatado || dadosEmpresa.cnpj}\n`;
       mensagem += `*Data:* ${new Date().toLocaleDateString('pt-BR', {
