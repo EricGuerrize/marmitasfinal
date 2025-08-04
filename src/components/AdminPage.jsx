@@ -218,7 +218,8 @@ const AdminPage = ({ onNavigate }) => {
           console.log('🔍 Primeiros 3 pedidos carregados:', 
             resultado.data.slice(0, 3).map(p => ({ 
               id: p.id, 
-              numero: p.numero, 
+              numero: p.numero,
+              data: p.data,
               tipo_id: typeof p.id,
               tipo_numero: typeof p.numero,
               status: p.status 
@@ -831,26 +832,45 @@ const AdminPage = ({ onNavigate }) => {
       return 'Data inválida';
     }
   };
-
+  
   const formatarDataCompleta = (dataString) => {
-    if (!dataString) return 'Não informado';
+    if (!dataString) return 'Data não informada';
     
     try {
-      const data = new Date(dataString);
+      let data;
       
+      // ✅ Tenta diferentes formatos de data
+      if (dataString.includes('T')) {
+        // Formato ISO: "2024-01-15T10:30:00.000Z"
+        data = new Date(dataString);
+      } else if (dataString.includes('/')) {
+        // Formato brasileiro: "15/01/2024 10:30"
+        const [datePart, timePart = '00:00'] = dataString.split(' ');
+        const [day, month, year] = datePart.split('/');
+        data = new Date(`${year}-${month}-${day}T${timePart}`);
+      } else {
+        // Tenta parsear diretamente
+        data = new Date(dataString);
+      }
+      
+      // ✅ Verifica se a data é válida
       if (isNaN(data.getTime())) {
+        console.error('Data inválida recebida:', dataString);
         return 'Data inválida';
       }
       
-      return data.toLocaleDateString('pt-BR', {
+      // ✅ Formata para português brasileiro
+      return data.toLocaleString('pt-BR', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        timeZone: 'America/Sao_Paulo'
       });
+      
     } catch (error) {
-      console.error('Erro ao formatar data completa:', error);
+      console.error('Erro ao formatar data:', error, 'Data:', dataString);
       return 'Data inválida';
     }
   };
