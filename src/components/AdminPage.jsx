@@ -6,6 +6,9 @@ import ImageUpload from './ImageUpload';
 import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 
+
+
+
 const AdminPage = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [activeOrderTab, setActiveOrderTab] = useState('pendentes');
@@ -27,6 +30,33 @@ const AdminPage = ({ onNavigate }) => {
     disponivel: true,
     estoque: 100
   });
+
+
+
+  const obterNumeroPedido = (pedido) => {
+    // Tenta diferentes campos para o número do pedido
+    if (pedido.numero && pedido.numero !== undefined && pedido.numero !== null) {
+      return pedido.numero;
+    }
+    if (pedido.numeroPedido) {
+      return pedido.numeroPedido;
+    }
+    if (pedido.pedido_numero) {
+      return pedido.pedido_numero;
+    }
+    if (pedido.order_number) {
+      return pedido.order_number;
+    }
+    if (pedido.id) {
+      // Usa os primeiros 8 caracteres do ID se for string longa
+      if (typeof pedido.id === 'string' && pedido.id.length > 8) {
+        return pedido.id.substring(0, 8);
+      }
+      return pedido.id;
+    }
+    return 'S/N';
+  };
+  
 
   const [stats, setStats] = useState({
     totalPedidos: 0,
@@ -213,16 +243,17 @@ const AdminPage = ({ onNavigate }) => {
       if (resultado.success) {
         console.log(`✅ ${resultado.data.length} pedidos carregados do Firebase`);
         
-        // ✅ Debug melhorado: mostra tipos dos IDs
+        // ✅ Debug melhorado
         if (resultado.data.length > 0) {
           console.log('🔍 Primeiros 3 pedidos carregados:', 
-            resultado.data.slice(0, 3).map(p => ({ 
-              id: p.id, 
+            resultado.data.slice(0, 3).map(p => ({
+              id: p.id,
               numero: p.numero,
+              numeroCalculado: obterNumeroPedido(p),
               data: p.data,
-              tipo_id: typeof p.id,
-              tipo_numero: typeof p.numero,
-              status: p.status 
+              status: p.status,
+              cliente: p.cliente,
+              total: p.total
             }))
           );
         }
@@ -238,7 +269,14 @@ const AdminPage = ({ onNavigate }) => {
           }
           
           // Segundo critério: data mais recente primeiro
-          return new Date(b.data) - new Date(a.data);
+          try {
+            const dataA = new Date(a.data || a.created_at || Date.now());
+            const dataB = new Date(b.data || b.created_at || Date.now());
+            return dataB - dataA;
+          } catch (error) {
+            console.error('Erro ao ordenar por data:', error);
+            return 0;
+          }
         });
         
         setPedidos(pedidosOrdenados);
@@ -1718,7 +1756,7 @@ useEffect(() => {
                       }}>
                         <div>
                           <h3 style={{ margin: '0 0 5px 0', color: '#343a40' }}>
-                            Pedido #{pedido.numero}
+                            Pedido #{obterNumeroPedido(pedido)}
                           </h3>
                           <p style={{ margin: 0, color: '#6c757d' }}>
                             {pedido.cliente} - {pedido.cnpj}
