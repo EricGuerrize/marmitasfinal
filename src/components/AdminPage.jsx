@@ -6,11 +6,9 @@ import ImageUpload from './ImageUpload';
 import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 
-
-
 const AdminPage = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [activeOrderTab, setActiveOrderTab] = useState('pendentes');; // Nova state para abas de pedidos
+  const [activeOrderTab, setActiveOrderTab] = useState('pendentes');
   const [produtos, setProdutos] = useState([]);
   const [pedidos, setPedidos] = useState([]);
   const [empresasCadastradas, setEmpresasCadastradas] = useState([]);
@@ -33,6 +31,7 @@ const AdminPage = ({ onNavigate }) => {
   const [stats, setStats] = useState({
     totalPedidos: 0,
     totalVendas: 0,
+    pedidosPendentes: 0,
     produtosMaisVendidos: [],
     pedidosHoje: 0,
     empresasCadastradas: 0,
@@ -40,28 +39,26 @@ const AdminPage = ({ onNavigate }) => {
     percentualEmails: 0
   });
 
-  // ✅ STATUS SIMPLIFICADOS - apenas 3 categorias principais
+  // ✅ 1. CORRIGIR OS STATUS - deixar apenas 3 opções
   const statusPedidos = [
-    { value: 'pendente', label: 'Pendente', color: '#ffc107', icon: '⏳', categoria: 'pendentes' },
-    { value: 'em_preparo', label: 'Em Preparo', color: '#007bff', icon: '👨‍🍳', categoria: 'pendentes' },
-    { value: 'pronto', label: 'Pronto', color: '#28a745', icon: '✅', categoria: 'pendentes' },
-    { value: 'entregue', label: 'Entregue', color: '#20c997', icon: '📦', categoria: 'finalizados' },
-    { value: 'cancelado', label: 'Cancelado', color: '#dc3545', icon: '❌', categoria: 'cancelados' }
+    { value: 'pendente', label: 'Pendente', color: '#ffc107', icon: '⏳' },
+    { value: 'pronto', label: 'Finalizado', color: '#28a745', icon: '✅' }, // ✅ MUDANÇA: "Pronto" vira "Finalizado"
+    { value: 'cancelado', label: 'Cancelado', color: '#dc3545', icon: '❌' }
   ];
 
-  // ✅ ABAS DE PEDIDOS ORGANIZADAS
+  // ✅ 2. ATUALIZAR AS ABAS DE PEDIDOS para refletir os novos status
   const orderTabs = [
     { 
       id: 'pendentes', 
       label: '⏳ Pendentes', 
-      count: pedidos.filter(p => ['pendente', 'em_preparo', 'pronto'].includes(p.status)).length,
+      count: pedidos.filter(p => p.status === 'pendente').length, // ✅ APENAS "pendente"
       description: 'Pedidos que precisam de ação'
     },
     { 
       id: 'finalizados', 
       label: '✅ Finalizados', 
-      count: pedidos.filter(p => p.status === 'entregue').length,
-      description: 'Pedidos entregues com sucesso'
+      count: pedidos.filter(p => p.status === 'pronto').length, // ✅ APENAS "pronto"
+      description: 'Pedidos finalizados'
     },
     { 
       id: 'cancelados', 
@@ -77,13 +74,13 @@ const AdminPage = ({ onNavigate }) => {
     }
   ];
 
-  // ✅ FUNÇÃO PARA FILTRAR PEDIDOS POR ABA
+  // ✅ 3. CORRIGIR FUNÇÃO DE FILTRAR PEDIDOS
   const getPedidosPorAba = (tabId) => {
     switch (tabId) {
       case 'pendentes':
-        return pedidos.filter(p => ['pendente', 'em_preparo', 'pronto'].includes(p.status));
+        return pedidos.filter(p => p.status === 'pendente'); // ✅ APENAS "pendente"
       case 'finalizados':
-        return pedidos.filter(p => p.status === 'entregue');
+        return pedidos.filter(p => p.status === 'pronto'); // ✅ APENAS "pronto" 
       case 'cancelados':
         return pedidos.filter(p => p.status === 'cancelado');
       case 'todos':
@@ -93,21 +90,121 @@ const AdminPage = ({ onNavigate }) => {
     }
   };
 
-  // ✅ FUNÇÃO PARA OBTER STATUS DISPONÍVEIS POR ABA
+  // ✅ 4. SIMPLIFICAR STATUS DISPONÍVEIS POR ABA
   const getStatusDisponiveis = (tabId) => {
-    switch (tabId) {
-      case 'pendentes':
-        return statusPedidos.filter(s => ['pendente', 'em_preparo', 'pronto', 'entregue', 'cancelado'].includes(s.value));
-      case 'finalizados':
-        return statusPedidos.filter(s => ['entregue', 'pendente'].includes(s.value)); // Permite "reabrir" pedido
-      case 'cancelados':
-        return statusPedidos.filter(s => ['cancelado', 'pendente'].includes(s.value)); // Permite "reabrir" pedido
-      default:
-        return statusPedidos;
+    // ✅ TODOS têm acesso aos 3 status principais
+    return statusPedidos; // Retorna sempre os 3 status: pendente, pronto, cancelado
+  };
+
+  // ✅ 5. CORRIGIR O useEffect QUE CALCULA PEDIDOS PENDENTES
+  useEffect(() => {
+    const totalPedidos = pedidos.length;
+    const pedidosPendentes = pedidos.filter(p => p.status === 'pendente').length; // ✅ APENAS "pendente"
+    
+    console.log(`🔄 Stats recalculadas: Total=${totalPedidos}, Pendentes=${pedidosPendentes}`);
+    console.log('📋 Pedidos por status:', pedidos.reduce((acc, p) => {
+      acc[p.status] = (acc[p.status] || 0) + 1;
+      return acc;
+    }, {}));
+
+    setStats(prevStats => ({
+      ...prevStats,
+      totalPedidos: totalPedidos,
+      pedidosPendentes: pedidosPendentes
+    }));
+
+  }, [pedidos]);
+
+  // ✅ 6. CORRIGIR FUNÇÃO DE ALTERAR STATUS
+  const alterarStatusPedido = async (pedidoId, novoStatus) => {
+    try {
+      console.log(`🔄 Iniciando alteração de status...`);
+      console.log(`📋 ID recebido: ${pedidoId} (tipo: ${typeof pedidoId})`);
+      console.log(`📝 Novo status: ${novoStatus}`);
+      
+      let pedidoExistente = pedidos.find(p => String(p.id) === String(pedidoId));
+      
+      if (!pedidoExistente) {
+        pedidoExistente = pedidos.find(p => p.numero === pedidoId || String(p.numero) === String(pedidoId));
+      }
+      
+      if (!pedidoExistente) {
+        console.error('❌ Pedido não encontrado no estado local:', pedidoId);
+        await loadPedidos();
+        alert('Lista de pedidos atualizada. Tente novamente.');
+        return;
+      }
+      
+      console.log(`✅ Pedido encontrado: #${pedidoExistente.numero} (ID: ${pedidoExistente.id})`);
+      
+      // ✅ VALIDAÇÃO DO STATUS COM NOVOS STATUS
+      const statusValido = statusPedidos.find(s => s.value === novoStatus);
+      if (!statusValido) {
+        console.error('❌ Status inválido:', novoStatus);
+        alert('Erro: Status inválido selecionado');
+        return;
+      }
+      
+      console.log(`🔄 Chamando pedidoService.atualizarStatusPedido com ID: ${pedidoExistente.id}`);
+      
+      const resultado = await pedidoService.atualizarStatusPedido(pedidoExistente.id, novoStatus);
+      
+      console.log('📥 Resultado do service:', resultado);
+      
+      if (resultado.success) {
+        console.log('✅ Status atualizado com sucesso no backend');
+        
+        // ✅ ATUALIZA O ESTADO LOCAL
+        setPedidos(prevPedidos => {
+          const novosPedidos = prevPedidos.map(pedido => 
+            String(pedido.id) === String(pedidoExistente.id) 
+              ? { ...pedido, status: novoStatus } 
+              : pedido
+          );
+          console.log('🔄 Estado local atualizado');
+          
+          // ✅ LOG PARA DEBUG
+          const pedidosPendentesAposUpdate = novosPedidos.filter(p => p.status === 'pendente').length;
+          console.log('📊 Pedidos pendentes após update:', pedidosPendentesAposUpdate);
+          
+          return novosPedidos;
+        });
+        
+        const statusInfo = statusPedidos.find(s => s.value === novoStatus);
+        
+        // ✅ AUTO-NAVEGAÇÃO SIMPLIFICADA
+        if (novoStatus === 'pronto') {
+          setActiveOrderTab('finalizados');
+          alert(`✅ Pedido #${pedidoExistente.numero} finalizado! Movido para "Finalizados"`);
+        } else if (novoStatus === 'cancelado') {
+          setActiveOrderTab('cancelados');
+          alert(`❌ Pedido #${pedidoExistente.numero} cancelado! Movido para "Cancelados"`);
+        } else if (novoStatus === 'pendente') {
+          setActiveOrderTab('pendentes');
+          alert(`⏳ Pedido #${pedidoExistente.numero} alterado para: Pendente`);
+        }
+        
+        // ✅ RECARREGA ESTATÍSTICAS
+        calcularEstatisticas();
+        
+      } else {
+        console.error('❌ Erro retornado pelo service:', resultado.error);
+        
+        if (resultado.error?.includes('not found') || resultado.error?.includes('não encontrado')) {
+          alert(`Erro: Pedido #${pedidoExistente.numero} não foi encontrado no banco de dados. Recarregando a lista...`);
+          await loadPedidos();
+        } else if (resultado.error?.includes('permission') || resultado.error?.includes('unauthorized')) {
+          alert('Erro: Sem permissão para alterar este pedido. Verifique sua autenticação.');
+        } else {
+          alert(`Erro ao alterar status do pedido #${pedidoExistente.numero}: ${resultado.error}`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro inesperado ao alterar status:', error);
+      alert(`Erro inesperado ao alterar status do pedido. Detalhes: ${error.message}`);
     }
   };
 
-  // ✅ FUNÇÃO DE CARREGAMENTO DE PEDIDOS COM MELHOR DEBUG
   const loadPedidos = useCallback(async () => {
     try {
       console.log('🔍 Carregando pedidos do Firebase...');
@@ -132,8 +229,8 @@ const AdminPage = ({ onNavigate }) => {
         // ✅ Ordena pedidos: pendentes primeiro, depois por data mais recente
         const pedidosOrdenados = resultado.data.sort((a, b) => {
           // Primeiro critério: status (pendentes primeiro)
-          const statusPriorityA = ['pendente', 'em_preparo', 'pronto'].includes(a.status) ? 0 : 1;
-          const statusPriorityB = ['pendente', 'em_preparo', 'pronto'].includes(b.status) ? 0 : 1;
+          const statusPriorityA = a.status === 'pendente' ? 0 : 1;
+          const statusPriorityB = b.status === 'pendente' ? 0 : 1;
           
           if (statusPriorityA !== statusPriorityB) {
             return statusPriorityA - statusPriorityB;
@@ -156,11 +253,12 @@ const AdminPage = ({ onNavigate }) => {
 
   const calcularEstatisticas = useCallback(async () => {
     try {
+      // Esta função agora foca apenas no que vem do backend, como vendas.
       const resultado = await pedidoService.obterEstatisticas();
       if (resultado.success) {
         setStats(prev => ({
           ...prev,
-          totalPedidos: resultado.data.totalPedidos,
+          // totalPedidos será calculado pelo useEffect
           totalVendas: resultado.data.totalVendas,
           pedidosHoje: resultado.data.pedidosHoje,
         }));
@@ -375,108 +473,6 @@ const AdminPage = ({ onNavigate }) => {
     setShowAddProduct(true);
   };
 
-  // ✅ FUNÇÃO ATUALIZADA DE ALTERAR STATUS COM CORREÇÕES
-  const alterarStatusPedido = async (pedidoId, novoStatus) => {
-    try {
-      console.log(`🔄 Iniciando alteração de status...`);
-      console.log(`📋 ID recebido: ${pedidoId} (tipo: ${typeof pedidoId})`);
-      console.log(`📝 Novo status: ${novoStatus}`);
-      
-      // ✅ BUSCA MAIS ROBUSTA - tenta com diferentes tipos
-      let pedidoExistente = pedidos.find(p => String(p.id) === String(pedidoId));
-      
-      if (!pedidoExistente) {
-        // Tenta buscar por número do pedido como fallback
-        pedidoExistente = pedidos.find(p => p.numero === pedidoId || String(p.numero) === String(pedidoId));
-      }
-      
-      if (!pedidoExistente) {
-        console.error('❌ Pedido não encontrado no estado local:', pedidoId);
-        console.log('📊 Pedidos disponíveis:', pedidos.map(p => ({ 
-          id: p.id, 
-          numero: p.numero, 
-          tipo_id: typeof p.id,
-          tipo_numero: typeof p.numero 
-        })));
-        
-        // ✅ RECARREGA OS PEDIDOS EM VEZ DE RECARREGAR A PÁGINA
-        console.log('🔄 Recarregando lista de pedidos...');
-        await loadPedidos();
-        alert('Lista de pedidos atualizada. Tente novamente.');
-        return;
-      }
-      
-      console.log(`✅ Pedido encontrado: #${pedidoExistente.numero} (ID: ${pedidoExistente.id})`);
-      
-      // ✅ VALIDAÇÃO DO STATUS
-      const statusValido = statusPedidos.find(s => s.value === novoStatus);
-      if (!statusValido) {
-        console.error('❌ Status inválido:', novoStatus);
-        alert('Erro: Status inválido selecionado');
-        return;
-      }
-      
-      console.log(`🔄 Chamando pedidoService.atualizarStatusPedido com ID: ${pedidoExistente.id}`);
-      
-      // ✅ USA O ID CORRETO DO PEDIDO ENCONTRADO
-      const resultado = await pedidoService.atualizarStatusPedido(pedidoExistente.id, novoStatus);
-      
-      console.log('📥 Resultado do service:', resultado);
-      
-      if (resultado.success) {
-        console.log('✅ Status atualizado com sucesso no backend');
-        
-        // ✅ ATUALIZA O ESTADO LOCAL USANDO O ID CORRETO
-        setPedidos(prevPedidos => {
-          const novosPedidos = prevPedidos.map(pedido => 
-            String(pedido.id) === String(pedidoExistente.id) 
-              ? { ...pedido, status: novoStatus } 
-              : pedido
-          );
-          console.log('🔄 Estado local atualizado');
-          return novosPedidos;
-        });
-        
-        const statusInfo = statusPedidos.find(s => s.value === novoStatus);
-        
-        // ✅ AUTO-NAVEGAÇÃO PARA ABA CORRESPONDENTE
-        if (novoStatus === 'entregue') {
-          setActiveOrderTab('finalizados');
-          alert(`✅ Pedido #${pedidoExistente.numero} finalizado! Movido para "Finalizados"`);
-        } else if (novoStatus === 'cancelado') {
-          setActiveOrderTab('cancelados');
-          alert(`❌ Pedido #${pedidoExistente.numero} cancelado! Movido para "Cancelados"`);
-        } else if (['pendente', 'em_preparo', 'pronto'].includes(novoStatus)) {
-          setActiveOrderTab('pendentes');
-          alert(`${statusInfo.icon} Status do pedido #${pedidoExistente.numero} alterado para: ${statusInfo.label}`);
-        } else {
-          alert(`Status do pedido #${pedidoExistente.numero} alterado para: ${statusInfo.label}`);
-        }
-        
-        // ✅ RECARREGA ESTATÍSTICAS
-        calcularEstatisticas();
-        
-      } else {
-        console.error('❌ Erro retornado pelo service:', resultado.error);
-        
-        // ✅ TRATAMENTO DE ERROS ESPECÍFICOS
-        if (resultado.error?.includes('not found') || resultado.error?.includes('não encontrado')) {
-          alert(`Erro: Pedido #${pedidoExistente.numero} não foi encontrado no banco de dados. Recarregando a lista...`);
-          await loadPedidos(); // Recarrega a lista de pedidos
-        } else if (resultado.error?.includes('permission') || resultado.error?.includes('unauthorized')) {
-          alert('Erro: Sem permissão para alterar este pedido. Verifique sua autenticação.');
-        } else {
-          alert(`Erro ao alterar status do pedido #${pedidoExistente.numero}: ${resultado.error}`);
-        }
-      }
-    } catch (error) {
-      console.error('❌ Erro inesperado ao alterar status:', error);
-      console.error('🔍 Stack trace:', error.stack);
-      alert(`Erro inesperado ao alterar status do pedido. Detalhes: ${error.message}`);
-    }
-  };
-
-  // ✅ FUNÇÃO ATUALIZADA DE EXCLUIR PEDIDO COM MESMAS CORREÇÕES
   const excluirPedido = async (pedidoId) => {
     // Busca mais robusta
     let pedido = pedidos.find(p => String(p.id) === String(pedidoId));
@@ -593,7 +589,7 @@ const AdminPage = ({ onNavigate }) => {
           
           .label {
             font-weight: bold;
-            color: #009245;
+            color: '#009245';
           }
           
           .items-table {
@@ -605,7 +601,7 @@ const AdminPage = ({ onNavigate }) => {
           }
           
           .items-table th {
-            background-color: #009245;
+            background-color: '#009245';
             color: white;
             padding: 8px;
             text-align: left;
@@ -619,32 +615,32 @@ const AdminPage = ({ onNavigate }) => {
           }
           
           .items-table tr:nth-child(even) {
-            background-color: #f8f9fa;
+            background-color: '#f8f9fa';
           }
           
           .items-table tfoot {
-            background-color: #e8f5e8;
+            background-color: '#e8f5e8';
             font-weight: bold;
           }
           
           .total-section {
-            background-color: #e8f5e8;
+            background-color: '#e8f5e8';
             padding: 12px;
             border-radius: 6px;
             text-align: right;
-            border: 2px solid #009245;
+            border: 2px solid '#009245';
             margin-bottom: 15px;
           }
           
           .total-value {
             font-size: 20px;
             font-weight: bold;
-            color: #009245;
+            color: '#009245';
           }
           
           .endereco-section, .obs-section {
-            background-color: #fff3cd;
-            border: 1px solid #ffeaa7;
+            background-color: '#fff3cd';
+            border: 1px solid '#ffeaa7';
             padding: 10px;
             border-radius: 6px;
             margin: 12px 0;
@@ -652,19 +648,19 @@ const AdminPage = ({ onNavigate }) => {
           }
           
           .obs-section {
-            background-color: #d1ecf1;
-            border-color: #bee5eb;
+            background-color: '#d1ecf1';
+            border-color: '#bee5eb';
           }
           
           .section-title {
             font-weight: bold;
-            color: #856404;
+            color: '#856404';
             margin-bottom: 6px;
             font-size: 12px;
           }
           
           .obs-section .section-title {
-            color: #0c5460;
+            color: '#0c5460';
           }
           
           .footer {
@@ -672,7 +668,7 @@ const AdminPage = ({ onNavigate }) => {
             margin-top: 20px;
             padding-top: 15px;
             border-top: 1px solid #ddd;
-            color: #666;
+            color: '#666';
             font-size: 11px;
           }
           
@@ -1109,87 +1105,118 @@ useEffect(() => {
         maxWidth: '1200px',
         margin: '0 auto'
       }}>
-        {/* Dashboard Tab */}
-        {activeTab === 'dashboard' && (
-          <div>
-            <h1 style={{ color: '#343a40', marginBottom: '30px' }}>📊 Dashboard</h1>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-              gap: '20px',
-              marginBottom: '30px'
-            }}>
-              <div style={{
-                backgroundColor: 'white',
-                padding: '25px',
-                borderRadius: '10px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '40px', marginBottom: '10px' }}>📦</div>
-                <h3 style={{ color: '#28a745', margin: '0 0 5px 0' }}>Total de Pedidos</h3>
-                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
-                  {stats.totalPedidos}
-                </div>
-              </div>
-              <div style={{
-                backgroundColor: 'white',
-                padding: '25px',
-                borderRadius: '10px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '40px', marginBottom: '10px' }}>💰</div>
-                <h3 style={{ color: '#007bff', margin: '0 0 5px 0' }}>Total de Vendas</h3>
-                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
-                  R$ {stats.totalVendas.toFixed(2)}
-                </div>
-              </div>
-              <div style={{
-                backgroundColor: 'white',
-                padding: '25px',
-                borderRadius: '10px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '40px', marginBottom: '10px' }}>🏢</div>
-                <h3 style={{ color: '#ffc107', margin: '0 0 5px 0' }}>Empresas Cadastradas</h3>
-                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
-                  {stats.empresasCadastradas}
-                </div>
-              </div>
-              <div style={{
-                backgroundColor: 'white',
-                padding: '25px',
-                borderRadius: '10px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '40px', marginBottom: '10px' }}>🍽️</div>
-                <h3 style={{ color: '#dc3545', margin: '0 0 5px 0' }}>Produtos Ativos</h3>
-                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
-                  {produtos.filter(p => p.disponivel).length}
-                </div>
-              </div>
-              <div style={{
-                backgroundColor: 'white',
-                padding: '25px',
-                borderRadius: '10px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '40px', marginBottom: '10px' }}>📧</div>
-                <h3 style={{ color: '#17a2b8', margin: '0 0 5px 0' }}>Empresas c/ Email</h3>
-                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
-                  {stats.empresasComEmail}
-                </div>
-                <div style={{ fontSize: '12px', color: '#666' }}>
-                  {stats.percentualEmails.toFixed(1)}% do total
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* ✅ DASHBOARD TAB COMPLETO */}
+{activeTab === 'dashboard' && (
+  <div>
+    <h1 style={{ color: '#343a40', marginBottom: '30px' }}>📊 Dashboard</h1>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+      gap: '20px',
+      marginBottom: '30px'
+    }}>
+      {/* Total de Pedidos Geral */}
+      <div style={{
+        backgroundColor: 'white',
+        padding: '25px',
+        borderRadius: '10px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        textAlign: 'center'
+      }}>
+        <div style={{ fontSize: '40px', marginBottom: '10px' }}>📦</div>
+        <h3 style={{ color: '#6c757d', margin: '0 0 5px 0' }}>Total de Pedidos</h3>
+        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
+          {stats.totalPedidos}
+        </div>
+        <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+          Todos os pedidos do site
+        </div>
+      </div>
+
+      {/* ✅ NOVO: Pedidos Pendentes */}
+      <div style={{
+        backgroundColor: 'white',
+        padding: '25px',
+        borderRadius: '10px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        textAlign: 'center',
+        border: stats.pedidosPendentes > 0 ? '2px solid #ffc107' : 'none'
+      }}>
+        <div style={{ fontSize: '40px', marginBottom: '10px' }}>⏳</div>
+        <h3 style={{ color: '#ffc107', margin: '0 0 5px 0' }}>Pedidos Pendentes</h3>
+        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
+          {stats.pedidosPendentes}
+        </div>
+        <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+          Aguardando ação
+        </div>
+      </div>
+
+      {/* Total de Vendas */}
+      <div style={{
+        backgroundColor: 'white',
+        padding: '25px',
+        borderRadius: '10px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        textAlign: 'center'
+      }}>
+        <div style={{ fontSize: '40px', marginBottom: '10px' }}>💰</div>
+        <h3 style={{ color: '#007bff', margin: '0 0 5px 0' }}>Total de Vendas</h3>
+        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
+          R$ {stats.totalVendas.toFixed(2)}
+        </div>
+      </div>
+
+      {/* Empresas Cadastradas */}
+      <div style={{
+        backgroundColor: 'white',
+        padding: '25px',
+        borderRadius: '10px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        textAlign: 'center'
+      }}>
+        <div style={{ fontSize: '40px', marginBottom: '10px' }}>🏢</div>
+        <h3 style={{ color: '#28a745', margin: '0 0 5px 0' }}>Empresas Cadastradas</h3>
+        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
+          {stats.empresasCadastradas}
+        </div>
+      </div>
+
+      {/* Produtos Ativos */}
+      <div style={{
+        backgroundColor: 'white',
+        padding: '25px',
+        borderRadius: '10px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        textAlign: 'center'
+      }}>
+        <div style={{ fontSize: '40px', marginBottom: '10px' }}>🍽️</div>
+        <h3 style={{ color: '#dc3545', margin: '0 0 5px 0' }}>Produtos Ativos</h3>
+        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
+          {produtos.filter(p => p.disponivel).length}
+        </div>
+      </div>
+
+      {/* Empresas com Email */}
+      <div style={{
+        backgroundColor: 'white',
+        padding: '25px',
+        borderRadius: '10px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        textAlign: 'center'
+      }}>
+        <div style={{ fontSize: '40px', marginBottom: '10px' }}>📧</div>
+        <h3 style={{ color: '#17a2b8', margin: '0 0 5px 0' }}>Empresas c/ Email</h3>
+        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
+          {stats.empresasComEmail}
+        </div>
+        <div style={{ fontSize: '12px', color: '#666' }}>
+          {stats.percentualEmails.toFixed(1)}% do total
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
         {/* Produtos Tab */}
         {activeTab === 'produtos' && (
@@ -1659,7 +1686,7 @@ useEffect(() => {
                         padding: '25px',
                         borderRadius: '10px',
                         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                        border: activeOrderTab === 'pendentes' && ['pendente', 'em_preparo'].includes(pedido.status) 
+                        border: activeOrderTab === 'pendentes' && pedido.status === 'pendente'
                           ? '2px solid #ffc107' : 'none'
                       }}
                     >
