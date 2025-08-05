@@ -287,7 +287,7 @@ export const pedidoService = {
           numero: pedido.numero,
           total: pedido.total,
           status: pedido.status,
-          data: pedido.data_pedido,
+          data: pedido.data_pedido?.toDate ? pedido.data_pedido.toDate() : new Date(pedido.data_pedido || Date.now()),
           itens: pedido.itens,
           enderecoEntrega: pedido.endereco_entrega,
           observacoes: pedido.observacoes,
@@ -512,7 +512,7 @@ export const pedidoService = {
         endereco_entrega: dadosPedido.enderecoEntrega,
         observacoes: dadosPedido.observacoes,
         metodo_pagamento: dadosPedido.metodoPagamento,
-        data_pedido: serverTimestamp(),
+        data_pedido: new Date(),
         status: 'pendente'
     };
     console.log('ETAPA 3: Objeto do pedido montado e pronto para inserção.', novoPedido);
@@ -608,7 +608,7 @@ export const pedidoService = {
         numero: pedido.numero,
         total: pedido.total,
         status: pedido.status,
-        data: pedido.data_pedido,
+        data: pedido.data_pedido?.toDate ? pedido.data_pedido.toDate() : new Date(pedido.data_pedido || Date.now()),
         itens: pedido.itens,
         enderecoEntrega: pedido.endereco_entrega,
         observacoes: pedido.observacoes,
@@ -784,7 +784,7 @@ export const pedidoService = {
           empresa_nome: pedido.empresa_nome,
           total: pedido.total,
           status: pedido.status,
-          data: pedido.data_pedido,
+          data: pedido.data_pedido?.toDate ? pedido.data_pedido.toDate() : pedido.data_pedido,
           itens: pedido.itens,
           enderecoEntrega: pedido.endereco_entrega,
           observacoes: pedido.observacoes,

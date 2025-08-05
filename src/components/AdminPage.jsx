@@ -270,8 +270,8 @@ const AdminPage = ({ onNavigate }) => {
           
           // Segundo critério: data mais recente primeiro
           try {
-            const dataA = new Date(a.data || a.created_at || Date.now());
-            const dataB = new Date(b.data || b.created_at || Date.now());
+            const dataA = a.data_pedido?.toDate ? a.data_pedido.toDate() : new Date(a.data_pedido || Date.now());
+            const dataB = b.data_pedido?.toDate ? b.data_pedido.toDate() : new Date(b.data_pedido || Date.now());
             return dataB - dataA;
           } catch (error) {
             console.error('Erro ao ordenar por data:', error);
@@ -871,29 +871,43 @@ const AdminPage = ({ onNavigate }) => {
     }
   };
   
-  const formatarDataCompleta = (dataString) => {
-    if (!dataString) return 'Data não informada';
+  const formatarDataCompleta = (dataInput) => {
+    if (!dataInput) return 'Data não informada';
     
     try {
       let data;
       
-      // ✅ Tenta diferentes formatos de data
-      if (dataString.includes('T')) {
-        // Formato ISO: "2024-01-15T10:30:00.000Z"
-        data = new Date(dataString);
-      } else if (dataString.includes('/')) {
-        // Formato brasileiro: "15/01/2024 10:30"
-        const [datePart, timePart = '00:00'] = dataString.split(' ');
-        const [day, month, year] = datePart.split('/');
-        data = new Date(`${year}-${month}-${day}T${timePart}`);
-      } else {
-        // Tenta parsear diretamente
-        data = new Date(dataString);
+      // ✅ Se é um Timestamp do Firebase
+      if (dataInput && typeof dataInput.toDate === 'function') {
+        data = dataInput.toDate();
+      }
+      // ✅ Se é uma string
+      else if (typeof dataInput === 'string') {
+        if (dataInput.includes('T')) {
+          // Formato ISO: "2024-01-15T10:30:00.000Z"
+          data = new Date(dataInput);
+        } else if (dataInput.includes('/')) {
+          // Formato brasileiro: "15/01/2024 10:30"
+          const [datePart, timePart = '00:00'] = dataInput.split(' ');
+          const [day, month, year] = datePart.split('/');
+          data = new Date(`${year}-${month}-${day}T${timePart}`);
+        } else {
+          // Tenta parsear diretamente
+          data = new Date(dataInput);
+        }
+      }
+      // ✅ Se já é um objeto Date
+      else if (dataInput instanceof Date) {
+        data = dataInput;
+      }
+      // ✅ Fallback
+      else {
+        data = new Date(dataInput);
       }
       
       // ✅ Verifica se a data é válida
       if (isNaN(data.getTime())) {
-        console.error('Data inválida recebida:', dataString);
+        console.error('Data inválida recebida:', dataInput);
         return 'Data inválida';
       }
       
@@ -908,7 +922,7 @@ const AdminPage = ({ onNavigate }) => {
       });
       
     } catch (error) {
-      console.error('Erro ao formatar data:', error, 'Data:', dataString);
+      console.error('Erro ao formatar data:', error, 'Data:', dataInput);
       return 'Data inválida';
     }
   };
@@ -942,7 +956,7 @@ useEffect(() => {
   try {
     // ✅ Configura listener para pedidos em tempo real
     const pedidosRef = collection(db, 'pedidos');
-    const q = query(pedidosRef, orderBy('data', 'desc'));
+    const q = query(pedidosRef, orderBy('data_pedido', 'desc'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       console.log('🔄 Mudanças detectadas nos pedidos:', snapshot.docChanges().length);

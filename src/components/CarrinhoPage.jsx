@@ -331,7 +331,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         })),
         subtotal: calcularSubtotal(),
         taxaEntrega: calcularTaxaEntrega(),
-        total: calcularTotal(),
+        total: calcularSubtotal(),
         enderecoEntrega: formatarEnderecoCompleto(),
         observacoes: observacoes || '',
         metodoPagamento: 'whatsapp'
