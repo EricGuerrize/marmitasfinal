@@ -981,11 +981,6 @@ useEffect(() => {
           calcularEstatisticas();
           
           // Navega para aba de pedidos pendentes se novo pedido
-          if (activeTab !== 'pedidos') {
-            console.log('🔔 Novo pedido! Navegando para aba de pedidos...');
-            setActiveTab('pedidos');
-            setActiveOrderTab('pendentes');
-          }
           
           // Notificação visual (opcional)
           if (Notification.permission === 'granted') {
