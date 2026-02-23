@@ -7,7 +7,7 @@ import {
     updateProfile,
     onAuthStateChanged
   } from 'firebase/auth';
-  import { doc, setDoc, getDoc, getDocs, collection, updateDoc } from 'firebase/firestore';
+  import { doc, setDoc, getDoc, getDocs, collection, updateDoc, query, where } from 'firebase/firestore';
   import { auth, db } from '../lib/firebase';
   
   // Converter CNPJ para email fictício (Firebase exige email)
@@ -33,8 +33,23 @@ import {
           };
         }
   
-        const email = cnpjToEmail(cnpj);
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        // Tenta login com email real (contas novas), fallback para email fictício (contas antigas)
+        let userCredential = null;
+        const emailReal = await this.buscarEmailPorCnpj(cnpj);
+        if (emailReal) {
+          try {
+            userCredential = await signInWithEmailAndPassword(auth, emailReal, password);
+          } catch (e) {
+            // Fallback para contas antigas com email fictício
+            if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
+              userCredential = await signInWithEmailAndPassword(auth, cnpjToEmail(cnpj), password);
+            } else {
+              throw e;
+            }
+          }
+        } else {
+          userCredential = await signInWithEmailAndPassword(auth, cnpjToEmail(cnpj), password);
+        }
         
         // Buscar dados completos do usuário no Firestore
         const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
@@ -98,7 +113,8 @@ import {
           };
         }
   
-        const firebaseEmail = cnpjToEmail(cnpj);
+        // Usa email real para Firebase Auth (permite reset de senha funcionar)
+        const firebaseEmail = email || cnpjToEmail(cnpj);
         const userCredential = await createUserWithEmailAndPassword(auth, firebaseEmail, password);
         
         // Salvar dados completos no Firestore
@@ -230,6 +246,57 @@ import {
       }
     },
   
+    // Busca email real no Firestore pelo CNPJ
+    async buscarEmailPorCnpj(cnpj) {
+      try {
+        const cleanCnpj = cnpj.replace(/[^\d]/g, '');
+        const usersRef = collection(db, 'users');
+
+        // Tenta com CNPJ limpo
+        const q1 = query(usersRef, where('cnpj', '==', cleanCnpj));
+        const snap1 = await getDocs(q1);
+        if (!snap1.empty) return snap1.docs[0].data().email || null;
+
+        // Tenta com CNPJ formatado
+        const cnpjFormatado = cleanCnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+        const q2 = query(usersRef, where('cnpj', '==', cnpjFormatado));
+        const snap2 = await getDocs(q2);
+        if (!snap2.empty) return snap2.docs[0].data().email || null;
+
+        return null;
+      } catch (error) {
+        console.error('Erro ao buscar email por CNPJ:', error);
+        return null;
+      }
+    },
+
+    // Reset de senha pelo CNPJ — envia link para o email real cadastrado
+    async resetPasswordByCnpj(cnpj) {
+      try {
+        if (!isValidCnpj(cnpj)) {
+          return { success: false, error: 'CNPJ inválido' };
+        }
+
+        const emailReal = await this.buscarEmailPorCnpj(cnpj);
+        if (!emailReal) {
+          return { success: false, error: 'CNPJ não encontrado. Verifique se está correto.' };
+        }
+
+        await sendPasswordResetEmail(auth, emailReal);
+
+        // Mascara o email para exibição (ex: em***@gmail.com)
+        const [user, domain] = emailReal.split('@');
+        const emailMascarado = user.substring(0, 2) + '***@' + domain;
+
+        return { success: true, emailMascarado };
+      } catch (error) {
+        if (error.code === 'auth/user-not-found') {
+          return { success: false, error: 'Conta não encontrada. Este CNPJ pode ter sido cadastrado em um sistema anterior. Entre em contato com o suporte.' };
+        }
+        return { success: false, error: 'Erro ao enviar email. Tente novamente.' };
+      }
+    },
+
     // ✅ MÉTODO LOGOUT (RENOMEADO DE signOut)
     async logout() {
       try {
