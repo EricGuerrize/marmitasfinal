@@ -1,5 +1,5 @@
 // src/hooks/useCep.js
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 export const useCep = () => {
   const [endereco, setEndereco] = useState({
@@ -14,9 +14,45 @@ export const useCep = () => {
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const latestRequestRef = useRef(0);
+
+  const fetchComTimeout = async (url, timeoutMs = 7000) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  const normalizarCepData = (provider, data) => {
+    if (provider === 'viacep') {
+      if (data.erro) return null;
+      return {
+        cep: data.cep || '',
+        rua: data.logradouro || '',
+        bairro: data.bairro || '',
+        cidade: data.localidade || '',
+        estado: data.uf || ''
+      };
+    }
+
+    if (provider === 'brasilapi') {
+      return {
+        cep: data.cep || '',
+        rua: data.street || '',
+        bairro: data.neighborhood || '',
+        cidade: data.city || '',
+        estado: data.state || ''
+      };
+    }
+
+    return null;
+  };
 
   /**
-   * Busca CEP na API ViaCEP
+   * Busca CEP com fallback entre provedores
    */
   const buscarCep = useCallback(async (cep) => {
     if (!cep || cep.length < 8) return;
@@ -24,55 +60,98 @@ export const useCep = () => {
     const cepLimpo = cep.replace(/\D/g, '');
     if (cepLimpo.length !== 8) return;
     
+    const requestId = Date.now();
+    latestRequestRef.current = requestId;
     setLoading(true);
     setError('');
     
     try {
-      const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
-      const data = await response.json();
-      
-      if (data.erro) {
-        setError('CEP não encontrado');
+      const providers = [
+        { name: 'brasilapi', url: `https://brasilapi.com.br/api/cep/v1/${cepLimpo}` },
+        { name: 'viacep', url: `https://viacep.com.br/ws/${cepLimpo}/json/` }
+      ];
+
+      let enderecoEncontrado = null;
+      let cepInvalido = false;
+
+      for (const provider of providers) {
+        try {
+          const response = await fetchComTimeout(provider.url);
+          if (!response.ok) {
+            continue;
+          }
+
+          const data = await response.json();
+          const normalizado = normalizarCepData(provider.name, data);
+
+          if (!normalizado) {
+            cepInvalido = true;
+            continue;
+          }
+
+          enderecoEncontrado = normalizado;
+          break;
+        } catch {
+          // tenta próximo provider sem quebrar o fluxo
+        }
+      }
+
+      if (latestRequestRef.current !== requestId) return;
+
+      if (!enderecoEncontrado) {
+        const enderecoJaPreenchido = Boolean(endereco.rua?.trim() && endereco.cidade?.trim());
+        if (!enderecoJaPreenchido) {
+          setError(cepInvalido ? 'CEP não encontrado' : 'Não foi possível consultar o CEP agora. Preencha manualmente.');
+        }
         return;
       }
-      
+
       setEndereco(prev => ({
         ...prev,
-        cep: data.cep,
-        rua: data.logradouro || prev.rua,
-        bairro: data.bairro || prev.bairro,
-        cidade: data.localidade || prev.cidade,
-        estado: data.uf || prev.estado
+        cep: enderecoEncontrado.cep || prev.cep,
+        rua: enderecoEncontrado.rua || prev.rua,
+        bairro: enderecoEncontrado.bairro || prev.bairro,
+        cidade: enderecoEncontrado.cidade || prev.cidade,
+        estado: enderecoEncontrado.estado || prev.estado
       }));
-      
+
+      setError('');
     } catch (err) {
-      setError('Erro ao buscar CEP');
+      if (latestRequestRef.current !== requestId) return;
+      const enderecoJaPreenchido = Boolean(endereco.rua?.trim() && endereco.cidade?.trim());
+      if (!enderecoJaPreenchido) {
+        setError('Não foi possível consultar o CEP agora. Preencha manualmente.');
+      }
       console.error('Erro CEP:', err);
     } finally {
-      setLoading(false);
+      if (latestRequestRef.current === requestId) {
+        setLoading(false);
+      }
     }
-  }, []);
+  }, [endereco.cidade, endereco.rua]);
 
   /**
    * Atualiza campo específico do endereço
    */
   const atualizarCampo = useCallback((campo, valor) => {
-    setEndereco(prev => ({
-      ...prev,
-      [campo]: valor
-    }));
-    
     // Auto-busca CEP quando completo
     if (campo === 'cep') {
       const cepFormatado = aplicarMascaraCep(valor);
       setEndereco(prev => ({ ...prev, cep: cepFormatado }));
+      if (error) setError('');
       
       const cepLimpo = valor.replace(/\D/g, '');
       if (cepLimpo.length === 8) {
         buscarCep(cepLimpo);
       }
+      return;
     }
-  }, [buscarCep]);
+
+    setEndereco(prev => ({
+      ...prev,
+      [campo]: valor
+    }));
+  }, [buscarCep, error]);
 
   /**
    * Aplica máscara de CEP
