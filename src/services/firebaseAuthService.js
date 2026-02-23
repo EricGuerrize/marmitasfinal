@@ -147,7 +147,7 @@ import {
         let errorMessage = 'Erro no cadastro';
         
         if (error.code === 'auth/email-already-in-use') {
-          errorMessage = 'CNPJ já cadastrado';
+          errorMessage = 'Este CNPJ já possui cadastro. Caso não lembre a senha, use a opção "Esqueci minha senha" na tela de login.';
         } else if (error.code === 'auth/weak-password') {
           errorMessage = 'Senha muito fraca';
         }
@@ -279,7 +279,10 @@ import {
 
         const emailReal = await this.buscarEmailPorCnpj(cnpj);
         if (!emailReal) {
-          return { success: false, error: 'CNPJ não encontrado. Verifique se está correto.' };
+          return {
+            success: false,
+            error: 'CNPJ não encontrado ou cadastrado sem email vinculado. Entre em contato pelo WhatsApp (21) 96429-8123 para redefinir sua senha.'
+          };
         }
 
         await sendPasswordResetEmail(auth, emailReal);
