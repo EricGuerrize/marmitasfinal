@@ -264,9 +264,19 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
 
   useEffect(() => {
     if (erroCep) {
+      const enderecoJaPreenchido = Boolean(
+        endereco.rua?.trim() &&
+        endereco.bairro?.trim() &&
+        endereco.cidade?.trim()
+      );
+
+      if (enderecoJaPreenchido) {
+        return;
+      }
+
       showError(`Erro no CEP: ${erroCep}`);
     }
-  }, [erroCep, showError]);
+  }, [erroCep, endereco.rua, endereco.bairro, endereco.cidade, showError]);
 
   const calcularSubtotal = () => {
     return carrinho.reduce((total, item) => total + (item.preco * item.quantidade), 0);
