@@ -259,55 +259,65 @@ import {
       }
     },
   
-    // Busca email real no Firestore pelo CNPJ
+    // Busca email real no Firestore pelo CNPJ (users e empresas)
     async buscarEmailPorCnpj(cnpj) {
-      try {
-        const cleanCnpj = cnpj.replace(/[^\d]/g, '');
-        const usersRef = collection(db, 'users');
+      const cleanCnpj = cnpj.replace(/[^\d]/g, '');
+      const cnpjFormatado = cleanCnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+      const variantes = [cleanCnpj, cnpjFormatado, cnpj.trim()];
 
-        // Tenta com CNPJ limpo
-        const q1 = query(usersRef, where('cnpj', '==', cleanCnpj));
-        const snap1 = await getDocs(q1);
-        if (!snap1.empty) return snap1.docs[0].data().email || null;
+      // Busca nas coleções users e empresas
+      const colecoes = ['users', 'empresas'];
 
-        // Tenta com CNPJ formatado
-        const cnpjFormatado = cleanCnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
-        const q2 = query(usersRef, where('cnpj', '==', cnpjFormatado));
-        const snap2 = await getDocs(q2);
-        if (!snap2.empty) return snap2.docs[0].data().email || null;
-
-        return null;
-      } catch (error) {
-        console.error('Erro ao buscar email por CNPJ:', error);
-        return null;
+      for (const colecao of colecoes) {
+        for (const variante of variantes) {
+          try {
+            const q = query(collection(db, colecao), where('cnpj', '==', variante));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+              const email = snap.docs[0].data().email;
+              if (email) return email;
+            }
+          } catch (e) {
+            // ignora erros de permissão por variante e tenta a próxima
+          }
+        }
       }
+      return null;
     },
 
     // Reset de senha pelo CNPJ — envia link para o email real cadastrado
-    async resetPasswordByCnpj(cnpj) {
+    // emailFornecido: fallback caso não encontre no Firestore
+    async resetPasswordByCnpj(cnpj, emailFornecido = '') {
       try {
         if (!isValidCnpj(cnpj)) {
           return { success: false, error: 'CNPJ inválido' };
         }
 
-        const emailReal = await this.buscarEmailPorCnpj(cnpj);
-        if (!emailReal) {
+        // Tenta buscar email no Firestore; usa o fornecido como fallback
+        let emailParaEnviar = await this.buscarEmailPorCnpj(cnpj);
+        if (!emailParaEnviar && emailFornecido) {
+          emailParaEnviar = emailFornecido.trim().toLowerCase();
+        }
+
+        if (!emailParaEnviar) {
           return {
             success: false,
-            error: 'CNPJ não encontrado ou cadastrado sem email vinculado. Entre em contato pelo WhatsApp (21) 96429-8123 para redefinir sua senha.'
+            error: 'Não foi possível localizar o email vinculado a este CNPJ. Informe seu email no campo abaixo.'
           };
         }
 
-        await sendPasswordResetEmail(auth, emailReal);
+        await sendPasswordResetEmail(auth, emailParaEnviar);
 
-        // Mascara o email para exibição (ex: em***@gmail.com)
-        const [user, domain] = emailReal.split('@');
+        const [user, domain] = emailParaEnviar.split('@');
         const emailMascarado = user.substring(0, 2) + '***@' + domain;
 
         return { success: true, emailMascarado };
       } catch (error) {
-        if (error.code === 'auth/user-not-found') {
-          return { success: false, error: 'Conta não encontrada. Este CNPJ pode ter sido cadastrado em um sistema anterior. Entre em contato com o suporte.' };
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') {
+          return {
+            success: false,
+            error: 'Email não encontrado no sistema. Verifique se o email informado é o mesmo do cadastro.'
+          };
         }
         return { success: false, error: 'Erro ao enviar email. Tente novamente.' };
       }

@@ -4,6 +4,8 @@ import { firebaseAuthService } from '../services/firebaseAuthService';
 const ForgotPasswordPage = ({ onNavigate }) => {
   const [etapa, setEtapa] = useState('cnpj'); // cnpj | enviado
   const [cnpj, setCnpj] = useState('');
+  const [email, setEmail] = useState('');
+  const [mostrarEmail, setMostrarEmail] = useState(false);
   const [emailMascarado, setEmailMascarado] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -31,16 +33,27 @@ const ForgotPasswordPage = ({ onNavigate }) => {
       setError('Digite um CNPJ válido com 14 dígitos');
       return;
     }
+    if (mostrarEmail && !email.trim()) {
+      setError('Digite seu email cadastrado');
+      return;
+    }
 
     setLoading(true);
     setError('');
     try {
-      const res = await firebaseAuthService.resetPasswordByCnpj(cnpj);
+      const res = await firebaseAuthService.resetPasswordByCnpj(cnpj, email);
+
       if (res.success) {
         setEmailMascarado(res.emailMascarado);
         setEtapa('enviado');
       } else {
-        setError(res.error);
+        // Se o erro pede para informar o email, mostra o campo
+        if (!mostrarEmail && res.error.includes('Informe seu email')) {
+          setMostrarEmail(true);
+          setError('Email não encontrado automaticamente. Digite seu email abaixo.');
+        } else {
+          setError(res.error);
+        }
       }
     } catch {
       setError('Erro inesperado. Tente novamente.');
@@ -106,7 +119,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
                 <div style={{ fontSize: '48px', marginBottom: '15px' }}>🔐</div>
                 <h2 style={{ color: '#009245', marginBottom: '8px' }}>Esqueceu sua senha?</h2>
                 <p style={{ color: '#666', fontSize: '14px', margin: 0 }}>
-                  Digite seu CNPJ. Enviaremos um link de redefinição para o email cadastrado.
+                  Digite seu CNPJ para receber o link de redefinição no email cadastrado.
                 </p>
               </div>
 
@@ -118,11 +131,32 @@ const ForgotPasswordPage = ({ onNavigate }) => {
                   type="text"
                   value={cnpj}
                   onChange={(e) => setCnpj(formatarCnpj(e.target.value))}
-                  onKeyDown={(e) => e.key === 'Enter' && enviarReset()}
+                  onKeyDown={(e) => e.key === 'Enter' && !mostrarEmail && enviarReset()}
                   placeholder="00.000.000/0000-00"
                   style={inputStyle}
                 />
               </div>
+
+              {/* Campo de email — aparece se não encontrar automaticamente */}
+              {mostrarEmail && (
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '14px' }}>
+                    Seu Email Cadastrado
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && enviarReset()}
+                    placeholder="empresa@exemplo.com"
+                    autoFocus
+                    style={inputStyle}
+                  />
+                  <small style={{ color: '#666', fontSize: '12px' }}>
+                    Digite o email que usou no cadastro
+                  </small>
+                </div>
+              )}
 
               {error && (
                 <div style={{
@@ -150,18 +184,22 @@ const ForgotPasswordPage = ({ onNavigate }) => {
               <div style={{ fontSize: '64px', marginBottom: '20px' }}>📧</div>
               <h2 style={{ color: '#009245', marginBottom: '12px' }}>Email enviado!</h2>
               <p style={{ color: '#555', fontSize: '15px', lineHeight: '1.6', marginBottom: '10px' }}>
-                Enviamos um link de redefinição de senha para:
+                Enviamos um link de redefinição para:
               </p>
               <p style={{ color: '#009245', fontWeight: 'bold', fontSize: '16px', marginBottom: '20px' }}>
                 {emailMascarado}
               </p>
               <p style={{ color: '#666', fontSize: '13px', marginBottom: '30px', lineHeight: '1.5' }}>
-                Verifique sua caixa de entrada (e a pasta de spam). O link expira em <strong>1 hora</strong>.
+                Verifique sua caixa de entrada (e a pasta de spam).<br />
+                O link expira em <strong>1 hora</strong>.
               </p>
               <button onClick={() => onNavigate('home')} style={btnPrimary(false)}>
                 Voltar ao Login
               </button>
-              <button onClick={() => { setEtapa('cnpj'); setError(''); setCnpj(''); }} style={btnSecondary}>
+              <button
+                onClick={() => { setEtapa('cnpj'); setError(''); setCnpj(''); setEmail(''); setMostrarEmail(false); }}
+                style={btnSecondary}
+              >
                 Tentar outro CNPJ
               </button>
             </div>
