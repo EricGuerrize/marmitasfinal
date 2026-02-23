@@ -8,7 +8,7 @@ import {
     updateEmail,
     onAuthStateChanged
   } from 'firebase/auth';
-  import { doc, setDoc, getDoc, getDocs, collection, updateDoc, query, where } from 'firebase/firestore';
+  import { doc, setDoc, getDoc, getDocs, collection, updateDoc, query, where, limit } from 'firebase/firestore';
   import { auth, db } from '../lib/firebase';
   
   // Converter CNPJ para email fictício (Firebase exige email)
@@ -271,7 +271,7 @@ import {
       for (const colecao of colecoes) {
         for (const variante of variantes) {
           try {
-            const q = query(collection(db, colecao), where('cnpj', '==', variante));
+            const q = query(collection(db, colecao), where('cnpj', '==', variante), limit(1));
             const snap = await getDocs(q);
             if (!snap.empty) {
               const email = snap.docs[0].data().email;
