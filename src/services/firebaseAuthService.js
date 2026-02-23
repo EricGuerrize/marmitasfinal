@@ -285,39 +285,31 @@ import {
       return null;
     },
 
-    // Reset de senha pelo CNPJ — envia link para o email real cadastrado
-    // emailFornecido: fallback caso não encontre no Firestore
-    async resetPasswordByCnpj(cnpj, emailFornecido = '') {
+    // Reset de senha: envia link Firebase diretamente para o email informado
+    async resetPasswordByCnpj(cnpj, email) {
       try {
         if (!isValidCnpj(cnpj)) {
           return { success: false, error: 'CNPJ inválido' };
         }
-
-        // Tenta buscar email no Firestore; usa o fornecido como fallback
-        let emailParaEnviar = await this.buscarEmailPorCnpj(cnpj);
-        if (!emailParaEnviar && emailFornecido) {
-          emailParaEnviar = emailFornecido.trim().toLowerCase();
+        if (!email || !email.trim()) {
+          return { success: false, error: 'Informe o email cadastrado' };
         }
 
-        if (!emailParaEnviar) {
-          return {
-            success: false,
-            error: 'Não foi possível localizar o email vinculado a este CNPJ. Informe seu email no campo abaixo.'
-          };
-        }
+        const emailLimpo = email.trim().toLowerCase();
+        await sendPasswordResetEmail(auth, emailLimpo);
 
-        await sendPasswordResetEmail(auth, emailParaEnviar);
-
-        const [user, domain] = emailParaEnviar.split('@');
+        const [user, domain] = emailLimpo.split('@');
         const emailMascarado = user.substring(0, 2) + '***@' + domain;
-
         return { success: true, emailMascarado };
       } catch (error) {
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') {
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
           return {
             success: false,
-            error: 'Email não encontrado no sistema. Verifique se o email informado é o mesmo do cadastro.'
+            error: 'Email não encontrado. Verifique se digitou o email correto do cadastro.'
           };
+        }
+        if (error.code === 'auth/invalid-email') {
+          return { success: false, error: 'Email inválido.' };
         }
         return { success: false, error: 'Erro ao enviar email. Tente novamente.' };
       }

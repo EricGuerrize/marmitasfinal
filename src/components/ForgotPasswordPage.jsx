@@ -5,7 +5,6 @@ const ForgotPasswordPage = ({ onNavigate }) => {
   const [etapa, setEtapa] = useState('cnpj'); // cnpj | enviado
   const [cnpj, setCnpj] = useState('');
   const [email, setEmail] = useState('');
-  const [mostrarEmail, setMostrarEmail] = useState(false);
   const [emailMascarado, setEmailMascarado] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -33,7 +32,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
       setError('Digite um CNPJ válido com 14 dígitos');
       return;
     }
-    if (mostrarEmail && !email.trim()) {
+    if (!email.trim()) {
       setError('Digite seu email cadastrado');
       return;
     }
@@ -47,13 +46,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
         setEmailMascarado(res.emailMascarado);
         setEtapa('enviado');
       } else {
-        // Se o erro pede para informar o email, mostra o campo
-        if (!mostrarEmail && res.error.includes('Informe seu email')) {
-          setMostrarEmail(true);
-          setError('Email não encontrado automaticamente. Digite seu email abaixo.');
-        } else {
-          setError(res.error);
-        }
+        setError(res.error);
       }
     } catch {
       setError('Erro inesperado. Tente novamente.');
@@ -131,32 +124,28 @@ const ForgotPasswordPage = ({ onNavigate }) => {
                   type="text"
                   value={cnpj}
                   onChange={(e) => setCnpj(formatarCnpj(e.target.value))}
-                  onKeyDown={(e) => e.key === 'Enter' && !mostrarEmail && enviarReset()}
+                  onKeyDown={(e) => e.key === 'Enter' && enviarReset()}
                   placeholder="00.000.000/0000-00"
                   style={inputStyle}
                 />
               </div>
 
-              {/* Campo de email — aparece se não encontrar automaticamente */}
-              {mostrarEmail && (
-                <div style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '14px' }}>
-                    Seu Email Cadastrado
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && enviarReset()}
-                    placeholder="empresa@exemplo.com"
-                    autoFocus
-                    style={inputStyle}
-                  />
-                  <small style={{ color: '#666', fontSize: '12px' }}>
-                    Digite o email que usou no cadastro
-                  </small>
-                </div>
-              )}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', fontSize: '14px' }}>
+                  Email Cadastrado
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && enviarReset()}
+                  placeholder="empresa@exemplo.com"
+                  style={inputStyle}
+                />
+                <small style={{ color: '#666', fontSize: '12px' }}>
+                  Digite o email que você usou no cadastro
+                </small>
+              </div>
 
               {error && (
                 <div style={{
@@ -197,7 +186,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
                 Voltar ao Login
               </button>
               <button
-                onClick={() => { setEtapa('cnpj'); setError(''); setCnpj(''); setEmail(''); setMostrarEmail(false); }}
+                onClick={() => { setEtapa('cnpj'); setError(''); setCnpj(''); setEmail(''); }}
                 style={btnSecondary}
               >
                 Tentar outro CNPJ
