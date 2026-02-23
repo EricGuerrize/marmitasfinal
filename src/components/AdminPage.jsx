@@ -17,7 +17,7 @@ const AdminPage = ({ onNavigate }) => {
   const [empresasCadastradas, setEmpresasCadastradas] = useState([]);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingImage] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   
@@ -199,8 +199,6 @@ const AdminPage = ({ onNavigate }) => {
           
           return novosPedidos;
         });
-        
-        const statusInfo = statusPedidos.find(s => s.value === novoStatus);
         
         // ✅ AUTO-NAVEGAÇÃO SIMPLIFICADA
         if (novoStatus === 'pronto') {
@@ -551,7 +549,6 @@ const AdminPage = ({ onNavigate }) => {
   };
 
   const imprimirPedido = (pedido) => {
-    const statusInfo = getStatusInfo(pedido.status);
     const dataFormatada = formatarDataCompleta(pedido.data);
     const dataGeracao = formatarDataCompleta(new Date().toISOString());
     

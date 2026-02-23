@@ -7,8 +7,6 @@ import LogoComponent from './LogoComponent';
 // ✅ ADICIONADO: Importações dos serviços
 import { pedidoService } from '../services/pedidoService'; 
 import { firebaseAuthService } from '../services/firebaseAuthService';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../services/firebaseConfig';
 
 // ✅ COMPONENTE SIMPLES PARA IMAGEM DO CARRINHO
 const ImagemProdutoCarrinho = ({ produto, isMobile }) => {
