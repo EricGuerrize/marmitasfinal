@@ -99,6 +99,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
 
   // ✅ NOVO: useEffect para buscar dados da sessão
   useEffect(() => {
+    let cancelado = false;
+
     const buscarDadosSessao = async () => {
       try {
         console.log('🔍 Buscando dados da sessão...');
@@ -186,18 +188,22 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         }
         
         // ✅ ÚLTIMO RECURSO: Erro
+        if (cancelado) return;
         console.error('❌ Nenhuma sessão encontrada');
         showError("Sessão inválida. Por favor, faça o login novamente.");
         setTimeout(() => onNavigate('home'), 2000);
-        
+
       } catch (error) {
+        if (cancelado) return;
         console.error('❌ Erro ao buscar sessão:', error);
         showError("Erro ao carregar dados da sessão.");
         setTimeout(() => onNavigate('home'), 2000);
       }
     };
-    
+
     buscarDadosSessao();
+
+    return () => { cancelado = true; };
   }, [onNavigate, showError]);
 
   useEffect(() => {

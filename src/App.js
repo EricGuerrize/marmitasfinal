@@ -1,6 +1,6 @@
 // src/App.js - COM INICIALIZAÇÃO DE SEGURANÇA E CORREÇÃO DE IMAGENS
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import HomePage from './components/HomePage';
 import ProsseguirPage from './components/ProsseguirPage';
 import CnpjNaoCadastrado from './components/CnpjNaoCadastrado';
@@ -148,7 +148,7 @@ function AppContent() {
   }, [carrinho, securityInitialized, showError]);
 
   // Função para navegar entre páginas com validação
-  const navigate = (page) => {
+  const navigate = useCallback((page) => {
     // Lista de páginas válidas para prevenir navegação maliciosa
     const validPages = [
       'home', 'prosseguir', 'cnpj-nao-cadastrado', 'pedido-produtos',
@@ -163,7 +163,7 @@ function AppContent() {
       securityUtils.safeLog(`Tentativa de navegação inválida bloqueada: ${page}`);
       showError('Página não encontrada');
     }
-  };
+  }, [showError]);
 
   // ✅ FUNÇÃO CORRIGIDA PARA ADICIONAR AO CARRINHO
   const adicionarAoCarrinho = (produto, quantidadeAdicionar = 1) => {

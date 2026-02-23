@@ -146,8 +146,14 @@ import {
     // ✅ MÉTODO VERIFICAR SESSÃO (CORRIGIDO)
     async verificarSessao() {
       try {
-        const user = auth.currentUser;
-        
+        // Aguarda o Firebase Auth terminar de inicializar (fix race condition)
+        const user = await new Promise((resolve) => {
+          const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+            unsubscribe();
+            resolve(firebaseUser);
+          });
+        });
+
         // ✅ VERIFICAÇÃO MAIS RIGOROSA
         if (!user) {
           console.log('🚫 Nenhum usuário autenticado no Firebase');
