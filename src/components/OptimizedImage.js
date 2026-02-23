@@ -59,6 +59,7 @@ const OptimizedImage = ({
     img.onload = () => setIsLoaded(true);
     img.onerror = () => setHasError(true);
     img.src = optimizedSrc;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInView, src, isMobile, hasError]);
 
   const containerStyle = {

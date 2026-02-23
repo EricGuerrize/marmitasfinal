@@ -6,9 +6,8 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc, 
-  query, 
-  where, 
-  orderBy 
+  query,
+  where
 } from 'firebase/firestore';
 import { db } from './firebaseConfig.js';
 const COLLECTION_NAME = 'produtos';

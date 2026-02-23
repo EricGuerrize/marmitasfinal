@@ -2,7 +2,7 @@
 import { db } from '../lib/firebase';
 import {
   collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc,
-  query, where, orderBy, serverTimestamp, writeBatch, onSnapshot
+  query, where, orderBy, serverTimestamp, onSnapshot
 } from 'firebase/firestore';
 import { cnpjService } from './cnpjService';
 
@@ -43,14 +43,6 @@ const localStorageAsync = {
       }, 0);
     });
   }
-};
-
-// ✅ Helper para timeout em operações
-const withTimeout = (promise, ms = 5000) => {
-  const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Timeout')), ms)
-  );
-  return Promise.race([promise, timeout]);
 };
 
 // ✅ Helper para operações batch no localStorage (evita múltiplas gravações)

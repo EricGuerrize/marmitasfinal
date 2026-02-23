@@ -50,6 +50,7 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
     setSessaoAtiva(sessao);
     
     carregarPedidos(sessao);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onNavigate]);
 // ConsultaPedidosPage.jsx - SUBSTITUA a função carregarPedidos (linha ~50):
 

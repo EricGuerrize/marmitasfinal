@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { securityUtils } from '../utils/securityUtils';
 import LogoComponent from './LogoComponent';
-import { db } from '../lib/firebase.js';
 
 
 const HomePage = ({ onNavigate }) => {

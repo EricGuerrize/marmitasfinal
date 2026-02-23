@@ -7,7 +7,7 @@ import {
     updateProfile,
     onAuthStateChanged
   } from 'firebase/auth';
-  import { doc, setDoc, getDoc, getDocs, collection, updateDoc, query, where } from 'firebase/firestore';
+  import { doc, setDoc, getDoc, getDocs, collection, updateDoc } from 'firebase/firestore';
   import { auth, db } from '../lib/firebase';
   
   // Converter CNPJ para email fictício (Firebase exige email)

@@ -11,7 +11,7 @@ export const securityUtils = {
   sanitizeInput: (input, options = {}) => {
     if (!input || typeof input !== 'string') return '';
     
-    const { maxLength = 500, allowSpecialChars = true } = options;
+    const { maxLength = 500 } = options;
     
     let sanitized = input.trim();
     
@@ -110,7 +110,7 @@ export const securityUtils = {
     // Para client-side, usamos btoa com salt
     // Em produção real, isso deveria ser feito no backend
     const combined = text + salt;
-    return btoa(combined).replace(/[+=\/]/g, '');
+    return btoa(combined).replace(/[+=/]/g, '');
   },
 
   /**
