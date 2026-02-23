@@ -105,6 +105,10 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         
         // Tenta buscar da sessão atual
         const sessao = await firebaseAuthService.verificarSessao();
+        const sessaoAutenticadaSemEmpresa = Boolean(
+          sessao?.hasAuthButNoCompanyData ||
+          (sessao?.isAuthenticated && !sessao?.cnpj && !sessao?.empresa?.cnpj)
+        );
         
         console.log('📦 Sessão recebida:', sessao);
         
@@ -157,8 +161,34 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           }
         }
         
-        // ✅ FALLBACK: Tenta do sessionStorage
+        // ✅ FALLBACK 1: empresaLogada (chave canônica atual)
         console.log('🔄 Tentando fallback do sessionStorage...');
+        const empresaLogadaRaw = sessionStorage.getItem('empresaLogada');
+        if (empresaLogadaRaw) {
+          try {
+            const empresaLogada = JSON.parse(empresaLogadaRaw);
+            const cnpjEmpresaLogada = empresaLogada.cnpj || empresaLogada.cnpj_formatado || '';
+            if (cnpjEmpresaLogada) {
+              const dadosEmpresaStorage = {
+                cnpj: cnpjEmpresaLogada,
+                cnpjFormatado: empresaLogada.cnpj_formatado || cnpjEmpresaLogada,
+                nomeEmpresa: empresaLogada.nome_empresa || empresaLogada.nome_fantasia || empresaLogada.razao_social || 'Empresa',
+                razaoSocial: empresaLogada.razao_social || empresaLogada.nome_empresa || empresaLogada.nome_fantasia || 'Empresa',
+                email: empresaLogada.email || ''
+              };
+
+              console.log('✅ Usando empresaLogada do sessionStorage:', dadosEmpresaStorage);
+              setDadosEmpresa(dadosEmpresaStorage);
+              sessionStorage.setItem('cnpj', dadosEmpresaStorage.cnpj);
+              sessionStorage.setItem('nomeFantasia', dadosEmpresaStorage.nomeEmpresa);
+              return;
+            }
+          } catch (error) {
+            console.error('Erro ao parse empresaLogada:', error);
+          }
+        }
+
+        // ✅ FALLBACK 2: chaves legadas
         const cnpjInfo = sessionStorage.getItem('cnpj');
         const nomeFantasia = sessionStorage.getItem('nomeFantasia');
         const sessaoAtiva = sessionStorage.getItem('sessaoAtiva');
@@ -187,8 +217,13 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         
         // ✅ ÚLTIMO RECURSO: Erro
         if (cancelado) return;
-        console.error('❌ Nenhuma sessão encontrada');
-        showError("Sessão inválida. Por favor, faça o login novamente.");
+        if (sessaoAutenticadaSemEmpresa) {
+          console.error('❌ Usuário autenticado sem dados de empresa');
+          showError("Dados da empresa ausentes. Faça login novamente ou contate o suporte.");
+        } else {
+          console.error('❌ Nenhuma sessão encontrada');
+          showError("Sessão inválida. Por favor, faça o login novamente.");
+        }
         setTimeout(() => onNavigate('home'), 2000);
 
       } catch (error) {

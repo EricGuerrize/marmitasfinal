@@ -22,6 +22,83 @@ import {
     const cleanCnpj = cnpj.replace(/[^\d]/g, '');
     return cleanCnpj.length === 14;
   };
+
+  const parseStorageJson = (value) => {
+    if (!value) return null;
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const getFirstNonEmpty = (...values) => {
+    for (const value of values) {
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    return '';
+  };
+
+  const normalizeEmpresaData = (...sources) => {
+    const validSources = sources.filter((source) => source && typeof source === 'object');
+
+    const cnpj = getFirstNonEmpty(
+      ...validSources.map((source) => source.cnpj),
+      ...validSources.map((source) => source.cnpjFormatado),
+      ...validSources.map((source) => source.cnpj_formatado)
+    );
+
+    const cnpjFormatado = getFirstNonEmpty(
+      ...validSources.map((source) => source.cnpjFormatado),
+      ...validSources.map((source) => source.cnpj_formatado),
+      cnpj
+    );
+
+    const nomeEmpresa = getFirstNonEmpty(
+      ...validSources.map((source) => source.nomeEmpresa),
+      ...validSources.map((source) => source.nomeFantasia),
+      ...validSources.map((source) => source.nome_fantasia),
+      ...validSources.map((source) => source.nome_empresa),
+      ...validSources.map((source) => source.razaoSocial),
+      ...validSources.map((source) => source.razao_social)
+    );
+
+    const razaoSocial = getFirstNonEmpty(
+      ...validSources.map((source) => source.razaoSocial),
+      ...validSources.map((source) => source.razao_social),
+      ...validSources.map((source) => source.nome_empresa),
+      nomeEmpresa
+    );
+
+    const email = getFirstNonEmpty(
+      ...validSources.map((source) => source.email)
+    );
+
+    const tipoUsuario = getFirstNonEmpty(
+      ...validSources.map((source) => source.tipoUsuario),
+      ...validSources.map((source) => source.tipo_usuario)
+    );
+
+    const telefone = getFirstNonEmpty(
+      ...validSources.map((source) => source.telefone)
+    );
+
+    const endereco = getFirstNonEmpty(
+      ...validSources.map((source) => source.endereco)
+    );
+
+    return {
+      cnpj,
+      cnpjFormatado,
+      nomeEmpresa,
+      razaoSocial,
+      email,
+      tipoUsuario,
+      telefone,
+      endereco
+    };
+  };
   
   export const firebaseAuthService = {
     // Login com CNPJ e senha
@@ -188,37 +265,63 @@ import {
           console.log('🚫 Nenhum usuário autenticado no Firebase');
           return { isAuthenticated: false, isAdmin: false };
         }
-  
-        // ✅ VERIFICAR SE HÁ DADOS DE EMPRESA VÁLIDOS
-        const dadosLocalStorage = localStorage.getItem('dadosEmpresaLogada');
-        const sessaoStorage = sessionStorage.getItem('empresaLogada');
-        
-        if (!dadosLocalStorage && !sessaoStorage) {
-          console.log('🚫 Nenhum dado de empresa encontrado no storage');
-          return { isAuthenticated: false, isAdmin: false };
-        }
-  
+
+        const dadosSessao = parseStorageJson(sessionStorage.getItem('empresaLogada'));
+        const dadosLocal = parseStorageJson(localStorage.getItem('dadosEmpresaLogada'));
+
         // Buscar dados do usuário no Firestore
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         const userData = userDoc.exists() ? userDoc.data() : {};
-  
-        // Verificar se é admin
-        let isAdmin = false;
-        if (dadosLocalStorage) {
-          try {
-            const dadosEmpresa = JSON.parse(dadosLocalStorage);
-            isAdmin = dadosEmpresa.tipo_usuario === 'admin';
-          } catch (error) {
-            console.error('Erro ao verificar dados localStorage:', error);
-          }
+
+        const dadosNormalizados = normalizeEmpresaData(dadosSessao, dadosLocal, userData);
+        const cnpjLimpo = dadosNormalizados.cnpj.replace(/\D/g, '');
+        const hasCompanyData = cnpjLimpo.length === 14;
+
+        if (!hasCompanyData) {
+          console.warn('⚠️ Usuário autenticado, mas sem dados mínimos de empresa');
+          return {
+            isAuthenticated: false,
+            isAdmin: false,
+            hasAuthButNoCompanyData: true,
+            user,
+            empresa: userData
+          };
         }
-  
+
+        const isAdmin = dadosNormalizados.tipoUsuario === 'admin' || cnpjLimpo === '05336475000177';
+        const tipoUsuario = dadosNormalizados.tipoUsuario || (isAdmin ? 'admin' : 'cliente');
+
+        const dadosPersistencia = {
+          ...dadosLocal,
+          ...dadosSessao,
+          ...userData,
+          cnpj: dadosNormalizados.cnpj,
+          cnpj_formatado: dadosNormalizados.cnpjFormatado || dadosNormalizados.cnpj,
+          nome_empresa: dadosNormalizados.nomeEmpresa || dadosNormalizados.razaoSocial || '',
+          razao_social: dadosNormalizados.razaoSocial || dadosNormalizados.nomeEmpresa || '',
+          nome_fantasia: dadosNormalizados.nomeEmpresa || '',
+          email: dadosNormalizados.email || '',
+          tipo_usuario: tipoUsuario,
+          ultimo_acesso: new Date().toISOString()
+        };
+
+        sessionStorage.setItem('empresaLogada', JSON.stringify(dadosPersistencia));
+        localStorage.setItem('dadosEmpresaLogada', JSON.stringify(dadosPersistencia));
+
         console.log('✅ Sessão válida encontrada');
         return {
           isAuthenticated: true,
-          isAdmin: isAdmin,
-          user: user,
-          empresa: userData
+          isAdmin,
+          user,
+          empresa: userData,
+          cnpj: dadosNormalizados.cnpj,
+          cnpjFormatado: dadosNormalizados.cnpjFormatado || dadosNormalizados.cnpj,
+          nomeEmpresa: dadosNormalizados.nomeEmpresa || dadosNormalizados.razaoSocial,
+          razaoSocial: dadosNormalizados.razaoSocial || dadosNormalizados.nomeEmpresa,
+          email: dadosNormalizados.email,
+          tipoUsuario,
+          telefone: dadosNormalizados.telefone,
+          endereco: dadosNormalizados.endereco
         };
       } catch (error) {
         console.error('Erro ao verificar sessão:', error);

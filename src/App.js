@@ -28,18 +28,33 @@ function AppContent() {
         // 1. Força HTTPS em produção
         securityUtils.enforceHTTPS();
         
-        // 2. Limpa dados sensíveis de sessões anteriores se necessário
-        const sessao = sessionStorage.getItem('sessaoEmpresa');
-        if (sessao) {
+        // 2. Valida apenas chaves de sessão atuais (sem limpar todo o storage)
+        const parseStorageJson = (value) => {
+          if (!value) return null;
           try {
-            const sessaoData = JSON.parse(sessao);
-            if (!securityUtils.validateSession(sessaoData)) {
-              securityUtils.safeLog('Sessão inválida detectada, limpando...');
-              sessionStorage.clear();
-            }
+            const parsed = JSON.parse(value);
+            return parsed && typeof parsed === 'object' ? parsed : null;
           } catch {
-            sessionStorage.clear();
+            return null;
           }
+        };
+
+        const hasValidCompanyData = (data) => {
+          if (!data || typeof data !== 'object') return false;
+          const cnpj = String(data.cnpj || data.cnpj_formatado || data.cnpjFormatado || '');
+          return cnpj.replace(/\D/g, '').length === 14;
+        };
+
+        const sessaoAtual = sessionStorage.getItem('empresaLogada');
+        if (sessaoAtual && !hasValidCompanyData(parseStorageJson(sessaoAtual))) {
+          securityUtils.safeLog('empresaLogada inválida detectada, removendo...');
+          sessionStorage.removeItem('empresaLogada');
+        }
+
+        const dadosEmpresaLocal = localStorage.getItem('dadosEmpresaLogada');
+        if (dadosEmpresaLocal && !hasValidCompanyData(parseStorageJson(dadosEmpresaLocal))) {
+          securityUtils.safeLog('dadosEmpresaLogada inválido detectado, removendo...');
+          localStorage.removeItem('dadosEmpresaLogada');
         }
 
         // 3. Remove senha de admin hardcoded de logs/console em produção
@@ -52,7 +67,7 @@ function AppContent() {
         // 4. Adiciona listener para detectar tentativas de manipulação
         window.addEventListener('beforeunload', () => {
           // Limpa dados sensíveis ao sair
-          if (sessionStorage.getItem('sessaoEmpresa')) {
+          if (sessionStorage.getItem('empresaLogada') || localStorage.getItem('dadosEmpresaLogada')) {
             securityUtils.safeLog('Limpando sessão ao sair');
           }
         });

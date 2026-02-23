@@ -25,22 +25,20 @@ const ProsseguirPage = ({ onNavigate }) => {
         const sessao = await firebaseAuthService.verificarSessao();
         console.log('📦 Dados da sessão recebidos:', sessao);
         
-        // Verifica se tem sessão válida - o firebaseAuthService retorna null se não tiver
-        if (!sessao) {
+        if (!sessao?.isAuthenticated) {
           console.warn('⚠️ Sessão inválida ou expirada. Redirecionando para home.');
           onNavigate('home');
           return;
         }
         
-        // O firebaseAuthService já retorna os dados estruturados
         const userIsAdmin = sessao.isAdmin || sessao.tipoUsuario === 'admin';
         
         const sessaoData = {
-          cnpj: sessao.cnpj,
-          cnpjFormatado: sessao.cnpjFormatado,
-          nomeEmpresa: sessao.nomeEmpresa || sessao.razaoSocial,
-          razaoSocial: sessao.razaoSocial || sessao.nomeEmpresa,
-          email: sessao.email,
+          cnpj: sessao.cnpj || sessao.empresa?.cnpj || '',
+          cnpjFormatado: sessao.cnpjFormatado || sessao.empresa?.cnpjFormatado || sessao.empresa?.cnpj || '',
+          nomeEmpresa: sessao.nomeEmpresa || sessao.empresa?.nomeFantasia || sessao.empresa?.nome_empresa || sessao.razaoSocial || '',
+          razaoSocial: sessao.razaoSocial || sessao.empresa?.razaoSocial || sessao.empresa?.razao_social || sessao.nomeEmpresa || '',
+          email: sessao.email || sessao.empresa?.email || '',
           tipoUsuario: sessao.tipoUsuario,
           isAdmin: userIsAdmin,
           empresa: sessao.empresa
