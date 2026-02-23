@@ -1,10 +1,11 @@
 // services/firebaseAuthService.js
-import { 
+import {
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     signOut,
     sendPasswordResetEmail,
     updateProfile,
+    updateEmail,
     onAuthStateChanged
   } from 'firebase/auth';
   import { doc, setDoc, getDoc, getDocs, collection, updateDoc, query, where } from 'firebase/firestore';
@@ -51,6 +52,18 @@ import {
           userCredential = await signInWithEmailAndPassword(auth, cnpjToEmail(cnpj), password);
         }
         
+        // Migração silenciosa: se logou com email fictício mas tem email real no Firestore,
+        // atualiza o Firebase Auth para usar o email real (sem perda de dados)
+        if (emailReal && userCredential.user.email === cnpjToEmail(cnpj)) {
+          try {
+            await updateEmail(userCredential.user, emailReal);
+            console.log('✅ Email migrado para email real:', emailReal);
+          } catch (migrateErr) {
+            // Não bloqueia o login se a migração falhar
+            console.log('⚠️ Migração de email adiada:', migrateErr.code);
+          }
+        }
+
         // Buscar dados completos do usuário no Firestore
         const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
         const userData = userDoc.exists() ? userDoc.data() : {};
