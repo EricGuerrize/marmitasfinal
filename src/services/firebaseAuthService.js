@@ -285,7 +285,7 @@ import {
       return null;
     },
 
-    // Reset de senha: envia link Firebase diretamente para o email informado
+    // Reset de senha: verifica CNPJ + email antes de enviar o link
     async resetPasswordByCnpj(cnpj, email) {
       try {
         if (!isValidCnpj(cnpj)) {
@@ -296,6 +296,24 @@ import {
         }
 
         const emailLimpo = email.trim().toLowerCase();
+
+        // Verifica se o CNPJ está vinculado ao email informado
+        const emailCadastrado = await this.buscarEmailPorCnpj(cnpj);
+
+        if (!emailCadastrado) {
+          return {
+            success: false,
+            error: 'CNPJ não encontrado ou sem email cadastrado. Entre em contato com o suporte.'
+          };
+        }
+
+        if (emailCadastrado.toLowerCase() !== emailLimpo) {
+          return {
+            success: false,
+            error: 'O email não corresponde ao cadastrado para este CNPJ.'
+          };
+        }
+
         await sendPasswordResetEmail(auth, emailLimpo);
 
         const [user, domain] = emailLimpo.split('@');
@@ -305,7 +323,7 @@ import {
         if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
           return {
             success: false,
-            error: 'Email não encontrado. Verifique se digitou o email correto do cadastro.'
+            error: 'Email não encontrado no sistema de autenticação.'
           };
         }
         if (error.code === 'auth/invalid-email') {
