@@ -5,16 +5,16 @@ import { useCep } from '../hooks/useCep';
 import { useNotification } from './NotificationSystem';
 import LogoComponent from './LogoComponent';
 // ✅ ADICIONADO: Importações dos serviços
-import { pedidoService } from '../services/pedidoService'; 
+import { pedidoService } from '../services/pedidoService';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 
 // ✅ COMPONENTE SIMPLES PARA IMAGEM DO CARRINHO
 const ImagemProdutoCarrinho = ({ produto, isMobile }) => {
   const [imagemError, setImagemError] = useState(false);
-  
+
   // ✅ Usa diretamente imagem_url como no admin e produtos
   const imagemUrl = produto.imagem_url;
-  
+
   if (!imagemUrl || imagemError) {
     return (
       <div style={{
@@ -33,7 +33,7 @@ const ImagemProdutoCarrinho = ({ produto, isMobile }) => {
       </div>
     );
   }
-  
+
   return (
     <img
       src={imagemUrl}
@@ -51,28 +51,28 @@ const ImagemProdutoCarrinho = ({ produto, isMobile }) => {
 };
 
 const obterNumeroPedido = (pedido) => {
-  return pedido.numero || 
-         pedido.numeroPedido || 
-         pedido.id?.substring(0, 8) || 
-         'S/N';
+  return pedido.numero ||
+    pedido.numeroPedido ||
+    pedido.id?.substring(0, 8) ||
+    'S/N';
 };
 
 
 const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, limparCarrinho, calcularQuantidadeTotal }) => {
   // ✅ REMOVIDO: const [cnpj, setCnpj] = useState('');
-  
+
   const [observacoes, setObservacoes] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   const [processandoPedido, setProcessandoPedido] = useState(false);
   const [showWhatsAppFallback, setShowWhatsAppFallback] = useState(false);
   const [mensagemWhatsApp, setMensagemWhatsApp] = useState('');
-  
+
   // ✅ NOVO: Estado para dados da empresa
   const [dadosEmpresa, setDadosEmpresa] = useState(null);
-  
-  const { 
-    endereco, 
-    loading: buscandoCep, 
+
+  const {
+    endereco,
+    loading: buscandoCep,
     error: erroCep,
     atualizarCampo,
     validarEndereco,
@@ -85,14 +85,14 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     const checkMobile = () => {
       setIsMobile(window.innerWidth <= 768);
     };
-    
+
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    
+
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-    
+
 
 
   // ✅ NOVO: useEffect para buscar dados da sessão
@@ -102,16 +102,16 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     const buscarDadosSessao = async () => {
       try {
         console.log('🔍 Buscando dados da sessão...');
-        
+
         // Tenta buscar da sessão atual
         const sessao = await firebaseAuthService.verificarSessao();
         const sessaoAutenticadaSemEmpresa = Boolean(
           sessao?.hasAuthButNoCompanyData ||
           (sessao?.isAuthenticated && !sessao?.cnpj && !sessao?.empresa?.cnpj)
         );
-        
+
         console.log('📦 Sessão recebida:', sessao);
-        
+
         if (sessao && sessao.isAuthenticated) {
           // ✅ CORREÇÃO: Verifica se é admin
           /* if (sessao.isAdmin) {
@@ -120,17 +120,17 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             setTimeout(() => onNavigate('admin'), 2000);
             return;
           }*/
-          
+
           // ✅ CORREÇÃO: Busca dados da empresa corretamente
           let dadosEmpresaEncontrados = null;
-          
+
           // Opção 1: Dados diretos na sessão
           if (sessao.cnpj) {
             dadosEmpresaEncontrados = {
               cnpj: sessao.cnpj,
               cnpjFormatado: sessao.cnpjFormatado || sessao.cnpj,
-              nomeEmpresa: sessao.nomeEmpresa || sessao.empresa?.nomeFantasia || sessao.empresa?.nomeEmpresa || sessao.empresa?.nome_empresa || sessao.razaoSocial || sessao.empresa?.razaoSocial || '',
-              razaoSocial: sessao.razaoSocial || sessao.empresa?.razaoSocial || sessao.nomeEmpresa || '',
+              nomeEmpresa: sessao.nomeEmpresa || sessao.nome_empresa || sessao.nomeFantasia || sessao.nome_fantasia || sessao.razaoSocial || sessao.razao_social || sessao.empresa?.nomeEmpresa || sessao.empresa?.nome_empresa || sessao.empresa?.nomeFantasia || sessao.empresa?.nome_fantasia || sessao.empresa?.razaoSocial || sessao.empresa?.razao_social || '',
+              razaoSocial: sessao.razaoSocial || sessao.razao_social || sessao.nomeEmpresa || sessao.nome_empresa || sessao.nomeFantasia || sessao.nome_fantasia || sessao.empresa?.razaoSocial || sessao.empresa?.razao_social || sessao.empresa?.nomeEmpresa || sessao.empresa?.nome_empresa || sessao.empresa?.nomeFantasia || sessao.empresa?.nome_fantasia || '',
               email: sessao.email,
               telefone: sessao.telefone,
               endereco: sessao.endereco
@@ -141,26 +141,26 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             dadosEmpresaEncontrados = {
               cnpj: sessao.empresa.cnpj,
               cnpjFormatado: sessao.empresa.cnpjFormatado || sessao.empresa.cnpj,
-              nomeEmpresa: sessao.empresa.nomeEmpresa || sessao.empresa.nomeFantasia || sessao.empresa.nome_fantasia || sessao.empresa.nome_empresa || sessao.empresa.razaoSocial || '',
+              nomeEmpresa: sessao.empresa.nomeEmpresa || sessao.empresa.nome_empresa || sessao.empresa.nomeFantasia || sessao.empresa.nome_fantasia || sessao.empresa.razaoSocial || sessao.empresa.razao_social || '',
               razaoSocial: sessao.empresa.razaoSocial || sessao.empresa.razao_social || '',
               email: sessao.empresa.email,
               telefone: sessao.empresa.telefone,
               endereco: sessao.empresa.endereco
             };
           }
-          
+
           if (dadosEmpresaEncontrados) {
             console.log('✅ Dados da empresa encontrados:', dadosEmpresaEncontrados);
             setDadosEmpresa(dadosEmpresaEncontrados);
-            
+
             // Salva no sessionStorage para compatibilidade
             sessionStorage.setItem('cnpj', dadosEmpresaEncontrados.cnpj);
             sessionStorage.setItem('nomeFantasia', dadosEmpresaEncontrados.nomeEmpresa);
-            
+
             return;
           }
         }
-        
+
         // ✅ FALLBACK 1: empresaLogada (chave canônica atual)
         console.log('🔄 Tentando fallback do sessionStorage...');
         const empresaLogadaRaw = sessionStorage.getItem('empresaLogada');
@@ -172,8 +172,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               const dadosEmpresaStorage = {
                 cnpj: cnpjEmpresaLogada,
                 cnpjFormatado: empresaLogada.cnpj_formatado || cnpjEmpresaLogada,
-                nomeEmpresa: empresaLogada.nome_empresa || empresaLogada.nome_fantasia || empresaLogada.razao_social || 'Empresa',
-                razaoSocial: empresaLogada.razao_social || empresaLogada.nome_empresa || empresaLogada.nome_fantasia || 'Empresa',
+                nomeEmpresa: empresaLogada.nomeEmpresa || empresaLogada.nome_empresa || empresaLogada.nomeFantasia || empresaLogada.nome_fantasia || empresaLogada.razaoSocial || empresaLogada.razao_social || 'Empresa',
+                razaoSocial: empresaLogada.razaoSocial || empresaLogada.razao_social || empresaLogada.nomeEmpresa || empresaLogada.nome_empresa || empresaLogada.nomeFantasia || empresaLogada.nome_fantasia || 'Empresa',
                 email: empresaLogada.email || ''
               };
 
@@ -192,7 +192,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         const cnpjInfo = sessionStorage.getItem('cnpj');
         const nomeFantasia = sessionStorage.getItem('nomeFantasia');
         const sessaoAtiva = sessionStorage.getItem('sessaoAtiva');
-        
+
         if (cnpjInfo) {
           const dadosFallback = {
             cnpj: cnpjInfo,
@@ -200,7 +200,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             nomeEmpresa: nomeFantasia || 'Empresa',
             razaoSocial: nomeFantasia || 'Empresa'
           };
-          
+
           if (sessaoAtiva) {
             try {
               const sessaoData = JSON.parse(sessaoAtiva);
@@ -209,12 +209,12 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               console.error('Erro ao parse sessaoAtiva:', error);
             }
           }
-          
+
           console.log('✅ Usando dados de fallback:', dadosFallback);
           setDadosEmpresa(dadosFallback);
           return;
         }
-        
+
         // ✅ ÚLTIMO RECURSO: Erro
         if (cancelado) return;
         if (sessaoAutenticadaSemEmpresa) {
@@ -246,11 +246,11 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       onNavigate('pedido-produtos');
       return false;
     };
-    
+
     window.removeEventListener('popstate', handlePopState);
     window.addEventListener('popstate', handlePopState);
     window.history.pushState({ page: 'carrinho' }, '', window.location.pathname);
-    
+
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
@@ -295,12 +295,12 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
   const abrirWhatsAppCompleto = (mensagem) => {
     const numeroWhatsApp = '5521964298123';
     setMensagemWhatsApp(mensagem);
-    
+
     const isMobileDevice = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
+
     if (isMobileDevice) {
       const urlNativo = `whatsapp://send?phone=55${numeroWhatsApp}&text=${encodeURIComponent(mensagem)}`;
-      
+
       try {
         window.location.href = urlNativo;
         setTimeout(() => {
@@ -312,7 +312,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
     } else {
       const urlDesktop = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
       const novaJanela = window.open(urlDesktop, '_blank');
-      
+
       setTimeout(() => {
         if (!novaJanela || novaJanela.closed) {
           setShowWhatsAppFallback(true);
@@ -339,7 +339,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
   // ✅ FUNÇÃO PRINCIPAL CORRIGIDA - Confirmar e Enviar
   const confirmarEEnviarPedido = async () => {
     console.log('🚀 Iniciando confirmação do pedido...');
-    
+
     // 1. Validações iniciais
     if (carrinho.length === 0 || calcularQuantidadeTotal() < 30 || !validarEndereco().isValid || !dadosEmpresa) {
       showError('Carrinho está vazio!');
@@ -357,7 +357,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       showError(validacao.mensagem);
       return;
     }
-    
+
     if (!dadosEmpresa || !dadosEmpresa.cnpj) {
       showError("Erro: Dados da empresa não encontrados. Faça o login novamente.");
       return;
@@ -367,7 +367,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
 
     try {
       console.log('📝 Montando dados do pedido...');
-      
+
       // 2. Monta o objeto de dados para o serviço
       const dadosParaSalvar = {
         cnpj: dadosEmpresa.cnpj.replace(/\D/g, ''), // Remove máscara
@@ -425,13 +425,13 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           enderecoEntrega: dadosParaSalvar.enderecoEntrega,
           observacoes: dadosParaSalvar.observacoes
         };
-        
+
         pedidosAdmin.push(novoPedido);
         localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
       } catch (error) {
         console.error('Erro ao salvar backup no localStorage:', error);
       }
-      
+
       // 6. Formata a mensagem para o WhatsApp
       let mensagem = `*NOVO PEDIDO - FIT IN BOX*\n\n`;
       mensagem += `*Pedido:* #${obterNumeroPedido(resultado.pedido)}\n`;
@@ -439,38 +439,38 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       mensagem += `*CNPJ:* ${dadosEmpresa.cnpjFormatado || dadosEmpresa.cnpj}\n`;
       mensagem += `*Data:* ${new Date().toLocaleDateString('pt-BR', {
         day: '2-digit',
-        month: '2-digit', 
+        month: '2-digit',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
       })}\n\n`;
-      
+
       mensagem += `*ITENS DO PEDIDO:*\n`;
       dadosParaSalvar.itens.forEach(item => {
         mensagem += `• ${item.quantidade}x ${item.nome} - R$ ${(item.quantidade * item.preco).toFixed(2)}\n`;
       });
-      
+
       mensagem += `\n*RESUMO FINANCEIRO:*\n`;
       mensagem += `• Subtotal: R$ ${dadosParaSalvar.subtotal.toFixed(2)}\n`;
       mensagem += `• Taxa de entrega: ${dadosParaSalvar.taxaEntrega === 0 ? 'GRATIS' : `R$ ${dadosParaSalvar.taxaEntrega.toFixed(2)}`}\n`;
       mensagem += `• *TOTAL: R$ ${dadosParaSalvar.total.toFixed(2)}*\n\n`;
-      
+
       mensagem += `*ENDEREÇO DE ENTREGA:*\n${dadosParaSalvar.enderecoEntrega}\n\n`;
-      
+
       if (dadosParaSalvar.observacoes) {
         mensagem += `*OBSERVAÇÕES:*\n${dadosParaSalvar.observacoes}\n\n`;
       }
-      
+
       mensagem += `Aguardo confirmação!`;
 
       // 7. Abre o WhatsApp
       abrirWhatsAppCompleto(mensagem);
-      
+
       // 8. Limpa carrinho e navega
       setTimeout(() => {
         sessionStorage.removeItem('carrinho');
         limparCarrinho();
-        
+
         if (!showWhatsAppFallback) {
           success('Pedido enviado com sucesso!');
           onNavigate('pedido-confirmado');
@@ -538,7 +538,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           borderBottom: '1px solid #ccc',
           flexWrap: isMobile ? 'wrap' : 'nowrap'
         }}>
-          <LogoComponent 
+          <LogoComponent
             size={isMobile ? 'small' : 'medium'}
             showText={true}
           />
@@ -558,7 +558,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             }}>
               CNPJ: {dadosEmpresa.cnpjFormatado || dadosEmpresa.cnpj}
             </span>
-            <button 
+            <button
               onClick={continuarComprando}
               style={{
                 padding: isMobile ? '12px 20px' : '12px 20px',
@@ -594,13 +594,13 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             width: '100%'
           }}>
             <div style={{ fontSize: isMobile ? '60px' : '80px', marginBottom: '25px' }}>🛒</div>
-            <h2 style={{ 
-              color: '#666', 
+            <h2 style={{
+              color: '#666',
               marginBottom: '25px',
               fontSize: isMobile ? '22px' : '26px'
             }}>Seu carrinho está vazio</h2>
-            <p style={{ 
-              color: '#999', 
+            <p style={{
+              color: '#999',
               marginBottom: '30px',
               fontSize: isMobile ? '16px' : '18px'
             }}>
@@ -644,7 +644,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         borderBottom: '1px solid #ccc',
         flexWrap: isMobile ? 'wrap' : 'nowrap'
       }}>
-        <LogoComponent 
+        <LogoComponent
           size={isMobile ? 'small' : 'medium'}
           showText={true}
         />
@@ -664,7 +664,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           }}>
             CNPJ: {dadosEmpresa.cnpjFormatado || dadosEmpresa.cnpj}
           </span>
-          <button 
+          <button
             onClick={continuarComprando}
             style={{
               padding: isMobile ? '12px 20px' : '12px 20px',
@@ -700,8 +700,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             flexDirection: isMobile ? 'column' : 'row',
             gap: isMobile ? '15px' : '0'
           }}>
-            <h1 style={{ 
-              color: '#009245', 
+            <h1 style={{
+              color: '#009245',
               margin: 0,
               fontSize: isMobile ? '22px' : '26px',
               textAlign: isMobile ? 'center' : 'left'
@@ -740,27 +740,27 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 }}
               >
                 <ImagemProdutoCarrinho produto={item} isMobile={isMobile} />
-                
-                <div style={{ 
+
+                <div style={{
                   flex: 1,
                   textAlign: isMobile ? 'center' : 'left'
                 }}>
-                  <h3 style={{ 
-                    color: '#009245', 
+                  <h3 style={{
+                    color: '#009245',
                     margin: '0 0 8px 0',
                     fontSize: isMobile ? '18px' : '20px'
                   }}>{item.nome}</h3>
-                  <p style={{ 
-                    color: '#666', 
-                    fontSize: '14px', 
+                  <p style={{
+                    color: '#666',
+                    fontSize: '14px',
                     margin: '0 0 12px 0'
                   }}>
                     {item.descricao}
                   </p>
-                  <div style={{ 
+                  <div style={{
                     fontSize: isMobile ? '18px' : '20px',
-                    fontWeight: 'bold', 
-                    color: '#009245' 
+                    fontWeight: 'bold',
+                    color: '#009245'
                   }}>
                     R$ {item.preco.toFixed(2)}
                   </div>
@@ -788,7 +788,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   >
                     -
                   </button>
-                  
+
                   <input
                     type="number"
                     min="1"
@@ -808,7 +808,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                       boxSizing: 'border-box'
                     }}
                   />
-                  
+
                   <button
                     onClick={() => atualizarQuantidade(item.id, item.quantidade + 1)}
                     style={{
@@ -861,18 +861,18 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
             marginTop: '25px'
           }}>
-            <h3 style={{ 
-              color: '#009245', 
+            <h3 style={{
+              color: '#009245',
               marginBottom: '18px',
               fontSize: isMobile ? '18px' : '20px'
             }}>📍 Endereço de Entrega</h3>
-            
+
             <div style={{ marginBottom: '18px' }}>
-              <label style={{ 
-                display: 'block', 
+              <label style={{
+                display: 'block',
                 marginBottom: '8px',
-                fontWeight: 'bold', 
-                fontSize: '14px' 
+                fontWeight: 'bold',
+                fontSize: '14px'
               }}>
                 CEP * {buscandoCep && <span style={{ color: '#f38e3c' }}>🔍 Buscando...</span>}
               </label>
@@ -896,7 +896,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 Digite o CEP para preenchimento automático do endereço
               </small>
             </div>
-            
+
             <div style={{
               display: 'grid',
               gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
@@ -904,11 +904,11 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               marginBottom: '18px'
             }}>
               <div>
-                <label style={{ 
-                  display: 'block', 
+                <label style={{
+                  display: 'block',
                   marginBottom: '8px',
-                  fontWeight: 'bold', 
-                  fontSize: '14px' 
+                  fontWeight: 'bold',
+                  fontSize: '14px'
                 }}>
                   Rua/Avenida *
                 </label>
@@ -928,13 +928,13 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   required
                 />
               </div>
-              
+
               <div>
-                <label style={{ 
-                  display: 'block', 
+                <label style={{
+                  display: 'block',
                   marginBottom: '8px',
-                  fontWeight: 'bold', 
-                  fontSize: '14px' 
+                  fontWeight: 'bold',
+                  fontSize: '14px'
                 }}>
                   Número *
                 </label>
@@ -963,11 +963,11 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               marginBottom: '18px'
             }}>
               <div>
-                <label style={{ 
-                  display: 'block', 
+                <label style={{
+                  display: 'block',
                   marginBottom: '8px',
-                  fontWeight: 'bold', 
-                  fontSize: '14px' 
+                  fontWeight: 'bold',
+                  fontSize: '14px'
                 }}>
                   Bairro *
                 </label>
@@ -987,13 +987,13 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   required
                 />
               </div>
-              
+
               <div>
-                <label style={{ 
-                  display: 'block', 
+                <label style={{
+                  display: 'block',
                   marginBottom: '8px',
-                  fontWeight: 'bold', 
-                  fontSize: '14px' 
+                  fontWeight: 'bold',
+                  fontSize: '14px'
                 }}>
                   Cidade *
                 </label>
@@ -1022,11 +1022,11 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               marginBottom: '18px'
             }}>
               <div>
-                <label style={{ 
-                  display: 'block', 
+                <label style={{
+                  display: 'block',
                   marginBottom: '8px',
-                  fontWeight: 'bold', 
-                  fontSize: '14px' 
+                  fontWeight: 'bold',
+                  fontSize: '14px'
                 }}>
                   Referência (opcional)
                 </label>
@@ -1045,13 +1045,13 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   }}
                 />
               </div>
-              
+
               <div>
-                <label style={{ 
-                  display: 'block', 
+                <label style={{
+                  display: 'block',
                   marginBottom: '8px',
-                  fontWeight: 'bold', 
-                  fontSize: '14px' 
+                  fontWeight: 'bold',
+                  fontSize: '14px'
                 }}>
                   Estado *
                 </label>
@@ -1106,8 +1106,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
             marginTop: '18px'
           }}>
-            <h3 style={{ 
-              color: '#009245', 
+            <h3 style={{
+              color: '#009245',
               marginBottom: '18px',
               fontSize: isMobile ? '18px' : '20px'
             }}>💬 Observações (opcional)</h3>
@@ -1146,12 +1146,12 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             position: isMobile ? 'static' : 'sticky',
             top: isMobile ? 'auto' : '25px'
           }}>
-            <h2 style={{ 
-              color: '#009245', 
+            <h2 style={{
+              color: '#009245',
               marginBottom: '25px',
               fontSize: isMobile ? '20px' : '22px'
             }}>📊 Resumo do Pedido</h2>
-            
+
             <div style={{
               backgroundColor: calcularQuantidadeTotal() < 30 ? '#fff3cd' : '#d4edda',
               padding: '18px',
@@ -1173,7 +1173,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 </>
               )}
             </div>
-            
+
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
@@ -1183,7 +1183,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               <span>Subtotal:</span>
               <span>R$ {calcularSubtotal().toFixed(2)}</span>
             </div>
-            
+
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
@@ -1208,9 +1208,9 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 💡 Frete grátis em pedidos acima de R$ 50,00
               </div>
             )}
-            
+
             <hr style={{ margin: '18px 0', border: '1px solid #eee' }} />
-            
+
             <div style={{
               display: 'flex',
               justifyContent: 'space-between',
@@ -1245,14 +1245,14 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                 gap: '8px'
               }}
             >
-              {processandoPedido ? 
-                'Enviando...' : 
-                calcularQuantidadeTotal() < 30 ? 
-                  'Pedido Mínimo: 30 Marmitas' : 
+              {processandoPedido ?
+                'Enviando...' :
+                calcularQuantidadeTotal() < 30 ?
+                  'Pedido Mínimo: 30 Marmitas' :
                   <>📱 Confirmar e Enviar no WhatsApp</>
               }
             </button>
-            
+
             <button
               onClick={continuarComprando}
               disabled={processandoPedido}
@@ -1301,11 +1301,11 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             <h2 style={{ color: '#25D366', marginBottom: '20px' }}>
               📱 WhatsApp não abriu?
             </h2>
-            
+
             <p style={{ color: '#666', marginBottom: '25px' }}>
               Não se preocupe! Use uma das opções abaixo:
             </p>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <button
                 onClick={() => {
@@ -1326,7 +1326,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               >
                 🌐 Abrir WhatsApp Web
               </button>
-              
+
               <button
                 onClick={copiarMensagem}
                 style={{
@@ -1342,7 +1342,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               >
                 📋 Copiar Mensagem
               </button>
-              
+
               <div style={{
                 backgroundColor: '#f8f9fa',
                 padding: '15px',
@@ -1355,7 +1355,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
                   (21) 96429-8123
                 </span>
               </div>
-              
+
               <button
                 onClick={() => {
                   setShowWhatsAppFallback(false);
