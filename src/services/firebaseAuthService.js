@@ -57,6 +57,7 @@ import {
 
     const nomeEmpresa = getFirstNonEmpty(
       ...validSources.map((source) => source.nomeEmpresa),
+      ...validSources.map((source) => source.nome),          // campo usado na coleção "empresas" legada
       ...validSources.map((source) => source.nomeFantasia),
       ...validSources.map((source) => source.nome_fantasia),
       ...validSources.map((source) => source.nome_empresa),
@@ -144,15 +145,43 @@ import {
         // Buscar dados completos do usuário no Firestore
         const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
         const userData = userDoc.exists() ? userDoc.data() : {};
-  
+
+        // Se usuário antigo não tem nome na coleção "users", busca na coleção "empresas"
+        let empresaLegada = {};
+        const temNome = userData.nomeEmpresa || userData.nomeFantasia || userData.nome_empresa || userData.razaoSocial;
+        if (!temNome) {
+          const cleanCnpj = cnpj.replace(/[^\d]/g, '');
+          const cnpjFormatado = cleanCnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+          for (const variante of [cleanCnpj, cnpjFormatado, cnpj.trim()]) {
+            try {
+              const q = query(collection(db, 'empresas'), where('cnpj', '==', variante), limit(1));
+              const snap = await getDocs(q);
+              if (!snap.empty) {
+                empresaLegada = snap.docs[0].data();
+                console.log('✅ Dados da empresa legada encontrados:', empresaLegada);
+                break;
+              }
+            } catch (e) { /* ignora erros por variante */ }
+          }
+        }
+
+        const nomeEmpresaFinal =
+          userData.nomeEmpresa ||
+          userData.nomeFantasia ||
+          userData.nome_empresa ||
+          empresaLegada.nome ||
+          empresaLegada.nomeFantasia ||
+          empresaLegada.razaoSocial ||
+          '';
+
         // ✅ SALVAR DADOS NO LOCALSTORAGE PARA MANTER SESSÃO
         const dadosEmpresa = {
           cnpj: cnpj,
           cnpj_formatado: cnpj,
-          email: userData.email || '',
-          nome_empresa: userData.nomeFantasia || userData.nome_empresa || '',
-          razao_social: userData.razaoSocial || userData.nome_empresa || '',
-          nome_fantasia: userData.nomeFantasia || userData.nome_empresa || '',
+          email: userData.email || empresaLegada.email || '',
+          nome_empresa: nomeEmpresaFinal,
+          razao_social: userData.razaoSocial || empresaLegada.razaoSocial || nomeEmpresaFinal,
+          nome_fantasia: userData.nomeFantasia || userData.nomeEmpresa || empresaLegada.nomeFantasia || empresaLegada.nome || nomeEmpresaFinal,
           tipo_usuario: cnpj === '05.336.475/0001-77' ? 'admin' : 'cliente', // Admin especial
           ativo: true,
           data_cadastro: userData.createdAt || new Date().toISOString(),
@@ -273,9 +302,26 @@ import {
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         const userData = userDoc.exists() ? userDoc.data() : {};
 
-        const dadosNormalizados = normalizeEmpresaData(dadosSessao, dadosLocal, userData);
+        let dadosNormalizados = normalizeEmpresaData(dadosSessao, dadosLocal, userData);
         const cnpjLimpo = dadosNormalizados.cnpj.replace(/\D/g, '');
         const hasCompanyData = cnpjLimpo.length === 14;
+
+        // Se o nome da empresa está vazio, busca na coleção "empresas" (usuários antigos)
+        if (hasCompanyData && !dadosNormalizados.nomeEmpresa) {
+          const cnpjFormatado = cnpjLimpo.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+          for (const variante of [cnpjLimpo, cnpjFormatado]) {
+            try {
+              const q = query(collection(db, 'empresas'), where('cnpj', '==', variante), limit(1));
+              const snap = await getDocs(q);
+              if (!snap.empty) {
+                const empresaLegada = snap.docs[0].data();
+                console.log('✅ Nome encontrado na coleção empresas:', empresaLegada.nome || empresaLegada.nomeFantasia);
+                dadosNormalizados = normalizeEmpresaData(dadosSessao, dadosLocal, userData, empresaLegada);
+                break;
+              }
+            } catch (e) { /* ignora */ }
+          }
+        }
 
         if (!hasCompanyData) {
           console.warn('⚠️ Usuário autenticado, mas sem dados mínimos de empresa');
