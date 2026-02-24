@@ -129,8 +129,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             dadosEmpresaEncontrados = {
               cnpj: sessao.cnpj,
               cnpjFormatado: sessao.cnpjFormatado || sessao.cnpj,
-              nomeEmpresa: sessao.nomeEmpresa || sessao.razaoSocial,
-              razaoSocial: sessao.razaoSocial || sessao.nomeEmpresa,
+              nomeEmpresa: sessao.nomeEmpresa || sessao.empresa?.nomeFantasia || sessao.empresa?.nomeEmpresa || sessao.empresa?.nome_empresa || sessao.razaoSocial || sessao.empresa?.razaoSocial || '',
+              razaoSocial: sessao.razaoSocial || sessao.empresa?.razaoSocial || sessao.nomeEmpresa || '',
               email: sessao.email,
               telefone: sessao.telefone,
               endereco: sessao.endereco
@@ -141,8 +141,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
             dadosEmpresaEncontrados = {
               cnpj: sessao.empresa.cnpj,
               cnpjFormatado: sessao.empresa.cnpjFormatado || sessao.empresa.cnpj,
-              nomeEmpresa: sessao.empresa.nomeFantasia || sessao.empresa.nome_fantasia || sessao.empresa.razaoSocial,
-              razaoSocial: sessao.empresa.razaoSocial || sessao.empresa.razao_social,
+              nomeEmpresa: sessao.empresa.nomeEmpresa || sessao.empresa.nomeFantasia || sessao.empresa.nome_fantasia || sessao.empresa.nome_empresa || sessao.empresa.razaoSocial || '',
+              razaoSocial: sessao.empresa.razaoSocial || sessao.empresa.razao_social || '',
               email: sessao.empresa.email,
               telefone: sessao.empresa.telefone,
               endereco: sessao.empresa.endereco
