@@ -144,14 +144,31 @@ import {
 
         // Buscar dados completos do usuário no Firestore
         const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
-        const userData = userDoc.exists() ? userDoc.data() : {};
+        let userData = userDoc.exists() ? userDoc.data() : {};
 
-        // Se usuário antigo não tem nome na coleção "users", busca na coleção "empresas"
+        // Se o UID atual não tem documento em users (conta antiga @fitinbox.local),
+        // busca em users pelo CNPJ para encontrar o documento correto (conta nova)
+        const cleanCnpj = cnpj.replace(/[^\d]/g, '');
+        const cnpjFormatado = cleanCnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+
+        if (!userData.cnpj) {
+          for (const variante of [cleanCnpj, cnpjFormatado, cnpj.trim()]) {
+            try {
+              const q = query(collection(db, 'users'), where('cnpj', '==', variante), limit(1));
+              const snap = await getDocs(q);
+              if (!snap.empty) {
+                userData = snap.docs[0].data();
+                console.log('✅ Dados do users encontrados por CNPJ:', userData.nomeEmpresa || userData.nomeFantasia);
+                break;
+              }
+            } catch (e) { /* ignora */ }
+          }
+        }
+
+        // Se ainda sem nome, busca na coleção "empresas" (usuários puramente antigos)
         let empresaLegada = {};
         const temNome = userData.nomeEmpresa || userData.nomeFantasia || userData.nome_empresa || userData.razaoSocial;
         if (!temNome) {
-          const cleanCnpj = cnpj.replace(/[^\d]/g, '');
-          const cnpjFormatado = cleanCnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
           for (const variante of [cleanCnpj, cnpjFormatado, cnpj.trim()]) {
             try {
               const q = query(collection(db, 'empresas'), where('cnpj', '==', variante), limit(1));
@@ -298,15 +315,35 @@ import {
         const dadosSessao = parseStorageJson(sessionStorage.getItem('empresaLogada'));
         const dadosLocal = parseStorageJson(localStorage.getItem('dadosEmpresaLogada'));
 
-        // Buscar dados do usuário no Firestore
+        // Buscar dados do usuário no Firestore (pelo UID da sessão atual)
         const userDoc = await getDoc(doc(db, 'users', user.uid));
-        const userData = userDoc.exists() ? userDoc.data() : {};
+        let userData = userDoc.exists() ? userDoc.data() : {};
 
+        // Normalização inicial para extrair o CNPJ do storage
         let dadosNormalizados = normalizeEmpresaData(dadosSessao, dadosLocal, userData);
         const cnpjLimpo = dadosNormalizados.cnpj.replace(/\D/g, '');
         const hasCompanyData = cnpjLimpo.length === 14;
 
-        // Se o nome da empresa está vazio, busca na coleção "empresas" (usuários antigos)
+        // Se userData está vazio (UID não encontrou documento em users), busca pelo CNPJ
+        // Isso cobre o caso em que o usuário loga com a conta antiga (@fitinbox.local)
+        // mas tem um documento em users associado a outra conta (email real)
+        if (!userData.cnpj && hasCompanyData) {
+          const cnpjFormatado = cnpjLimpo.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+          for (const variante of [cnpjLimpo, cnpjFormatado]) {
+            try {
+              const q = query(collection(db, 'users'), where('cnpj', '==', variante), limit(1));
+              const snap = await getDocs(q);
+              if (!snap.empty) {
+                userData = snap.docs[0].data();
+                console.log('✅ Documento users encontrado por CNPJ:', userData.nomeEmpresa || userData.nomeFantasia);
+                dadosNormalizados = normalizeEmpresaData(dadosSessao, dadosLocal, userData);
+                break;
+              }
+            } catch (e) { /* ignora */ }
+          }
+        }
+
+        // Se ainda não tem nome, busca na coleção "empresas" (usuários puramente antigos sem users doc)
         if (hasCompanyData && !dadosNormalizados.nomeEmpresa) {
           const cnpjFormatado = cnpjLimpo.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
           for (const variante of [cnpjLimpo, cnpjFormatado]) {
@@ -315,8 +352,11 @@ import {
               const snap = await getDocs(q);
               if (!snap.empty) {
                 const empresaLegada = snap.docs[0].data();
-                console.log('✅ Nome encontrado na coleção empresas:', empresaLegada.nome || empresaLegada.nomeFantasia);
-                dadosNormalizados = normalizeEmpresaData(dadosSessao, dadosLocal, userData, empresaLegada);
+                const nomeEmpresaLegada = empresaLegada.nome || empresaLegada.nomeFantasia || '';
+                if (nomeEmpresaLegada && nomeEmpresaLegada !== 'Empresa') {
+                  console.log('✅ Nome encontrado na coleção empresas:', nomeEmpresaLegada);
+                  dadosNormalizados = normalizeEmpresaData(dadosSessao, dadosLocal, userData, empresaLegada);
+                }
                 break;
               }
             } catch (e) { /* ignora */ }
