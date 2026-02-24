@@ -21,43 +21,43 @@ const ProsseguirPage = ({ onNavigate }) => {
       try {
         setLoading(true);
         console.log('🔍 Verificando sessão do usuário...');
-        
+
         const sessao = await firebaseAuthService.verificarSessao();
         console.log('📦 Dados da sessão recebidos:', sessao);
-        
+
         if (!sessao?.isAuthenticated) {
           console.warn('⚠️ Sessão inválida ou expirada. Redirecionando para home.');
           onNavigate('home');
           return;
         }
-        
+
         const userIsAdmin = sessao.isAdmin || sessao.tipoUsuario === 'admin';
-        
+
         const sessaoData = {
           cnpj: sessao.cnpj || sessao.empresa?.cnpj || '',
           cnpjFormatado: sessao.cnpjFormatado || sessao.empresa?.cnpjFormatado || sessao.empresa?.cnpj || '',
-          nomeEmpresa: sessao.nomeEmpresa || sessao.empresa?.nomeFantasia || sessao.empresa?.nome_empresa || sessao.razaoSocial || '',
-          razaoSocial: sessao.razaoSocial || sessao.empresa?.razaoSocial || sessao.empresa?.razao_social || sessao.nomeEmpresa || '',
+          nomeEmpresa: sessao.nomeEmpresa || sessao.nome_empresa || sessao.nomeFantasia || sessao.nome_fantasia || sessao.razaoSocial || sessao.razao_social || sessao.empresa?.nomeEmpresa || sessao.empresa?.nome_empresa || sessao.empresa?.nomeFantasia || sessao.empresa?.nome_fantasia || sessao.empresa?.razaoSocial || sessao.empresa?.razao_social || '',
+          razaoSocial: sessao.razaoSocial || sessao.razao_social || sessao.empresa?.razaoSocial || sessao.empresa?.razao_social || sessao.nomeEmpresa || sessao.nome_empresa || sessao.nomeFantasia || sessao.nome_fantasia || '',
           email: sessao.email || sessao.empresa?.email || '',
           tipoUsuario: sessao.tipoUsuario,
           isAdmin: userIsAdmin,
           empresa: sessao.empresa
         };
-        
+
         setSessaoAtiva(sessaoData);
         setIsAdmin(userIsAdmin);
-        
+
         console.log('✅ Sessão verificada com sucesso:', {
           cnpj: sessaoData.cnpjFormatado,
           empresa: sessaoData.nomeEmpresa,
           isAdmin: userIsAdmin,
           email: sessaoData.email
         });
-        
+
       } catch (error) {
         console.error('❌ Erro crítico ao verificar sessão:', error);
         console.error('Stack trace:', error.stack);
-        
+
         onNavigate('home');
       } finally {
         setLoading(false);
@@ -65,18 +65,18 @@ const ProsseguirPage = ({ onNavigate }) => {
     };
 
     verificarSessaoAtiva();
-    
+
     const handlePopState = (event) => {
       event.preventDefault();
       event.stopPropagation();
       onNavigate('home');
       return false;
     };
-    
+
     window.removeEventListener('popstate', handlePopState);
     window.addEventListener('popstate', handlePopState);
     window.history.pushState({ page: 'prosseguir' }, '', window.location.pathname);
-    
+
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
@@ -111,14 +111,14 @@ const ProsseguirPage = ({ onNavigate }) => {
       empresa: sessaoAtiva.nomeEmpresa || sessaoAtiva.razaoSocial,
       tipoUsuario: sessaoAtiva.tipoUsuario
     });
-  
+
     sessionStorage.setItem('adminPreAuthenticated', JSON.stringify({
       cnpj: sessaoAtiva.cnpjFormatado || sessaoAtiva.cnpj,
       timestamp: Date.now(),
       empresa: sessaoAtiva.nomeEmpresa || sessaoAtiva.razaoSocial,
       tipoUsuario: sessaoAtiva.tipoUsuario
     }));
-  
+
     onNavigate('admin');
   };
 
@@ -127,13 +127,13 @@ const ProsseguirPage = ({ onNavigate }) => {
       try {
         setLoading(true);
         const success = await firebaseAuthService.logout();
-        
+
         if (success) {
           console.log('✅ Logout realizado com sucesso');
         } else {
           console.warn('⚠️ Logout com problemas, mas prosseguindo...');
         }
-        
+
         onNavigate('home');
       } catch (error) {
         console.error('❌ Erro no logout:', error);
@@ -195,7 +195,7 @@ const ProsseguirPage = ({ onNavigate }) => {
         borderBottom: '1px solid #ccc',
         flexWrap: isMobile ? 'wrap' : 'nowrap'
       }}>
-<LogoComponent size={isMobile ? 'small' : 'medium'} showText={true} />
+        <LogoComponent size={isMobile ? 'small' : 'medium'} showText={true} />
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -204,7 +204,7 @@ const ProsseguirPage = ({ onNavigate }) => {
           marginTop: isMobile ? '15px' : '0',
           width: isMobile ? '100%' : 'auto'
         }}>
-          <div style={{ 
+          <div style={{
             textAlign: isMobile ? 'center' : 'right',
             width: isMobile ? '100%' : 'auto'
           }}>
@@ -235,7 +235,7 @@ const ProsseguirPage = ({ onNavigate }) => {
               CNPJ: {sessaoAtiva.cnpjFormatado || sessaoAtiva.cnpj}
             </div>
           </div>
-          <button 
+          <button
             onClick={handleLogout}
             disabled={loading}
             style={{
@@ -298,7 +298,7 @@ const ProsseguirPage = ({ onNavigate }) => {
               Escolha uma das opções abaixo para continuar
             </p>
           </div>
-          
+
           {/* Resto das opções permanece igual... */}
           <div style={{
             margin: '30px 0',
@@ -319,10 +319,10 @@ const ProsseguirPage = ({ onNavigate }) => {
               transition: 'all 0.3s ease',
               boxShadow: selectedOption === 'fazerPedido' ? '0 4px 12px rgba(0,146,69,0.2)' : '0 2px 4px rgba(0,0,0,0.05)'
             }}
-            onClick={() => handleOptionChange('fazerPedido')}
+              onClick={() => handleOptionChange('fazerPedido')}
             >
-              <input 
-                type="radio" 
+              <input
+                type="radio"
                 id="fazerPedido"
                 name="opcao"
                 checked={selectedOption === 'fazerPedido'}
@@ -347,7 +347,7 @@ const ProsseguirPage = ({ onNavigate }) => {
                   🛒
                 </div>
                 <div>
-                  <label 
+                  <label
                     htmlFor="fazerPedido"
                     style={{
                       fontWeight: 'bold',
@@ -370,7 +370,7 @@ const ProsseguirPage = ({ onNavigate }) => {
                 </div>
               </div>
             </div>
-            
+
             {/* Opção Consultar Pedidos */}
             <div style={{
               display: 'flex',
@@ -383,10 +383,10 @@ const ProsseguirPage = ({ onNavigate }) => {
               transition: 'all 0.3s ease',
               boxShadow: selectedOption === 'consultarPedidos' ? '0 4px 12px rgba(0,146,69,0.2)' : '0 2px 4px rgba(0,0,0,0.05)'
             }}
-            onClick={() => handleOptionChange('consultarPedidos')}
+              onClick={() => handleOptionChange('consultarPedidos')}
             >
-              <input 
-                type="radio" 
+              <input
+                type="radio"
                 id="consultarPedidos"
                 name="opcao"
                 checked={selectedOption === 'consultarPedidos'}
@@ -411,7 +411,7 @@ const ProsseguirPage = ({ onNavigate }) => {
                   📋
                 </div>
                 <div>
-                  <label 
+                  <label
                     htmlFor="consultarPedidos"
                     style={{
                       fontWeight: 'bold',
@@ -449,7 +449,7 @@ const ProsseguirPage = ({ onNavigate }) => {
                 boxShadow: selectedOption === 'painelAdmin' ? '0 4px 12px rgba(243,142,60,0.3)' : '0 2px 4px rgba(243,142,60,0.1)',
                 position: 'relative'
               }}
-              onClick={() => handleOptionChange('painelAdmin')}
+                onClick={() => handleOptionChange('painelAdmin')}
               >
                 <div style={{
                   position: 'absolute',
@@ -464,8 +464,8 @@ const ProsseguirPage = ({ onNavigate }) => {
                 }}>
                   EXCLUSIVO
                 </div>
-                <input 
-                  type="radio" 
+                <input
+                  type="radio"
                   id="painelAdmin"
                   name="opcao"
                   checked={selectedOption === 'painelAdmin'}
@@ -490,7 +490,7 @@ const ProsseguirPage = ({ onNavigate }) => {
                     ⚙️
                   </div>
                   <div>
-                    <label 
+                    <label
                       htmlFor="painelAdmin"
                       style={{
                         fontWeight: 'bold',
@@ -515,8 +515,8 @@ const ProsseguirPage = ({ onNavigate }) => {
               </div>
             )}
           </div>
-          
-          <button 
+
+          <button
             onClick={prosseguir}
             style={{
               backgroundColor: selectedOption === 'painelAdmin' ? '#f38e3c' : '#009245',
