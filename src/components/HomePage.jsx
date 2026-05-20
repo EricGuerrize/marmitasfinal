@@ -246,7 +246,7 @@ const HomePage = ({ onNavigate }) => {
 
     try {
       console.log('📝 Tentando cadastro para CNPJ:', cnpj);
-      const resultado = await firebaseAuthService.signUpWithCnpj(cnpj, email || 'temp@email.com', senha, dadosEmpresa);
+      const resultado = await firebaseAuthService.signUpWithCnpj(cnpj, email || null, senha, dadosEmpresa);
 
       if (resultado.success) {
         alert('Cadastro realizado com sucesso! Agora você pode fazer login.');

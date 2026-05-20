@@ -33,3 +33,7 @@ yarn-error.log*
 serviceAccountKey.json
 firebase-debug.log
 .firebase/
+
+# Apple Double files (macOS metadata)
+._*
+**/._*
