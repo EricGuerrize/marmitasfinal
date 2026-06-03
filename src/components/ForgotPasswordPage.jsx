@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { firebaseAuthService } from '../services/firebaseAuthService';
+import { useWindowSize } from '../hooks/useWindowSize';
 
 const ForgotPasswordPage = ({ onNavigate }) => {
   const [etapa, setEtapa] = useState('cnpj'); // cnpj | enviado
@@ -8,14 +9,7 @@ const ForgotPasswordPage = ({ onNavigate }) => {
   const [emailMascarado, setEmailMascarado] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth <= 768);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
+  const { isMobile } = useWindowSize();
 
   const formatarCnpj = (valor) => {
     const nums = valor.replace(/\D/g, '').slice(0, 14);

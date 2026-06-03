@@ -4,13 +4,14 @@ import { produtoService } from '../services/produtoService';
 
 import LogoComponent from './LogoComponent';
 import OptimizedImage from './OptimizedImage';
+import { useWindowSize } from '../hooks/useWindowSize';
 
 const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQuantidadeTotal }) => {
   const [cnpj, setCnpj] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [produtosDisponiveis, setProdutosDisponiveis] = useState([]);
   const [quantidades, setQuantidades] = useState({});
-  const [isMobile, setIsMobile] = useState(false);
+  const { isMobile } = useWindowSize();
 
   const categorias = [
     { id: 'todos', nome: 'Todos os Produtos' },
@@ -19,18 +20,6 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
     { id: 'tradicional', nome: 'Tradicional' },
     { id: 'gourmet', nome: 'Gourmet' }
   ];
-
-  // Detecta se é mobile
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   useEffect(() => {
     // Recupera informações do sessionStorage - APENAS CNPJ

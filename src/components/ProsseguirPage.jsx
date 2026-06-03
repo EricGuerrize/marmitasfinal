@@ -1,20 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import LogoComponent from './LogoComponent';
+import { useWindowSize } from '../hooks/useWindowSize';
 
 const ProsseguirPage = ({ onNavigate }) => {
   const [selectedOption, setSelectedOption] = useState('fazerPedido');
   const [sessaoAtiva, setSessaoAtiva] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const { isMobile } = useWindowSize();
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   useEffect(() => {
     const verificarSessaoAtiva = async () => {

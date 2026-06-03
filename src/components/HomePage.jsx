@@ -1,14 +1,47 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { securityUtils } from '../utils/securityUtils';
 import LogoComponent from './LogoComponent';
+import { NotificationProvider, useNotification } from './NotificationSystem';
+import { useWindowSize } from '../hooks/useWindowSize';
 
+// ─── Reusable InputField ───────────────────────────────────────────────────────
+const InputField = ({ label, helper, disabled, ...inputProps }) => (
+  <div style={{ marginBottom: '20px', textAlign: 'left' }}>
+    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
+      {label}
+    </label>
+    <input
+      disabled={disabled}
+      style={{
+        width: '100%',
+        padding: '14px',
+        border: '2px solid #ddd',
+        borderRadius: '8px',
+        fontSize: '16px',
+        outline: 'none',
+        boxSizing: 'border-box',
+        opacity: disabled ? 0.6 : 1,
+        transition: 'border-color 0.3s ease'
+      }}
+      onFocus={(e) => e.target.style.borderColor = '#009245'}
+      onBlur={(e) => e.target.style.borderColor = '#ddd'}
+      {...inputProps}
+    />
+    {helper && (
+      <small style={{ color: '#666', fontSize: '12px' }}>{helper}</small>
+    )}
+  </div>
+);
 
-const HomePage = ({ onNavigate }) => {
+// ─── Inner component (needs NotificationProvider context) ──────────────────────
+const HomePageInner = ({ onNavigate }) => {
+  const { success, error: showError, warning } = useNotification();
+  const { isMobile } = useWindowSize();
+
   const [cnpj, setCnpj] = useState('');
   const [senha, setSenha] = useState('');
   const [email, setEmail] = useState('');
-  const [isMobile, setIsMobile] = useState(false);
   const [fazendoLogin, setFazendoLogin] = useState(false);
   const [modo, setModo] = useState('login');
   const [confirmarSenha, setConfirmarSenha] = useState('');
@@ -16,50 +49,21 @@ const HomePage = ({ onNavigate }) => {
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockTimeRemaining, setBlockTimeRemaining] = useState(0);
-  const [checkingSession, setCheckingSession] = useState(true);
-
-  // ✅ Detecta mobile com debounce
-  const checkMobile = useCallback(() => {
-    setIsMobile(window.innerWidth <= 768);
-  }, []);
-
-
-  useEffect(() => {
-    checkMobile();
-    let timeoutId;
-    const handleResize = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(checkMobile, 150);
-    };
-
-    window.addEventListener('resize', handleResize, { passive: true });
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      clearTimeout(timeoutId);
-    };
-  }, [checkMobile]);
-
-
-
-  // ✅ Verifica sessão existente (async com timeout)
+  // ✅ Verifica sessão existente em background (async com timeout)
   useEffect(() => {
     const verificarSessaoExistente = async () => {
       let timeout;
       try {
-        setCheckingSession(true);
         const controller = new AbortController();
         timeout = setTimeout(() => controller.abort(), 5000);
 
-        // ✅ CORREÇÃO: Verificar se a sessão é realmente válida
         const sessaoData = await firebaseAuthService.verificarSessao({ signal: controller.signal });
-        
-        // ✅ VERIFICAÇÃO CORRETA: isAuthenticated deve ser true
+
         if (sessaoData && sessaoData.isAuthenticated) {
-          console.log('✅ Sessão existente encontrada, redirecionando...');
+          console.log('Sessão existente encontrada, redirecionando...');
           onNavigate('prosseguir');
-          return;
         } else {
-          console.log('🚫 Nenhuma sessão válida encontrada');
+          console.log('Nenhuma sessão válida encontrada');
         }
       } catch (error) {
         console.error('Erro ao verificar sessão existente:', error);
@@ -67,7 +71,6 @@ const HomePage = ({ onNavigate }) => {
           console.warn('Verificação de sessão falhou, prosseguindo sem redirecionamento.');
         }
       } finally {
-        setCheckingSession(false);
         clearTimeout(timeout);
       }
     };
@@ -89,7 +92,7 @@ const HomePage = ({ onNavigate }) => {
 
         const { blockedUntil, attempts } = JSON.parse(blockData);
         const now = Date.now();
-        
+
         if (now < blockedUntil) {
           const remaining = Math.ceil((blockedUntil - now) / 1000 / 60);
           setIsBlocked(true);
@@ -124,8 +127,8 @@ const HomePage = ({ onNavigate }) => {
     };
   }, [isBlocked, blockTimeRemaining]);
 
-  // ✅ Função de máscara CNPJ memoizada
-  const applyCnpjMask = useCallback((value) => {
+  // ✅ Função de máscara CNPJ
+  const applyCnpjMask = (value) => {
     const onlyNumbers = value.replace(/\D/g, '');
     const limited = onlyNumbers.slice(0, 14);
 
@@ -134,18 +137,17 @@ const HomePage = ({ onNavigate }) => {
       .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
       .replace(/\.(\d{3})(\d)/, '.$1/$2')
       .replace(/(\d{4})(\d)/, '$1-$2');
-  }, []);
+  };
 
   const handleCnpjChange = useCallback((e) => {
-    const maskedValue = applyCnpjMask(e.target.value);
-    setCnpj(maskedValue);
-  }, [applyCnpjMask]);
+    setCnpj(applyCnpjMask(e.target.value));
+  }, []);
 
   // ✅ Bloqueia tentativas de login
   const blockLogin = useCallback(async (attempts) => {
     const blockTime = 30 * 60 * 1000;
     const blockedUntil = Date.now() + blockTime;
-    
+
     try {
       setTimeout(() => {
         localStorage.setItem('loginBlock', JSON.stringify({ blockedUntil, attempts }));
@@ -158,19 +160,18 @@ const HomePage = ({ onNavigate }) => {
     }
   }, []);
 
-  // ✅ FUNÇÃO DE LOGIN otimizada
+  // ✅ FUNÇÃO DE LOGIN
   const handleLogin = useCallback(async (cnpj, senha) => {
-    let timeout; // Declaração movida para o escopo externo
+    let timeout;
     try {
       if (!cnpj || !senha) {
-        console.error('❌ Erro de conexão no login: CNPJ ou senha não informados');
-        alert('Por favor, informe o CNPJ e a senha.');
+        showError('Por favor, informe o CNPJ e a senha.');
         return;
       }
 
       const cnpjLimpo = cnpj.replace(/\D/g, '');
       if (cnpjLimpo.length !== 14) {
-        alert('CNPJ inválido. Por favor, insira um CNPJ válido (14 dígitos).');
+        showError('CNPJ inválido. Por favor, insira um CNPJ válido (14 dígitos).');
         return;
       }
 
@@ -183,54 +184,38 @@ const HomePage = ({ onNavigate }) => {
 
       const result = await firebaseAuthService.signInWithCnpj(cnpj, senha);
       if (!result.success) throw new Error(result.error || 'Falha na autenticação');
-      
+
       console.log('Login bem-sucedido:', result);
       onNavigate('prosseguir');
     } catch (error) {
-      console.error('❌ Erro de conexão no login:', error.message);
-      alert(`Erro ao fazer login: ${error.name === 'AbortError' ? 'Tempo esgotado. Tente novamente.' : error.message.includes('Invalid login credentials') ? 'Credenciais inválidas. Verifique o CNPJ e a senha ou redefina sua senha.' : error.message}`);
-      
+      console.error('Erro de conexão no login:', error.message);
+      const msg = error.name === 'AbortError'
+        ? 'Tempo esgotado. Tente novamente.'
+        : error.message.includes('Invalid login credentials')
+          ? 'Credenciais inválidas. Verifique o CNPJ e a senha ou redefina sua senha.'
+          : error.message;
+      showError(`Erro ao fazer login: ${msg}`);
+
       if (loginAttempts + 1 >= 5) {
         await blockLogin(loginAttempts + 1);
       } else {
         setLoginAttempts(prev => prev + 1);
       }
     } finally {
-      clearTimeout(timeout); // Agora funciona porque está no escopo
+      clearTimeout(timeout);
       setFazendoLogin(false);
     }
-  }, [loginAttempts, blockLogin, onNavigate]);
+  }, [loginAttempts, blockLogin, onNavigate, showError]);
 
-  // ✅ FUNÇÃO DE CADASTRO otimizada
+  // ✅ FUNÇÃO DE CADASTRO
   const handleCadastro = useCallback(async () => {
-    if (!cnpj.trim()) {
-      alert('Por favor, informe o CNPJ');
-      return;
-    }
-    if (!senha.trim()) {
-      alert('Por favor, informe a senha');
-      return;
-    }
-    if (senha.length < 6) {
-      alert('Senha deve ter pelo menos 6 caracteres');
-      return;
-    }
-    if (senha !== confirmarSenha) {
-      alert('Senhas não conferem');
-      return;
-    }
-    if (!email || !email.trim()) {
-      alert('Por favor, informe o e-mail');
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      alert('Email inválido');
-      return;
-    }
-    if (!securityUtils.validateOrigin()) {
-      alert('Origem não autorizada');
-      return;
-    }
+    if (!cnpj.trim()) { showError('Por favor, informe o CNPJ'); return; }
+    if (!senha.trim()) { showError('Por favor, informe a senha'); return; }
+    if (senha.length < 6) { showError('Senha deve ter pelo menos 6 caracteres'); return; }
+    if (senha !== confirmarSenha) { showError('Senhas não conferem'); return; }
+    if (!email || !email.trim()) { showError('Por favor, informe o e-mail'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showError('Email inválido'); return; }
+    if (!securityUtils.validateOrigin()) { showError('Origem não autorizada'); return; }
 
     const dadosEmpresa = {
       cnpj,
@@ -242,18 +227,18 @@ const HomePage = ({ onNavigate }) => {
 
     if ((dadosEmpresa.email && securityUtils.detectInjectionAttempt(dadosEmpresa.email)) ||
         (dadosEmpresa.nomeEmpresa && securityUtils.detectInjectionAttempt(dadosEmpresa.nomeEmpresa))) {
-      alert('Dados inválidos detectados');
+      showError('Dados inválidos detectados');
       return;
     }
 
     setFazendoLogin(true);
 
     try {
-      console.log('📝 Tentando cadastro para CNPJ:', cnpj);
+      console.log('Tentando cadastro para CNPJ:', cnpj);
       const resultado = await firebaseAuthService.signUpWithCnpj(cnpj, email || null, senha, dadosEmpresa);
 
       if (resultado.success) {
-        alert('Cadastro realizado com sucesso! Agora você pode fazer login.');
+        success('Cadastro realizado com sucesso! Agora você pode fazer login.');
         setModo('login');
         setSenha('');
         setConfirmarSenha('');
@@ -261,19 +246,19 @@ const HomePage = ({ onNavigate }) => {
         setNomeEmpresa('');
         securityUtils.safeLog('Cadastro realizado com sucesso');
       } else {
-        alert(`Erro no cadastro: ${resultado.error}`);
+        showError(`Erro no cadastro: ${resultado.error}`);
         securityUtils.safeLog('Erro no cadastro', { error: resultado.error });
       }
     } catch (error) {
-      console.error('❌ Erro inesperado no cadastro:', error);
-      alert('Erro inesperado. Tente novamente.');
+      console.error('Erro inesperado no cadastro:', error);
+      showError('Erro inesperado. Tente novamente.');
       securityUtils.safeLog('Erro inesperado no cadastro', { error: error.message });
     } finally {
       setFazendoLogin(false);
     }
-  }, [cnpj, senha, confirmarSenha, email, nomeEmpresa]);
+  }, [cnpj, senha, confirmarSenha, email, nomeEmpresa, showError, success]);
 
-  // ✅ handleKeyPress otimizado
+  // ✅ handleKeyPress
   const handleKeyPress = useCallback((e) => {
     if (e.key === 'Enter' && !fazendoLogin && !isBlocked) {
       e.preventDefault();
@@ -285,23 +270,22 @@ const HomePage = ({ onNavigate }) => {
     }
   }, [fazendoLogin, isBlocked, modo, cnpj, senha, handleLogin, handleCadastro]);
 
-  // ✅ handleMeusPedidos async otimizado
+  // ✅ handleMeusPedidos
   const handleMeusPedidos = useCallback(async () => {
     try {
       const sessaoData = await firebaseAuthService.verificarSessao();
       if (!sessaoData.isAuthenticated) {
-        alert('Faça login para acessar seus pedidos');
+        warning('Faça login para acessar seus pedidos');
         return;
       }
       onNavigate('prosseguir');
     } catch (error) {
       console.error('Erro ao verificar sessão:', error);
-      alert('Faça login para acessar seus pedidos');
+      warning('Faça login para acessar seus pedidos');
     }
-  }, [onNavigate]);
+  }, [onNavigate, warning]);
 
-  // ✅ Memoização do botão style
-  const buttonStyle = useMemo(() => ({
+  const buttonStyle = {
     backgroundColor: '#f38e3c',
     border: 'none',
     padding: isMobile ? '8px 12px' : '10px 20px',
@@ -311,26 +295,7 @@ const HomePage = ({ onNavigate }) => {
     cursor: 'pointer',
     fontSize: isMobile ? '14px' : '16px',
     transition: 'all 0.3s ease'
-  }), [isMobile]);
-
-  if (checkingSession) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-        fontFamily: 'Arial, sans-serif',
-        backgroundColor: '#009245',
-        color: 'white',
-        flexDirection: 'column',
-        gap: '20px'
-      }}>
-        <div style={{ fontSize: '48px' }}>🔄</div>
-        <div style={{ fontSize: '18px' }}>Verificando sessão...</div>
-      </div>
-    );
-  }
+  };
 
   return (
     <div style={{
@@ -450,61 +415,27 @@ const HomePage = ({ onNavigate }) => {
 
           {modo === 'login' && (
             <form onSubmit={(e) => { e.preventDefault(); handleLogin(cnpj, senha); }} onKeyPress={handleKeyPress}>
-              <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
-                  CNPJ
-                </label>
-                <input
-                  type="text"
-                  value={cnpj}
-                  onChange={handleCnpjChange}
-                  placeholder="00.000.000/0000-00"
-                  maxLength="18"
-                  disabled={fazendoLogin || isBlocked}
-                  autoComplete="username"
-                  style={{
-                    width: '100%',
-                    padding: '14px',
-                    border: '2px solid #ddd',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
-                    transition: 'border-color 0.3s ease'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#009245'}
-                  onBlur={(e) => e.target.style.borderColor = '#ddd'}
-                />
-              </div>
+              <InputField
+                label="CNPJ"
+                type="text"
+                value={cnpj}
+                onChange={handleCnpjChange}
+                placeholder="00.000.000/0000-00"
+                maxLength="18"
+                disabled={fazendoLogin || isBlocked}
+                autoComplete="username"
+              />
 
-              <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
-                  Senha
-                </label>
-                <input
-                  type="password"
-                  value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
-                  placeholder="Digite sua senha"
-                  disabled={fazendoLogin || isBlocked}
-                  maxLength="50"
-                  autoComplete="current-password"
-                  style={{
-                    width: '100%',
-                    padding: '14px',
-                    border: '2px solid #ddd',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
-                    transition: 'border-color 0.3s ease'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#009245'}
-                  onBlur={(e) => e.target.style.borderColor = '#ddd'}
-                />
-              </div>
+              <InputField
+                label="Senha"
+                type="password"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                placeholder="Digite sua senha"
+                disabled={fazendoLogin || isBlocked}
+                maxLength="50"
+                autoComplete="current-password"
+              />
 
               {loginAttempts > 0 && !isBlocked && (
                 <div style={{
@@ -558,150 +489,61 @@ const HomePage = ({ onNavigate }) => {
 
           {modo === 'cadastro' && (
             <form onSubmit={(e) => { e.preventDefault(); handleCadastro(); }} onKeyPress={handleKeyPress}>
-              <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
-                  CNPJ
-                </label>
-                <input
-                  type="text"
-                  value={cnpj}
-                  onChange={handleCnpjChange}
-                  placeholder="00.000.000/0000-00"
-                  maxLength="18"
-                  disabled={fazendoLogin || isBlocked}
-                  autoComplete="username"
-                  style={{
-                    width: '100%',
-                    padding: '14px',
-                    border: '2px solid #ddd',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
-                    transition: 'border-color 0.3s ease'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#009245'}
-                  onBlur={(e) => e.target.style.borderColor = '#ddd'}
-                />
-              </div>
+              <InputField
+                label="CNPJ"
+                type="text"
+                value={cnpj}
+                onChange={handleCnpjChange}
+                placeholder="00.000.000/0000-00"
+                maxLength="18"
+                disabled={fazendoLogin || isBlocked}
+                autoComplete="username"
+              />
 
-              <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="empresa@exemplo.com"
-                  disabled={fazendoLogin || isBlocked}
-                  autoComplete="email"
-                  style={{
-                    width: '100%',
-                    padding: '14px',
-                    border: '2px solid #ddd',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
-                    transition: 'border-color 0.3s ease'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#009245'}
-                  onBlur={(e) => e.target.style.borderColor = '#ddd'}
-                />
-                <small style={{ color: '#666', fontSize: '12px' }}>
-                  Email para recuperação de senha e comunicações importantes
-                </small>
-              </div>
+              <InputField
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="empresa@exemplo.com"
+                disabled={fazendoLogin || isBlocked}
+                autoComplete="email"
+                helper="Email para recuperação de senha e comunicações importantes"
+              />
 
-              <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
-                  Razão Social
-                </label>
-                <input
-                  type="text"
-                  value={nomeEmpresa}
-                  onChange={(e) => setNomeEmpresa(e.target.value)}
-                  placeholder="Razão Social da Empresa"
-                  disabled={fazendoLogin || isBlocked}
-                  maxLength="100"
-                  autoComplete="organization"
-                  style={{
-                    width: '100%',
-                    padding: '14px',
-                    border: '2px solid #ddd',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
-                    transition: 'border-color 0.3s ease'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#009245'}
-                  onBlur={(e) => e.target.style.borderColor = '#ddd'}
-                />
-                <small style={{ color: '#666', fontSize: '12px' }}>
-                  Razão social para identificação nos pedidos
-                </small>
-              </div>
+              <InputField
+                label="Razão Social"
+                type="text"
+                value={nomeEmpresa}
+                onChange={(e) => setNomeEmpresa(e.target.value)}
+                placeholder="Razão Social da Empresa"
+                disabled={fazendoLogin || isBlocked}
+                maxLength="100"
+                autoComplete="organization"
+                helper="Razão social para identificação nos pedidos"
+              />
 
-              <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
-                  Senha (mínimo 6 caracteres)
-                </label>
-                <input
-                  type="password"
-                  value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
-                  placeholder="Digite sua senha"
-                  disabled={fazendoLogin || isBlocked}
-                  maxLength="50"
-                  autoComplete="new-password"
-                  style={{
-                    width: '100%',
-                    padding: '14px',
-                    border: '2px solid #ddd',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
-                    transition: 'border-color 0.3s ease'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#009245'}
-                  onBlur={(e) => e.target.style.borderColor = '#ddd'}
-                />
-              </div>
+              <InputField
+                label="Senha (mínimo 6 caracteres)"
+                type="password"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                placeholder="Digite sua senha"
+                disabled={fazendoLogin || isBlocked}
+                maxLength="50"
+                autoComplete="new-password"
+              />
 
-              <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
-                  Confirmar Senha
-                </label>
-                <input
-                  type="password"
-                  value={confirmarSenha}
-                  onChange={(e) => setConfirmarSenha(e.target.value)}
-                  placeholder="Confirme sua senha"
-                  disabled={fazendoLogin || isBlocked}
-                  maxLength="50"
-                  autoComplete="new-password"
-                  style={{
-                    width: '100%',
-                    padding: '14px',
-                    border: '2px solid #ddd',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    opacity: (fazendoLogin || isBlocked) ? 0.6 : 1,
-                    transition: 'border-color 0.3s ease'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#009245'}
-                  onBlur={(e) => e.target.style.borderColor = '#ddd'}
-                />
-              </div>
+              <InputField
+                label="Confirmar Senha"
+                type="password"
+                value={confirmarSenha}
+                onChange={(e) => setConfirmarSenha(e.target.value)}
+                placeholder="Confirme sua senha"
+                disabled={fazendoLogin || isBlocked}
+                maxLength="50"
+                autoComplete="new-password"
+              />
 
               <button
                 type="submit"
@@ -835,101 +677,41 @@ const HomePage = ({ onNavigate }) => {
           flexDirection: isMobile ? 'column' : 'row',
           alignItems: isMobile ? 'center' : 'stretch'
         }}>
-          <div style={{
-            width: isMobile ? '100%' : '250px',
-            maxWidth: isMobile ? '300px' : '250px',
-            backgroundColor: '#2f6e4a',
-            borderRadius: '15px',
-            padding: '20px',
-            textAlign: 'center',
-            color: 'white',
-            boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
-            cursor: 'pointer',
-            transition: 'all 0.3s ease'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-5px)';
-            e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.3)';
-            e.currentTarget.style.backgroundColor = '#1e5233';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.2)';
-            e.currentTarget.style.backgroundColor = '#2f6e4a';
-          }}
-          >
-            <div style={{ fontSize: '48px', marginBottom: '15px' }}>🔐</div>
-            <h3 style={{ marginTop: '10px', fontSize: '1.1em' }}>
-              1. Acesso Seguro
-            </h3>
-            <p style={{ fontSize: '0.9em' }}>
-              Faça login com segurança usando seu CNPJ
-            </p>
-          </div>
-
-          <div style={{
-            width: isMobile ? '100%' : '250px',
-            maxWidth: isMobile ? '300px' : '250px',
-            backgroundColor: '#2f6e4a',
-            borderRadius: '15px',
-            padding: '20px',
-            textAlign: 'center',
-            color: 'white',
-            boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
-            cursor: 'pointer',
-            transition: 'all 0.3s ease'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-5px)';
-            e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.3)';
-            e.currentTarget.style.backgroundColor = '#1e5233';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.2)';
-            e.currentTarget.style.backgroundColor = '#2f6e4a';
-          }}
-          >
-            <div style={{ fontSize: '48px', marginBottom: '15px' }}>🍽️</div>
-            <h3 style={{ marginTop: '10px', fontSize: '1.1em' }}>
-              2. Escolha Produtos
-            </h3>
-            <p style={{ fontSize: '0.9em' }}>
-              Veja produtos disponíveis para sua empresa
-            </p>
-          </div>
-
-          <div style={{
-            width: isMobile ? '100%' : '250px',
-            maxWidth: isMobile ? '300px' : '250px',
-            backgroundColor: '#2f6e4a',
-            borderRadius: '15px',
-            padding: '20px',
-            textAlign: 'center',
-            color: 'white',
-            boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
-            cursor: 'pointer',
-            transition: 'all 0.3s ease'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-5px)';
-            e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.3)';
-            e.currentTarget.style.backgroundColor = '#1e5233';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.2)';
-            e.currentTarget.style.backgroundColor = '#2f6e4a';
-          }}
-          >
-            <div style={{ fontSize: '48px', marginBottom: '15px' }}>🚚</div>
-            <h3 style={{ marginTop: '10px', fontSize: '1.1em' }}>
-              3. Receba em Casa
-            </h3>
-            <p style={{ fontSize: '0.9em' }}>
-              Entrega rápida e segura no seu endereço
-            </p>
-          </div>
+          {[
+            { icon: '🔐', title: '1. Acesso Seguro', desc: 'Faça login com segurança usando seu CNPJ' },
+            { icon: '🍽️', title: '2. Escolha Produtos', desc: 'Veja produtos disponíveis para sua empresa' },
+            { icon: '🚚', title: '3. Receba em Casa', desc: 'Entrega rápida e segura no seu endereço' }
+          ].map(({ icon, title, desc }) => (
+            <div
+              key={title}
+              style={{
+                width: isMobile ? '100%' : '250px',
+                maxWidth: isMobile ? '300px' : '250px',
+                backgroundColor: '#2f6e4a',
+                borderRadius: '15px',
+                padding: '20px',
+                textAlign: 'center',
+                color: 'white',
+                boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-5px)';
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(0,0,0,0.3)';
+                e.currentTarget.style.backgroundColor = '#1e5233';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.2)';
+                e.currentTarget.style.backgroundColor = '#2f6e4a';
+              }}
+            >
+              <div style={{ fontSize: '48px', marginBottom: '15px' }}>{icon}</div>
+              <h3 style={{ marginTop: '10px', fontSize: '1.1em' }}>{title}</h3>
+              <p style={{ fontSize: '0.9em' }}>{desc}</p>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -1065,5 +847,12 @@ const HomePage = ({ onNavigate }) => {
     </div>
   );
 };
+
+// ─── Exported wrapper wraps inner component in NotificationProvider ────────────
+const HomePage = ({ onNavigate }) => (
+  <NotificationProvider>
+    <HomePageInner onNavigate={onNavigate} />
+  </NotificationProvider>
+);
 
 export default HomePage;

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { pedidoService } from '../services/pedidoService';
+import { useWindowSize } from '../hooks/useWindowSize';
 
 const ConsultaPedidosPage = ({ onNavigate }) => {
   const [pedidos, setPedidos] = useState([]);
@@ -15,7 +16,7 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
   const [sessaoAtiva, setSessaoAtiva] = useState(null);
   const [selectedPedido, setSelectedPedido] = useState(null);
   const [showDetalhes, setShowDetalhes] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const { isMobile } = useWindowSize();
   const [stats, setStats] = useState({
     totalPedidos: 0,
     valorTotal: 0,
@@ -31,13 +32,6 @@ const ConsultaPedidosPage = ({ onNavigate }) => {
     { value: 'entregue', label: 'Entregue', color: '#6c757d' },
     { value: 'cancelado', label: 'Cancelado', color: '#dc3545' }
   ];
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   useEffect(() => {
     // Verifica sessão

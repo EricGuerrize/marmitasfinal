@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useCep } from '../hooks/useCep';
 import { useNotification } from './NotificationSystem';
+import { useWindowSize } from '../hooks/useWindowSize';
 import LogoComponent from './LogoComponent';
 // ✅ ADICIONADO: Importações dos serviços
 import { pedidoService } from '../services/pedidoService';
@@ -62,7 +63,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
   // ✅ REMOVIDO: const [cnpj, setCnpj] = useState('');
 
   const [observacoes, setObservacoes] = useState('');
-  const [isMobile, setIsMobile] = useState(false);
+  const { isMobile } = useWindowSize();
   const [processandoPedido, setProcessandoPedido] = useState(false);
   const [showWhatsAppFallback, setShowWhatsAppFallback] = useState(false);
   const [mensagemWhatsApp, setMensagemWhatsApp] = useState('');
@@ -80,20 +81,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
   } = useCep();
 
   const { success, error: showError } = useNotification();
-
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-
-
 
   // ✅ NOVO: useEffect para buscar dados da sessão
   useEffect(() => {

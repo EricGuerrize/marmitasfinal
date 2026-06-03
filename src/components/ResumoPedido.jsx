@@ -1,25 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import LogoComponent from './LogoComponent';
+import { useWindowSize } from '../hooks/useWindowSize';
 
 const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
   const [cnpj, setCnpj] = useState('');
   const [pedidoAtual, setPedidoAtual] = useState(null);
   const [processandoPedido, setProcessandoPedido] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const { isMobile } = useWindowSize();
   const [showWhatsAppFallback, setShowWhatsAppFallback] = useState(false); // ✅ NOVO
   const [mensagemWhatsApp, setMensagemWhatsApp] = useState(''); // ✅ NOVO
-
-  // Detecta se é mobile
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   useEffect(() => {
     const cnpjInfo = sessionStorage.getItem('cnpj') || '';
