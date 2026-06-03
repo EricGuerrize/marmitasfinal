@@ -219,7 +219,11 @@ const HomePage = ({ onNavigate }) => {
       alert('Senhas não conferem');
       return;
     }
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!email || !email.trim()) {
+      alert('Por favor, informe o e-mail');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       alert('Email inválido');
       return;
     }
@@ -584,7 +588,7 @@ const HomePage = ({ onNavigate }) => {
 
               <div style={{ marginBottom: '20px', textAlign: 'left' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#009245' }}>
-                  Email (opcional)
+                  Email
                 </label>
                 <input
                   type="email"
@@ -807,15 +811,13 @@ const HomePage = ({ onNavigate }) => {
               color: '#0066cc',
               border: '1px solid #b3d9ff'
             }}>
-              <strong>📧 Por que o email é útil?</strong>
+              <strong>📧 Por que o e-mail é obrigatório?</strong>
               <br />
-              • Para recuperação de senha
+              • Para recuperação de senha em caso de esquecimento
               <br />
-              • Para receber atualizações de pedidos
+              • Para receber atualizações de pedidos em tempo real
               <br />
-              • Para comunicações importantes
-              <br />
-              <em>(Campo opcional - você pode cadastrar sem email)</em>
+              • Para comunicações importantes de segurança
             </div>
           )}
         </div>

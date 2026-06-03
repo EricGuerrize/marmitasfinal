@@ -283,7 +283,11 @@ import {
         let errorMessage = 'Erro no cadastro';
         
         if (error.code === 'auth/email-already-in-use') {
-          errorMessage = 'Este CNPJ já possui cadastro. Caso não lembre a senha, use a opção "Esqueci minha senha" na tela de login.';
+          if (email) {
+            errorMessage = 'Este e-mail já está em uso por outra conta. Por favor, use outro e-mail ou faça login com o CNPJ correspondente.';
+          } else {
+            errorMessage = 'Este CNPJ já possui cadastro. Caso não lembre a senha, use a opção "Esqueci minha senha" na tela de login.';
+          }
         } else if (error.code === 'auth/weak-password') {
           errorMessage = 'Senha muito fraca';
         }
