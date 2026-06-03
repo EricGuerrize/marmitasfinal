@@ -226,8 +226,8 @@ import {
         
         if (error.code === 'auth/user-not-found') {
           errorMessage = 'CNPJ não encontrado';
-        } else if (error.code === 'auth/wrong-password') {
-          errorMessage = 'Senha incorreta';
+        } else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+          errorMessage = 'CNPJ ou senha incorretos';
         } else if (error.code === 'auth/invalid-email') {
           errorMessage = 'CNPJ inválido';
         }
