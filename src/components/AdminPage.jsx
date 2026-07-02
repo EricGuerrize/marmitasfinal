@@ -5,6 +5,7 @@ import { pedidoService } from '../services/pedidoService';
 import ImageUpload from './ImageUpload';
 import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
+import { useWindowSize } from '../hooks/useWindowSize';
 
 // ─── Formatadores (padrão brasileiro) ───────────────────────────────────────
 // Dinheiro: 535047.28 → "R$ 535.047,28"
@@ -20,6 +21,7 @@ const formatInt = (valor) =>
 
 
 const AdminPage = ({ onNavigate }) => {
+  const { isMobile } = useWindowSize();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [activeOrderTab, setActiveOrderTab] = useState('pendentes');
   const [produtos, setProdutos] = useState([]);
@@ -1151,25 +1153,28 @@ useEffect(() => {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '15px 40px'
+        padding: isMobile ? '12px 16px' : '15px 40px',
+        gap: '10px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div style={{ fontSize: '32px' }}>🍽️</div>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '24px' }}>Fit In Box Admin</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '15px', minWidth: 0 }}>
+          <div style={{ fontSize: isMobile ? '24px' : '32px' }}>🍽️</div>
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ margin: 0, fontSize: isMobile ? '18px' : '24px' }}>Fit In Box Admin</h2>
             <small style={{ color: '#adb5bd' }}>Painel Administrativo</small>
           </div>
         </div>
-        <button 
+        <button
           onClick={handleLogout}
           style={{
             backgroundColor: '#dc3545',
             color: 'white',
             border: 'none',
-            padding: '10px 20px',
+            padding: isMobile ? '8px 14px' : '10px 20px',
             borderRadius: '5px',
             cursor: 'pointer',
-            fontWeight: 'bold'
+            fontWeight: 'bold',
+            whiteSpace: 'nowrap',
+            flexShrink: 0
           }}
         >
           🚪 Sair
@@ -1180,9 +1185,14 @@ useEffect(() => {
       <div style={{
         backgroundColor: 'white',
         borderBottom: '1px solid #dee2e6',
-        padding: '0 40px'
+        padding: isMobile ? '0 8px' : '0 40px'
       }}>
-        <div style={{ display: 'flex', gap: '30px' }}>
+        <div style={{
+          display: 'flex',
+          gap: isMobile ? '8px' : '30px',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch'
+        }}>
           {[
             { id: 'dashboard', label: '📊 Dashboard' },
             { id: 'produtos', label: '🍽️ Produtos' },
@@ -1195,10 +1205,12 @@ useEffect(() => {
               style={{
                 background: 'none',
                 border: 'none',
-                padding: '15px 0',
-                fontSize: '16px',
+                padding: isMobile ? '14px 10px' : '15px 0',
+                fontSize: isMobile ? '14px' : '16px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
                 borderBottom: activeTab === tab.id ? '3px solid #007bff' : '3px solid transparent',
                 color: activeTab === tab.id ? '#007bff' : '#6c757d'
               }}
@@ -1211,18 +1223,18 @@ useEffect(() => {
 
       {/* Content */}
       <div style={{
-        padding: '30px 40px',
+        padding: isMobile ? '16px 12px' : '30px 40px',
         maxWidth: '1200px',
         margin: '0 auto'
       }}>
         {/* ✅ DASHBOARD TAB COMPLETO */}
 {activeTab === 'dashboard' && (
   <div>
-    <h1 style={{ color: '#343a40', marginBottom: '30px' }}>📊 Dashboard</h1>
+    <h1 style={{ color: '#343a40', marginBottom: isMobile ? '20px' : '30px', fontSize: isMobile ? '26px' : '32px' }}>📊 Dashboard</h1>
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-      gap: '20px',
+      gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(250px, 1fr))',
+      gap: isMobile ? '12px' : '20px',
       marginBottom: '30px'
     }}>
       {/* Total de Pedidos Geral */}
@@ -1233,9 +1245,9 @@ useEffect(() => {
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         textAlign: 'center'
       }}>
-        <div style={{ fontSize: '40px', marginBottom: '10px' }}>📦</div>
+        <div style={{ fontSize: isMobile ? '30px' : '40px', marginBottom: '8px' }}>📦</div>
         <h3 style={{ color: '#6c757d', margin: '0 0 5px 0' }}>Total de Pedidos</h3>
-        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
+        <div style={{ fontSize: isMobile ? '24px' : '32px', fontWeight: 'bold', color: '#343a40' }}>
           {formatInt(stats.totalPedidos)}
         </div>
         <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
@@ -1252,9 +1264,9 @@ useEffect(() => {
         textAlign: 'center',
         border: stats.pedidosPendentes > 0 ? '2px solid #ffc107' : 'none'
       }}>
-        <div style={{ fontSize: '40px', marginBottom: '10px' }}>⏳</div>
+        <div style={{ fontSize: isMobile ? '30px' : '40px', marginBottom: '8px' }}>⏳</div>
         <h3 style={{ color: '#ffc107', margin: '0 0 5px 0' }}>Pedidos Pendentes</h3>
-        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
+        <div style={{ fontSize: isMobile ? '24px' : '32px', fontWeight: 'bold', color: '#343a40' }}>
           {stats.pedidosPendentes}
         </div>
         <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
@@ -1270,9 +1282,9 @@ useEffect(() => {
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         textAlign: 'center'
       }}>
-        <div style={{ fontSize: '40px', marginBottom: '10px' }}>💰</div>
+        <div style={{ fontSize: isMobile ? '30px' : '40px', marginBottom: '8px' }}>💰</div>
         <h3 style={{ color: '#007bff', margin: '0 0 5px 0' }}>Total de Vendas</h3>
-        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
+        <div style={{ fontSize: isMobile ? '24px' : '32px', fontWeight: 'bold', color: '#343a40' }}>
           {formatBRL(stats.totalVendas)}
         </div>
       </div>
@@ -1285,9 +1297,9 @@ useEffect(() => {
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         textAlign: 'center'
       }}>
-        <div style={{ fontSize: '40px', marginBottom: '10px' }}>🏢</div>
+        <div style={{ fontSize: isMobile ? '30px' : '40px', marginBottom: '8px' }}>🏢</div>
         <h3 style={{ color: '#28a745', margin: '0 0 5px 0' }}>Empresas Cadastradas</h3>
-        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
+        <div style={{ fontSize: isMobile ? '24px' : '32px', fontWeight: 'bold', color: '#343a40' }}>
           {formatInt(stats.empresasCadastradas)}
         </div>
       </div>
@@ -1300,9 +1312,9 @@ useEffect(() => {
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         textAlign: 'center'
       }}>
-        <div style={{ fontSize: '40px', marginBottom: '10px' }}>🍽️</div>
+        <div style={{ fontSize: isMobile ? '30px' : '40px', marginBottom: '8px' }}>🍽️</div>
         <h3 style={{ color: '#dc3545', margin: '0 0 5px 0' }}>Produtos Ativos</h3>
-        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
+        <div style={{ fontSize: isMobile ? '24px' : '32px', fontWeight: 'bold', color: '#343a40' }}>
           {produtos.filter(p => p.disponivel).length}
         </div>
       </div>
@@ -1315,9 +1327,9 @@ useEffect(() => {
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         textAlign: 'center'
       }}>
-        <div style={{ fontSize: '40px', marginBottom: '10px' }}>📧</div>
+        <div style={{ fontSize: isMobile ? '30px' : '40px', marginBottom: '8px' }}>📧</div>
         <h3 style={{ color: '#17a2b8', margin: '0 0 5px 0' }}>Empresas c/ Email</h3>
-        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
+        <div style={{ fontSize: isMobile ? '24px' : '32px', fontWeight: 'bold', color: '#343a40' }}>
           {stats.empresasComEmail}
         </div>
         <div style={{ fontSize: '12px', color: '#666' }}>
