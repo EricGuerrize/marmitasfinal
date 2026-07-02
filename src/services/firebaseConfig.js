@@ -5,7 +5,7 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -19,5 +19,18 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Firestore com auto-detecção de long-polling: corrige o travamento de
+// conexão do Firestore em Safari/iOS e algumas redes (o transporte padrão
+// WebChannel pode ficar minutos "pendurado" antes de responder).
+// O try/catch cobre o caso de o Firestore já ter sido iniciado em outro módulo.
+let dbInstance;
+try {
+  dbInstance = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true,
+  });
+} catch {
+  dbInstance = getFirestore(app);
+}
+export const db = dbInstance;
 export default app;
