@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import LogoComponent from './LogoComponent';
+import LoadingSpinner from './LoadingSpinner';
 import { useWindowSize } from '../hooks/useWindowSize';
 
 const ProsseguirPage = ({ onNavigate }) => {
@@ -150,8 +151,7 @@ const ProsseguirPage = ({ onNavigate }) => {
         flexDirection: 'column',
         gap: '20px'
       }}>
-        <div style={{ fontSize: '48px' }}>🔄</div>
-        <div style={{ fontSize: '18px', color: '#666' }}>Verificando sessão...</div>
+        <LoadingSpinner texto="Verificando sessão..." fullScreen={false} />
       </div>
     );
   }

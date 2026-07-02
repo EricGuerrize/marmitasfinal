@@ -5,6 +5,7 @@ import { useCep } from '../hooks/useCep';
 import { useNotification } from './NotificationSystem';
 import { useWindowSize } from '../hooks/useWindowSize';
 import LogoComponent from './LogoComponent';
+import LoadingSpinner from './LoadingSpinner';
 // ✅ ADICIONADO: Importações dos serviços
 import { pedidoService } from '../services/pedidoService';
 import { firebaseAuthService } from '../services/firebaseAuthService';
@@ -507,8 +508,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
         flexDirection: 'column',
         gap: '20px'
       }}>
-        <div style={{ fontSize: '48px' }}>🔄</div>
-        <div style={{ fontSize: '18px', color: '#666' }}>Carregando dados da sessão...</div>
+        <LoadingSpinner texto="Carregando dados da sessão..." fullScreen={false} />
       </div>
     );
   }

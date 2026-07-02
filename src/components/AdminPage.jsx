@@ -6,7 +6,17 @@ import ImageUpload from './ImageUpload';
 import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 
+// ─── Formatadores (padrão brasileiro) ───────────────────────────────────────
+// Dinheiro: 535047.28 → "R$ 535.047,28"
+const formatBRL = (valor) =>
+  (Number(valor) || 0).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
 
+// Inteiros: 1250 → "1.250" (separador de milhar)
+const formatInt = (valor) =>
+  (Number(valor) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 
 
 const AdminPage = ({ onNavigate }) => {
@@ -783,8 +793,8 @@ const AdminPage = ({ onNavigate }) => {
               <tr>
                 <td>${item.nome}</td>
                 <td>${item.quantidade}</td>
-                <td>R$ ${item.preco.toFixed(2)}</td>
-                <td>R$ ${(item.quantidade * item.preco).toFixed(2)}</td>
+                <td>${formatBRL(item.preco)}</td>
+                <td>${formatBRL(item.quantidade * item.preco)}</td>
               </tr>
             `).join('') : ''}
           </tbody>
@@ -802,7 +812,7 @@ const AdminPage = ({ onNavigate }) => {
 
         <div class="total-section">
           <div style="margin-bottom: 5px;">Total do Pedido:</div>
-          <div class="total-value">R$ ${pedido.total.toFixed(2)}</div>
+          <div class="total-value">${formatBRL(pedido.total)}</div>
         </div>
 
         <div class="footer">
@@ -1226,7 +1236,7 @@ useEffect(() => {
         <div style={{ fontSize: '40px', marginBottom: '10px' }}>📦</div>
         <h3 style={{ color: '#6c757d', margin: '0 0 5px 0' }}>Total de Pedidos</h3>
         <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
-          {stats.totalPedidos}
+          {formatInt(stats.totalPedidos)}
         </div>
         <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
           Todos os pedidos do site
@@ -1263,7 +1273,7 @@ useEffect(() => {
         <div style={{ fontSize: '40px', marginBottom: '10px' }}>💰</div>
         <h3 style={{ color: '#007bff', margin: '0 0 5px 0' }}>Total de Vendas</h3>
         <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
-          R$ {stats.totalVendas.toFixed(2)}
+          {formatBRL(stats.totalVendas)}
         </div>
       </div>
 
@@ -1278,7 +1288,7 @@ useEffect(() => {
         <div style={{ fontSize: '40px', marginBottom: '10px' }}>🏢</div>
         <h3 style={{ color: '#28a745', margin: '0 0 5px 0' }}>Empresas Cadastradas</h3>
         <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#343a40' }}>
-          {stats.empresasCadastradas}
+          {formatInt(stats.empresasCadastradas)}
         </div>
       </div>
 
@@ -1371,7 +1381,7 @@ useEffect(() => {
                 <form onSubmit={handleProductSubmit}>
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
                     gap: '20px',
                     marginBottom: '20px'
                   }}>
@@ -1441,7 +1451,7 @@ useEffect(() => {
                   </div>
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
                     gap: '20px',
                     marginBottom: '20px'
                   }}>
@@ -1603,7 +1613,7 @@ useEffect(() => {
                         fontWeight: 'bold',
                         color: '#28a745'
                       }}>
-                        R$ {produto.preco.toFixed(2)}
+                        {formatBRL(produto.preco)}
                       </span>
                       <span style={{
                         backgroundColor: produto.disponivel ? '#28a745' : '#dc3545',
@@ -1887,7 +1897,7 @@ useEffect(() => {
                             fontWeight: 'bold',
                             color: '#28a745'
                           }}>
-                            R$ {pedido.total.toFixed(2)}
+                            {formatBRL(pedido.total)}
                           </div>
                         </div>
                       </div>
@@ -1957,7 +1967,7 @@ useEffect(() => {
                           >
                             <span>{item.quantidade}x {item.nome}</span>
                             <span style={{ fontWeight: 'bold' }}>
-                              R$ {(item.quantidade * item.preco).toFixed(2)}
+                              {formatBRL(item.quantidade * item.preco)}
                             </span>
                           </div>
                         ))}

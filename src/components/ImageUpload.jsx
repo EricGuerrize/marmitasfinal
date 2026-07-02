@@ -182,7 +182,16 @@ const ImageUpload = ({
 
           {uploading ? (
             <div>
-              <div style={{ fontSize: '24px', marginBottom: '10px' }}>⏳</div>
+              <style>{`@keyframes fitinboxSpin { to { transform: rotate(360deg); } }`}</style>
+              <div style={{
+                width: '28px',
+                height: '28px',
+                margin: '0 auto 10px',
+                border: '3px solid #cfe2ff',
+                borderTopColor: '#007bff',
+                borderRadius: '50%',
+                animation: 'fitinboxSpin 0.8s linear infinite'
+              }} />
               <div style={{ color: '#007bff', fontWeight: 'bold' }}>
                 Fazendo upload...
               </div>

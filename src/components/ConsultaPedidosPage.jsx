@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { pedidoService } from '../services/pedidoService';
 import { useWindowSize } from '../hooks/useWindowSize';
+import LoadingSpinner from './LoadingSpinner';
 
 const ConsultaPedidosPage = ({ onNavigate }) => {
   const [pedidos, setPedidos] = useState([]);
@@ -543,8 +544,7 @@ const carregarPedidos = async (sessao) => {
             textAlign: 'center',
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
           }}>
-            <div style={{ fontSize: '48px', marginBottom: '20px' }}>⏳</div>
-            <h3>Carregando pedidos...</h3>
+            <LoadingSpinner texto="Carregando pedidos..." fullScreen={false} />
           </div>
         ) : pedidosFiltrados.length === 0 ? (
           <div style={{
