@@ -1,0 +1,78 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  FIT IN BOX — Firestore Security Rules · FASE 1
+//  Objetivo: criar o papel de "admin" e tirar o poder de escrita irrestrito de
+//  qualquer cliente logado (Buraco #2), SEM quebrar login, checkout ou o painel.
+//
+//  Pré-requisito: a conta admin precisa ter a custom claim { admin: true }.
+//  Rode o script setAdminClaim.mjs ANTES de publicar estas regras.
+//
+//  O que a Fase 1 NÃO fecha ainda (fica pra Fase 2):
+//    - `allow list: if true` em users/empresas ainda permite dump público
+//      (necessário hoje pro lookup por CNPJ antes do login).
+//    - pedidos ainda podem ser LIDOS por qualquer cliente logado (sem isolamento
+//      por dono). A Fase 2 isola por dono do pedido.
+// ─────────────────────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Admin de verdade: baseado na custom claim do token, não em dado do cliente.
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // ── PRODUTOS (cardápio) ────────────────────────────────────────────────
+    // Leitura pública; só admin edita/exclui.
+    match /produtos/{produtoId} {
+      allow read:  if true;
+      allow write: if isAdmin();
+    }
+
+    // ── CATEGORIAS ─────────────────────────────────────────────────────────
+    match /categorias/{categoriaId} {
+      allow read:  if true;
+      allow write: if isAdmin();
+    }
+
+    // ── PEDIDOS ────────────────────────────────────────────────────────────
+    // Cliente logado CRIA o pedido no checkout.
+    // Alterar status e excluir são ações que só existem no painel → só admin.
+    // (Fase 2: isolar a LEITURA por dono do pedido.)
+    match /pedidos/{pedidoId} {
+      allow read:          if signedIn();
+      allow create:        if signedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // ── USERS ──────────────────────────────────────────────────────────────
+    // `list: if true` mantém o lookup por CNPJ antes do login funcionando.
+    // Escrita/leitura de doc individual: só o próprio dono ou admin.
+    match /users/{userId} {
+      allow list:  if true;                                    // TODO Fase 2: remover
+      allow get:   if isAdmin() || (signedIn() && request.auth.uid == userId);
+      allow write: if isAdmin() || (signedIn() && request.auth.uid == userId);
+    }
+
+    // ── EMPRESAS ───────────────────────────────────────────────────────────
+    // `list/get: if true` mantém a checagem de CNPJ antes do login e o painel.
+    // Cliente logado cria/atualiza (auto-cadastro no checkout); excluir = admin.
+    match /empresas/{empresaId} {
+      allow read:            if true;                          // TODO Fase 2: restringir
+      allow create, update:  if signedIn();
+      allow delete:          if isAdmin();
+    }
+
+    // ── QUALQUER OUTRA COLEÇÃO ─────────────────────────────────────────────
+    // Fecha o antigo catch-all `if request.auth != null`. Agora, coleção nova
+    // não prevista só é acessível por admin (falha de forma segura).
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
