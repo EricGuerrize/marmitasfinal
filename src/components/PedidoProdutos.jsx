@@ -48,8 +48,8 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
 
     carregarProdutos();
 
-    // Atualiza produtos a cada 5 segundos para pegar mudanças do admin
-    const intervalId = setInterval(carregarProdutos, 5000);
+    // Atualiza produtos a cada 5 minutos para reduzir o load no Firebase
+    const intervalId = setInterval(carregarProdutos, 300000);
     
     // Intercepta o botão voltar do navegador
     const handlePopState = (event) => {

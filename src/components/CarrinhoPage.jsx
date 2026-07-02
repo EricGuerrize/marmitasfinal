@@ -280,32 +280,39 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
 
   // ✅ FUNÇÃO para WhatsApp
   const abrirWhatsAppCompleto = (mensagem) => {
-    const numeroWhatsApp = '5521964298123';
-    setMensagemWhatsApp(mensagem);
+    return new Promise((resolve) => {
+      const numeroWhatsApp = '5521964298123';
+      setMensagemWhatsApp(mensagem);
 
-    const isMobileDevice = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isMobileDevice = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-    if (isMobileDevice) {
-      const urlNativo = `whatsapp://send?phone=55${numeroWhatsApp}&text=${encodeURIComponent(mensagem)}`;
+      if (isMobileDevice) {
+        const urlNativo = `whatsapp://send?phone=55${numeroWhatsApp}&text=${encodeURIComponent(mensagem)}`;
 
-      try {
-        window.location.href = urlNativo;
-        setTimeout(() => {
+        try {
+          window.location.href = urlNativo;
+          setTimeout(() => {
+            setShowWhatsAppFallback(true);
+            resolve(false);
+          }, 3000);
+        } catch (error) {
           setShowWhatsAppFallback(true);
-        }, 3000);
-      } catch (error) {
-        setShowWhatsAppFallback(true);
-      }
-    } else {
-      const urlDesktop = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
-      const novaJanela = window.open(urlDesktop, '_blank');
-
-      setTimeout(() => {
-        if (!novaJanela || novaJanela.closed) {
-          setShowWhatsAppFallback(true);
+          resolve(false);
         }
-      }, 2000);
-    }
+      } else {
+        const urlDesktop = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
+        const novaJanela = window.open(urlDesktop, '_blank');
+
+        setTimeout(() => {
+          if (!novaJanela || novaJanela.closed || novaJanela.outerHeight === 0) {
+            setShowWhatsAppFallback(true);
+            resolve(false);
+          } else {
+            resolve(true);
+          }
+        }, 2000);
+      }
+    });
   };
 
   // ✅ FUNÇÃO para copiar mensagem
@@ -451,18 +458,16 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       mensagem += `Aguardo confirmação!`;
 
       // 7. Abre o WhatsApp
-      abrirWhatsAppCompleto(mensagem);
+      const abriuComSucesso = await abrirWhatsAppCompleto(mensagem);
 
       // 8. Limpa carrinho e navega
-      setTimeout(() => {
-        sessionStorage.removeItem('carrinho');
-        limparCarrinho();
+      sessionStorage.removeItem('carrinho');
+      limparCarrinho();
 
-        if (!showWhatsAppFallback) {
-          success('Pedido enviado com sucesso!');
-          onNavigate('pedido-confirmado');
-        }
-      }, 4000);
+      if (abriuComSucesso) {
+        success('Pedido enviado com sucesso!');
+        onNavigate('pedido-confirmado');
+      }
 
     } catch (error) {
       console.error('❌ Erro crítico em confirmarEEnviarPedido:', error);

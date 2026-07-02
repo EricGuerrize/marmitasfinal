@@ -39,43 +39,44 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
 
   // ✅ FUNÇÃO COMPLETA para WhatsApp
   const abrirWhatsAppCompleto = (mensagem) => {
-    const numeroWhatsApp = '5521964298123';
-    setMensagemWhatsApp(mensagem);
+    return new Promise((resolve) => {
+      const numeroWhatsApp = '5521964298123';
+      setMensagemWhatsApp(mensagem);
 
-    const isMobileDevice = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isMobileDevice = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-    if (isMobileDevice) {
-      console.log('📱 Tentando abrir WhatsApp no mobile...');
+      if (isMobileDevice) {
+        console.log('📱 Tentando abrir WhatsApp no mobile...');
 
-      // Tenta app nativo primeiro
-      const urlNativo = `whatsapp://send?phone=55${numeroWhatsApp}&text=${encodeURIComponent(mensagem)}`;
+        const urlNativo = `whatsapp://send?phone=55${numeroWhatsApp}&text=${encodeURIComponent(mensagem)}`;
 
-      try {
-        window.location.href = urlNativo;
-
-        // Se não abrir em 3 segundos, mostra fallback
-        setTimeout(() => {
+        try {
+          window.location.href = urlNativo;
+          setTimeout(() => {
+            setShowWhatsAppFallback(true);
+            console.log('📱 Mostrando opções manuais para mobile');
+            resolve(false);
+          }, 3000);
+        } catch (error) {
+          console.log('📱 Erro, mostrando fallback:', error);
           setShowWhatsAppFallback(true);
-          console.log('📱 Mostrando opções manuais para mobile');
-        }, 3000);
-
-      } catch (error) {
-        console.log('📱 Erro, mostrando fallback:', error);
-        setShowWhatsAppFallback(true);
-      }
-
-    } else {
-      console.log('💻 Abrindo WhatsApp no desktop...');
-      const urlDesktop = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
-      const novaJanela = window.open(urlDesktop, '_blank');
-
-      // Se não abrir, mostra fallback
-      setTimeout(() => {
-        if (!novaJanela || novaJanela.closed) {
-          setShowWhatsAppFallback(true);
+          resolve(false);
         }
-      }, 2000);
-    }
+      } else {
+        console.log('💻 Abrindo WhatsApp no desktop...');
+        const urlDesktop = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
+        const novaJanela = window.open(urlDesktop, '_blank');
+
+        setTimeout(() => {
+          if (!novaJanela || novaJanela.closed || novaJanela.outerHeight === 0) {
+            setShowWhatsAppFallback(true);
+            resolve(false);
+          } else {
+            resolve(true);
+          }
+        }, 2000);
+      }
+    });
   };
 
   // ✅ FUNÇÃO para copiar mensagem
@@ -187,17 +188,14 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       mensagem += `Aguardo confirmacao!`;
 
       // ✅ USA A NOVA FUNÇÃO
-      abrirWhatsAppCompleto(mensagem);
+      const abriuComSucesso = await abrirWhatsAppCompleto(mensagem);
 
       sessionStorage.removeItem('carrinho');
       sessionStorage.removeItem('pedidoAtual');
 
-      // Só navega se não mostrar fallback
-      setTimeout(() => {
-        if (!showWhatsAppFallback) {
-          onNavigate('pedido-confirmado');
-        }
-      }, 4000);
+      if (abriuComSucesso) {
+        onNavigate('pedido-confirmado');
+      }
 
     } catch (error) {
       alert('Erro ao enviar pedido. Tente novamente.');
