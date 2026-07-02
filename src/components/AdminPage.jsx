@@ -1096,10 +1096,29 @@ useEffect(() => {
         minHeight: '100vh',
         fontFamily: 'Arial, sans-serif',
         flexDirection: 'column',
-        gap: '20px'
+        gap: '24px',
+        background: 'linear-gradient(135deg, #f8f9fa 0%, #eef1f5 100%)'
       }}>
-        <div style={{ fontSize: '48px' }}>🔄</div>
-        <div style={{ fontSize: '18px', color: '#666' }}>Carregando Painel Admin...</div>
+        <style>{`
+          @keyframes adminSpin { to { transform: rotate(360deg); } }
+          @keyframes adminPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        `}</style>
+        <div style={{
+          width: '56px',
+          height: '56px',
+          border: '5px solid #e3e7ee',
+          borderTopColor: '#2e7d32',
+          borderRadius: '50%',
+          animation: 'adminSpin 0.8s linear infinite'
+        }} />
+        <div style={{
+          fontSize: '18px',
+          color: '#555',
+          fontWeight: 500,
+          animation: 'adminPulse 1.5s ease-in-out infinite'
+        }}>
+          Carregando Painel Admin...
+        </div>
       </div>
     );
   }

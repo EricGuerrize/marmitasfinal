@@ -1,18 +1,45 @@
 // src/App.js - COM INICIALIZAÇÃO DE SEGURANÇA E CORREÇÃO DE IMAGENS
 
-import React, { useState, useEffect, useCallback } from 'react';
-import HomePage from './components/HomePage';
-import ProsseguirPage from './components/ProsseguirPage';
-import CnpjNaoCadastrado from './components/CnpjNaoCadastrado';
-import PedidoProdutos from './components/PedidoProdutos';
-import CarrinhoPage from './components/CarrinhoPage';
-import ResumoPedido from './components/ResumoPedido';
-import PedidoConfirmado from './components/PedidoConfirmado';
-import AdminPage from './components/AdminPage';
-import ForgotPasswordPage from './components/ForgotPasswordPage';
-import ConsultaPedidosPage from './components/ConsultaPedidosPage';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import HomePage from './components/HomePage'; // eager: é a página de entrada
 import { NotificationProvider, useNotification } from './components/NotificationSystem';
 import { securityUtils } from './utils/securityUtils';
+
+// Lazy: só baixam quando o usuário realmente navega até elas (code splitting)
+const ProsseguirPage = lazy(() => import('./components/ProsseguirPage'));
+const CnpjNaoCadastrado = lazy(() => import('./components/CnpjNaoCadastrado'));
+const PedidoProdutos = lazy(() => import('./components/PedidoProdutos'));
+const CarrinhoPage = lazy(() => import('./components/CarrinhoPage'));
+const ResumoPedido = lazy(() => import('./components/ResumoPedido'));
+const PedidoConfirmado = lazy(() => import('./components/PedidoConfirmado'));
+const AdminPage = lazy(() => import('./components/AdminPage'));
+const ForgotPasswordPage = lazy(() => import('./components/ForgotPasswordPage'));
+const ConsultaPedidosPage = lazy(() => import('./components/ConsultaPedidosPage'));
+
+// Fallback exibido enquanto um pedaço lazy (chunk) está sendo baixado
+function PageFallback() {
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '100vh',
+      flexDirection: 'column',
+      gap: '20px',
+      fontFamily: 'Arial, sans-serif'
+    }}>
+      <style>{`@keyframes appFallbackSpin { to { transform: rotate(360deg); } }`}</style>
+      <div style={{
+        width: '48px',
+        height: '48px',
+        border: '5px solid #e3e7ee',
+        borderTopColor: '#009245',
+        borderRadius: '50%',
+        animation: 'appFallbackSpin 0.8s linear infinite'
+      }} />
+    </div>
+  );
+}
 
 // Wrapper do App para usar o hook de notificações
 function AppContent() {
@@ -449,8 +476,10 @@ function AppContent() {
 
   return (
     <div className="App">
-      {renderCurrentPage()}
-      
+      <Suspense fallback={<PageFallback />}>
+        {renderCurrentPage()}
+      </Suspense>
+
       {/* Componente de teste das notificações - apenas em desenvolvimento */}
       {process.env.NODE_ENV === 'development' && securityInitialized && (
         <div style={{
