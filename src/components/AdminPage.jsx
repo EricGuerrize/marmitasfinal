@@ -927,17 +927,34 @@ const AdminPage = ({ onNavigate }) => {
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      const isAuth = await checkAdminAuth();
-      if (!isAuth) {
+
+      const withTimeout = (promise, ms) => Promise.race([
+        promise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout ao carregar painel admin')), ms)
+        )
+      ]);
+
+      try {
+        const isAuth = await withTimeout(checkAdminAuth(), 15000);
+        if (!isAuth) {
+          setLoading(false);
+          onNavigate('home');
+          return;
+        }
+        await withTimeout(Promise.all([
+          loadProducts(),
+          loadPedidos(),
+          loadEmpresasCadastradas(),
+          calcularEstatisticas()
+        ]), 20000);
+      } catch (error) {
+        console.error('❌ Erro ou timeout na inicialização do painel admin:', error.message);
+        setLoading(false);
         onNavigate('home');
         return;
       }
-      await Promise.all([
-        loadProducts(),
-        loadPedidos(),
-        loadEmpresasCadastradas(),
-        calcularEstatisticas()
-      ]);
+
       setLoading(false);
     };
     init();

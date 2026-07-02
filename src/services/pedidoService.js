@@ -493,7 +493,9 @@ export const pedidoService = {
     console.log('ETAPA 2: Empresa validada:', empresa);
 
     // 3. Montagem do objeto do pedido
+    const numeroPedido = `${Date.now()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
     const novoPedido = {
+        numero: numeroPedido,
         empresa_id: empresa.id,
         empresa_cnpj: dadosPedido.cnpj,
         empresa_nome: dadosPedido.empresaNome,
@@ -504,7 +506,7 @@ export const pedidoService = {
         endereco_entrega: dadosPedido.enderecoEntrega,
         observacoes: dadosPedido.observacoes,
         metodo_pagamento: dadosPedido.metodoPagamento,
-        data_pedido: new Date(),
+        data_pedido: serverTimestamp(),
         status: 'pendente'
     };
     console.log('ETAPA 3: Objeto do pedido montado e pronto para inserção.', novoPedido);

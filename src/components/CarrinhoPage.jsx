@@ -287,7 +287,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       const isMobileDevice = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
       if (isMobileDevice) {
-        const urlNativo = `whatsapp://send?phone=55${numeroWhatsApp}&text=${encodeURIComponent(mensagem)}`;
+        const urlNativo = `whatsapp://send?phone=${numeroWhatsApp}&text=${encodeURIComponent(mensagem)}`;
 
         try {
           window.location.href = urlNativo;
@@ -300,7 +300,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
           resolve(false);
         }
       } else {
-        const urlDesktop = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
+        const urlDesktop = `https://wa.me/${numeroWhatsApp}?text=${encodeURIComponent(mensagem)}`;
         const novaJanela = window.open(urlDesktop, '_blank');
 
         setTimeout(() => {
@@ -1302,7 +1302,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               <button
                 onClick={() => {
                   const numeroWhatsApp = '5521964298123';
-                  const urlWeb = `https://wa.me/55${numeroWhatsApp}?text=${encodeURIComponent(mensagemWhatsApp)}`;
+                  const urlWeb = `https://wa.me/${numeroWhatsApp}?text=${encodeURIComponent(mensagemWhatsApp)}`;
                   window.open(urlWeb, '_blank');
                 }}
                 style={{
