@@ -44,20 +44,6 @@ const CheckoutPageInner = ({ onNavigate, carrinho, calcularQuantidadeTotal }) =>
       onNavigate('carrinho');
     }
 
-    const handlePopState = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onNavigate('carrinho');
-      return false;
-    };
-
-    window.removeEventListener('popstate', handlePopState);
-    window.addEventListener('popstate', handlePopState);
-    window.history.pushState({ page: 'checkout' }, '', window.location.pathname);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
   }, [onNavigate]);
 
   const finalizarPedido = async () => {

@@ -51,23 +51,7 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
     // Atualiza produtos a cada 5 minutos para reduzir o load no Firebase
     const intervalId = setInterval(carregarProdutos, 300000);
     
-    // Intercepta o botão voltar do navegador
-    const handlePopState = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onNavigate('prosseguir');
-      return false;
-    };
-    
-    // Remove qualquer listener anterior
-    window.removeEventListener('popstate', handlePopState);
-    window.addEventListener('popstate', handlePopState);
-    
-    // Adiciona uma entrada no histórico para interceptar o botão voltar
-    window.history.pushState({ page: 'produtos' }, '', window.location.pathname);
-    
     return () => {
-      window.removeEventListener('popstate', handlePopState);
       clearInterval(intervalId);
     };
   }, [onNavigate]);
@@ -463,4 +447,3 @@ const PedidoProdutos = ({ onNavigate, carrinho, adicionarAoCarrinho, calcularQua
 };
 
 export default PedidoProdutos;
-

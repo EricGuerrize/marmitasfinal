@@ -21,20 +21,6 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       onNavigate('carrinho');
     }
 
-    const handlePopState = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onNavigate('carrinho');
-      return false;
-    };
-
-    window.removeEventListener('popstate', handlePopState);
-    window.addEventListener('popstate', handlePopState);
-    window.history.pushState({ page: 'resumo-pedido' }, '', window.location.pathname);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
   }, [onNavigate]);
 
   // ✅ FUNÇÃO COMPLETA para WhatsApp

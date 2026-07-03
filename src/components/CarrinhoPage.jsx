@@ -228,23 +228,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
   }, [onNavigate, showError]);
 
   useEffect(() => {
-    const handlePopState = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onNavigate('pedido-produtos');
-      return false;
-    };
-
-    window.removeEventListener('popstate', handlePopState);
-    window.addEventListener('popstate', handlePopState);
-    window.history.pushState({ page: 'carrinho' }, '', window.location.pathname);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [onNavigate]);
-
-  useEffect(() => {
     if (endereco.cidade && endereco.rua && !buscandoCep) {
       success('Endereço encontrado! Verifique se está correto.', 3000);
     }

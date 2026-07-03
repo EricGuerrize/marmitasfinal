@@ -1,6 +1,7 @@
 // src/App.js - COM INICIALIZAÇÃO DE SEGURANÇA E CORREÇÃO DE IMAGENS
 
 import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import HomePage from './components/HomePage'; // eager: é a página de entrada
 import { NotificationProvider, useNotification } from './components/NotificationSystem';
 import { securityUtils } from './utils/securityUtils';
@@ -15,6 +16,23 @@ const PedidoConfirmado = lazy(() => import('./components/PedidoConfirmado'));
 const AdminPage = lazy(() => import('./components/AdminPage'));
 const ForgotPasswordPage = lazy(() => import('./components/ForgotPasswordPage'));
 const ConsultaPedidosPage = lazy(() => import('./components/ConsultaPedidosPage'));
+
+const PAGE_PATHS = {
+  home: '/',
+  prosseguir: '/inicio',
+  'cnpj-nao-cadastrado': '/cnpj-nao-cadastrado',
+  'pedido-produtos': '/produtos',
+  carrinho: '/carrinho',
+  'resumo-pedido': '/resumo-pedido',
+  'pedido-confirmado': '/pedido-confirmado',
+  admin: '/admin',
+  'admin-dashboard': '/admin',
+  'admin-produtos': '/admin/produtos',
+  'admin-pedidos': '/admin/pedidos',
+  'admin-empresas': '/admin/empresas',
+  'forgot-password': '/recuperar-senha',
+  'consultar-pedido': '/pedidos'
+};
 
 // Fallback exibido enquanto um pedaço lazy (chunk) está sendo baixado
 function PageFallback() {
@@ -43,10 +61,11 @@ function PageFallback() {
 
 // Wrapper do App para usar o hook de notificações
 function AppContent() {
-  const [currentPage, setCurrentPage] = useState('home');
   const [carrinho, setCarrinho] = useState([]);
   const [securityInitialized, setSecurityInitialized] = useState(false);
   const { success, error: showError } = useNotification();
+  const routerNavigate = useNavigate();
+  const location = useLocation();
 
   // Inicialização de segurança
   useEffect(() => {
@@ -191,21 +210,15 @@ function AppContent() {
 
   // Função para navegar entre páginas com validação
   const navigate = useCallback((page) => {
-    // Lista de páginas válidas para prevenir navegação maliciosa
-    const validPages = [
-      'home', 'prosseguir', 'cnpj-nao-cadastrado', 'pedido-produtos',
-      'carrinho', 'resumo-pedido', 'pedido-confirmado', 'admin',
-      'forgot-password', 'consultar-pedido'
-    ];
-
-    if (validPages.includes(page)) {
-      setCurrentPage(page);
+    const path = PAGE_PATHS[page];
+    if (path) {
+      routerNavigate(path);
       securityUtils.safeLog(`Navegação para: ${page}`);
     } else {
       securityUtils.safeLog(`Tentativa de navegação inválida bloqueada: ${page}`);
       showError('Página não encontrada');
     }
-  }, [showError]);
+  }, [routerNavigate, showError]);
 
   // ✅ FUNÇÃO CORRIGIDA PARA ADICIONAR AO CARRINHO
   const adicionarAoCarrinho = (produto, quantidadeAdicionar = 1) => {
@@ -438,40 +451,29 @@ function AppContent() {
       calcularQuantidadeTotal
     };
 
-    switch (currentPage) {
-      case 'home':
-        return <HomePage onNavigate={navigate} />;
-      
-      case 'prosseguir':
-        return <ProsseguirPage onNavigate={navigate} />;
-      
-      case 'cnpj-nao-cadastrado':
-        return <CnpjNaoCadastrado onNavigate={navigate} />;
-      
-      case 'pedido-produtos':
-        return <PedidoProdutos {...props} />;
-      
-      case 'carrinho':
-        return <CarrinhoPage {...props} />;
+    const adminSection = location.pathname.split('/')[2] || 'dashboard';
+    const adminTab = ['dashboard', 'produtos', 'pedidos', 'empresas'].includes(adminSection)
+      ? adminSection
+      : 'dashboard';
 
-      case 'resumo-pedido':
-        return <ResumoPedido {...props} />;
-
-      case 'pedido-confirmado':
-        return <PedidoConfirmado onNavigate={navigate} />;
-
-      case 'forgot-password':
-        return <ForgotPasswordPage onNavigate={navigate} />;
-
-      case 'consultar-pedido':
-        return <ConsultaPedidosPage onNavigate={navigate} />;
-      
-      case 'admin':
-        return <AdminPage onNavigate={navigate} />;
-      
-      default:
-        return <HomePage onNavigate={navigate} />;
-    }
+    return (
+      <Routes>
+        <Route path="/" element={<HomePage onNavigate={navigate} />} />
+        <Route path="/inicio" element={<ProsseguirPage onNavigate={navigate} />} />
+        <Route path="/cnpj-nao-cadastrado" element={<CnpjNaoCadastrado onNavigate={navigate} />} />
+        <Route path="/produtos" element={<PedidoProdutos {...props} />} />
+        <Route path="/carrinho" element={<CarrinhoPage {...props} />} />
+        <Route path="/resumo-pedido" element={<ResumoPedido {...props} />} />
+        <Route path="/pedido-confirmado" element={<PedidoConfirmado onNavigate={navigate} />} />
+        <Route path="/recuperar-senha" element={<ForgotPasswordPage onNavigate={navigate} />} />
+        <Route path="/pedidos" element={<ConsultaPedidosPage onNavigate={navigate} />} />
+        <Route
+          path="/admin/*"
+          element={<AdminPage onNavigate={navigate} initialTab={adminTab} />}
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    );
   };
 
   return (
@@ -494,7 +496,7 @@ function AppContent() {
           zIndex: 9999
         }}>
           <div>🔧 Modo Desenvolvimento</div>
-          <div>Página atual: {currentPage}</div>
+          <div>Rota atual: {location.pathname}</div>
           <div>Itens no carrinho: {calcularQuantidadeTotal()}</div>
           <div>🔒 Segurança: Ativada</div>
         </div>
@@ -506,9 +508,11 @@ function AppContent() {
 // Componente principal com Provider de notificações
 function App() {
   return (
-    <NotificationProvider>
-      <AppContent />
-    </NotificationProvider>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <NotificationProvider>
+        <AppContent />
+      </NotificationProvider>
+    </BrowserRouter>
   );
 }
 

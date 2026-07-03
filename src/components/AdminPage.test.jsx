@@ -56,13 +56,18 @@ beforeEach(() => {
 
 test('loads dashboard metrics without opening collection listeners', async () => {
   sessionStorage.setItem('adminPreAuthenticated', JSON.stringify({ timestamp: Date.now() }));
+  const onNavigate = jest.fn();
 
-  render(<AdminPage onNavigate={jest.fn()} />);
+  const { rerender } = render(<AdminPage onNavigate={onNavigate} />);
 
   expect(await screen.findByRole('heading', { name: /dashboard/i })).toBeInTheDocument();
   expect(onSnapshot).not.toHaveBeenCalled();
 
   fireEvent.click(screen.getByRole('button', { name: /pedidos/i }));
-  await waitFor(() => expect(onSnapshot).toHaveBeenCalledTimes(1));
+  expect(onNavigate).toHaveBeenCalledWith('admin-pedidos');
+
+  // Simula a URL atualizada pelo roteador.
+  rerender(<AdminPage onNavigate={onNavigate} initialTab="pedidos" />);
+  await waitFor(() => expect(onSnapshot).toHaveBeenCalled());
   expect(firestoreLimit).toHaveBeenCalledWith(30);
 });

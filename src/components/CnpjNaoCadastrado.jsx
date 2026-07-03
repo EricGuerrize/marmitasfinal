@@ -1,28 +1,7 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 
 const CnpjNaoCadastrado = ({ onNavigate }) => {
 
-  useEffect(() => {
-    // Intercepta o botão voltar do navegador
-    const handlePopState = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onNavigate('home');
-      return false;
-    };
-    
-    // Remove qualquer listener anterior
-    window.removeEventListener('popstate', handlePopState);
-    window.addEventListener('popstate', handlePopState);
-    
-    // Adiciona uma entrada no histórico para interceptar o botão voltar
-    window.history.pushState({ page: 'cnpj-nao-cadastrado' }, '', window.location.pathname);
-    
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [onNavigate]);
-  
   const voltarInicio = () => {
     onNavigate('home');
   };

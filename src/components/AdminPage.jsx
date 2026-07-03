@@ -39,9 +39,9 @@ const formatPedidoDoc = (pedidoDoc) => {
   };
 };
 
-const AdminPage = ({ onNavigate }) => {
+const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
   const { isMobile } = useWindowSize();
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [activeOrderTab, setActiveOrderTab] = useState('pendentes');
   const [produtos, setProdutos] = useState([]);
   const [pedidos, setPedidos] = useState([]);
@@ -64,6 +64,10 @@ const AdminPage = ({ onNavigate }) => {
     disponivel: true,
     estoque: 100
   });
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
 
 
@@ -1173,7 +1177,7 @@ const AdminPage = ({ onNavigate }) => {
           ].map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => onNavigate(tab.id === 'dashboard' ? 'admin' : `admin-${tab.id}`)}
               style={{
                 background: 'none',
                 border: 'none',

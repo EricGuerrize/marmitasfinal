@@ -61,20 +61,6 @@ const ProsseguirPage = ({ onNavigate }) => {
 
     verificarSessaoAtiva();
 
-    const handlePopState = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onNavigate('home');
-      return false;
-    };
-
-    window.removeEventListener('popstate', handlePopState);
-    window.addEventListener('popstate', handlePopState);
-    window.history.pushState({ page: 'prosseguir' }, '', window.location.pathname);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
   }, [onNavigate]);
 
   const handleOptionChange = (option) => {
