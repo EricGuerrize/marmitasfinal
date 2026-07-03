@@ -32,6 +32,7 @@ const AdminPage = ({ onNavigate }) => {
   const [uploadingImage] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [realtimeLoaded, setRealtimeLoaded] = useState({ pedidos: false, produtos: false });
   
   const [productForm, setProductForm] = useState({
     nome: '',
@@ -138,23 +139,31 @@ const AdminPage = ({ onNavigate }) => {
     return statusPedidos; // Retorna sempre os 3 status: pendente, pronto, cancelado
   };
 
-  // ✅ 5. CORRIGIR O useEffect QUE CALCULA PEDIDOS PENDENTES
+  // Calcula as métricas usando os pedidos já carregados. Não faz novas
+  // leituras no Firestore a cada atualização do listener.
   useEffect(() => {
     const totalPedidos = pedidos.length;
-    const pedidosPendentes = pedidos.filter(p => p.status === 'pendente').length; // ✅ APENAS "pendente"
-    
-    console.log(`🔄 Stats recalculadas: Total=${totalPedidos}, Pendentes=${pedidosPendentes}`);
-    console.log('📋 Pedidos por status:', pedidos.reduce((acc, p) => {
-      acc[p.status] = (acc[p.status] || 0) + 1;
-      return acc;
-    }, {}));
+    const pedidosPendentes = pedidos.filter(p => p.status === 'pendente').length;
+    const hoje = new Date().toDateString();
+    let pedidosHoje = 0;
+    let totalVendas = 0;
+
+    pedidos.forEach((pedido) => {
+      totalVendas += Number(pedido.total) || 0;
+      const valorData = pedido.data || pedido.data_pedido || pedido.created_at;
+      const data = valorData?.toDate ? valorData.toDate() : new Date(valorData);
+      if (!Number.isNaN(data.getTime()) && data.toDateString() === hoje) {
+        pedidosHoje += 1;
+      }
+    });
 
     setStats(prevStats => ({
       ...prevStats,
-      totalPedidos: totalPedidos,
-      pedidosPendentes: pedidosPendentes
+      totalPedidos,
+      pedidosPendentes,
+      pedidosHoje,
+      totalVendas
     }));
-
   }, [pedidos]);
 
   // ✅ 6. CORRIGIR FUNÇÃO DE ALTERAR STATUS
@@ -223,9 +232,6 @@ const AdminPage = ({ onNavigate }) => {
           setActiveOrderTab('pendentes');
           alert(`⏳ Pedido #${pedidoExistente.numero} alterado para: Pendente`);
         }
-        
-        // ✅ RECARREGA ESTATÍSTICAS
-        calcularEstatisticas();
         
       } else {
         console.error('❌ Erro retornado pelo service:', resultado.error);
@@ -300,23 +306,6 @@ const AdminPage = ({ onNavigate }) => {
     }
   }, []);
 
-  const calcularEstatisticas = useCallback(async () => {
-    try {
-      // Esta função agora foca apenas no que vem do backend, como vendas.
-      const resultado = await pedidoService.obterEstatisticas();
-      if (resultado.success) {
-        setStats(prev => ({
-          ...prev,
-          // totalPedidos será calculado pelo useEffect
-          totalVendas: resultado.data.totalVendas,
-          pedidosHoje: resultado.data.pedidosHoje,
-        }));
-      }
-    } catch (error) {
-      console.error('Erro ao calcular estatísticas:', error);
-    }
-  }, []);
-
   const loadEmpresasCadastradas = useCallback(async () => {
     try {
       const empresas = await firebaseAuthService.listarEmpresas();
@@ -340,18 +329,6 @@ const AdminPage = ({ onNavigate }) => {
     } catch (error) {
       console.error('Erro ao carregar empresas:', error);
       setEmpresasCadastradas([]);
-    }
-  }, []);
-
-  const loadProducts = useCallback(async () => {
-    try {
-      const data = await produtoService.listarProdutos();
-      if (data) {
-        setProdutos(data);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar produtos do Firebase:', error);
-      setProdutos([]);
     }
   }, []);
 
@@ -454,8 +431,6 @@ const AdminPage = ({ onNavigate }) => {
         }
       }
       
-      loadProducts();
-      
       setProductForm({
         nome: '',
         descricao: '',
@@ -481,7 +456,6 @@ const AdminPage = ({ onNavigate }) => {
         const result = await produtoService.deletarProduto(id);
         if (result.success) {
           alert('Produto excluído com sucesso!');
-          loadProducts();
         } else {
           throw new Error(result.error);
         }
@@ -499,7 +473,6 @@ const AdminPage = ({ onNavigate }) => {
       const result = await produtoService.atualizarProduto(id, { disponivel: !produto.disponivel });
       if (result.success) {
         alert('Status do produto atualizado com sucesso!');
-        loadProducts();
       } else {
         throw new Error(result.error);
       }
@@ -546,8 +519,6 @@ const AdminPage = ({ onNavigate }) => {
         if (resultado.success) {
           const pedidosAtualizados = pedidos.filter(p => String(p.id) !== String(pedido.id));
           setPedidos(pedidosAtualizados);
-          await calcularEstatisticas(); // ✅ CORRIGIDO: Chamada sem argumentos
-          
           alert('Pedido excluído com sucesso!');
         } else {
           console.error('❌ Erro ao excluir no Firebase:', resultado.error);
@@ -954,12 +925,6 @@ const AdminPage = ({ onNavigate }) => {
           onNavigate('home');
           return;
         }
-        await withTimeout(Promise.all([
-          loadProducts(),
-          loadPedidos(),
-          loadEmpresasCadastradas(),
-          calcularEstatisticas()
-        ]), 20000);
       } catch (error) {
         console.error('❌ Erro ou timeout na inicialização do painel admin:', error.message);
         setLoading(false);
@@ -967,10 +932,18 @@ const AdminPage = ({ onNavigate }) => {
         return;
       }
 
-      setLoading(false);
     };
     init();
-  }, [checkAdminAuth, onNavigate, loadProducts, loadPedidos, loadEmpresasCadastradas, calcularEstatisticas]);
+  }, [checkAdminAuth, onNavigate]);
+
+  useEffect(() => {
+    if (isAuthenticated && realtimeLoaded.pedidos && realtimeLoaded.produtos) {
+      setLoading(false);
+      // Esta coleção é secundária: carrega depois que o conteúdo principal já
+      // está pronto, evitando competir por rede no primeiro acesso mobile.
+      loadEmpresasCadastradas();
+    }
+  }, [isAuthenticated, realtimeLoaded, loadEmpresasCadastradas]);
 
   // ✅ FIREBASE REAL-TIME LISTENER (Removido temporariamente)
 // ✅ CÓDIGO CORRIGIDO (funcional):
@@ -985,102 +958,40 @@ useEffect(() => {
     const q = query(pedidosRef, orderBy('data_pedido', 'desc'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      console.log('🔄 Mudanças detectadas nos pedidos:', snapshot.docChanges().length);
-      
-      snapshot.docChanges().forEach((change) => {
-        const pedidoData = { id: change.doc.id, ...change.doc.data() };
-        
-        if (change.type === 'added') {
-          console.log('✅ Novo pedido detectado:', pedidoData.numero);
-          
-          // Atualiza lista de pedidos
-          setPedidos(prevPedidos => {
-            // Verifica se o pedido já existe para evitar duplicatas
-            const jaExiste = prevPedidos.some(p => p.id === pedidoData.id);
-            if (jaExiste) return prevPedidos;
-            
-            // Adiciona novo pedido no início da lista
-            return [pedidoData, ...prevPedidos];
-          });
-          
-          // Recalcula estatísticas
-          calcularEstatisticas();
-          
-          // Navega para aba de pedidos pendentes se novo pedido
-          
-          // Notificação visual (opcional)
-          if (Notification.permission === 'granted') {
-            new Notification('Novo Pedido!', {
-              body: `Pedido #${pedidoData.numero} recebido`,
-              icon: '/favicon.ico'
-            });
-          }
-          
-        } else if (change.type === 'modified') {
-          console.log('📝 Pedido atualizado:', pedidoData.numero);
-          
-          // Atualiza pedido existente
-          setPedidos(prevPedidos => 
-            prevPedidos.map(p => 
-              p.id === pedidoData.id ? pedidoData : p
-            )
-          );
-          
-          // Recalcula estatísticas
-          calcularEstatisticas();
-          
-        } else if (change.type === 'removed') {
-          console.log('🗑️ Pedido removido:', pedidoData.numero);
-          
-          // Remove pedido da lista
-          setPedidos(prevPedidos => 
-            prevPedidos.filter(p => p.id !== pedidoData.id)
-          );
-          
-          // Recalcula estatísticas
-          calcularEstatisticas();
-        }
+      const pedidosAtualizados = snapshot.docs.map((pedidoDoc) => {
+        const pedido = pedidoDoc.data();
+        return {
+          id: pedidoDoc.id,
+          ...pedido,
+          cliente: pedido.empresa_nome || 'Cliente não informado',
+          cnpj: pedido.empresa_cnpj || 'CNPJ não informado',
+          total: Number(pedido.total) || 0,
+          status: pedido.status || 'pendente',
+          data: pedido.data_pedido || pedido.created_at,
+          enderecoEntrega: pedido.endereco_entrega,
+          itens: Array.isArray(pedido.itens) ? pedido.itens : []
+        };
       });
+
+      // Uma atualização de estado por snapshot, mesmo quando há centenas de pedidos.
+      setPedidos(pedidosAtualizados);
+      setRealtimeLoaded(prev => prev.pedidos ? prev : ({ ...prev, pedidos: true }));
     }, (error) => {
       console.error('❌ Erro no listener de pedidos:', error);
+      setRealtimeLoaded(prev => prev.pedidos ? prev : ({ ...prev, pedidos: true }));
     });
 
     // ✅ Listener para produtos em tempo real
     const produtosRef = collection(db, 'produtos');
     const unsubscribeProdutos = onSnapshot(produtosRef, (snapshot) => {
-      console.log('🔄 Mudanças detectadas nos produtos:', snapshot.docChanges().length);
-      
-      snapshot.docChanges().forEach((change) => {
-        const produtoData = { id: change.doc.id, ...change.doc.data() };
-        
-        if (change.type === 'added') {
-          console.log('✅ Novo produto detectado:', produtoData.nome);
-          
-          setProdutos(prevProdutos => {
-            const jaExiste = prevProdutos.some(p => p.id === produtoData.id);
-            if (jaExiste) return prevProdutos;
-            return [...prevProdutos, produtoData];
-          });
-          
-        } else if (change.type === 'modified') {
-          console.log('📝 Produto atualizado:', produtoData.nome);
-          
-          setProdutos(prevProdutos => 
-            prevProdutos.map(p => 
-              p.id === produtoData.id ? produtoData : p
-            )
-          );
-          
-        } else if (change.type === 'removed') {
-          console.log('🗑️ Produto removido:', produtoData.nome);
-          
-          setProdutos(prevProdutos => 
-            prevProdutos.filter(p => p.id !== produtoData.id)
-          );
-        }
-      });
+      const produtosAtualizados = snapshot.docs
+        .map(produtoDoc => ({ id: produtoDoc.id, ...produtoDoc.data() }))
+        .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+      setProdutos(produtosAtualizados);
+      setRealtimeLoaded(prev => prev.produtos ? prev : ({ ...prev, produtos: true }));
     }, (error) => {
       console.error('❌ Erro no listener de produtos:', error);
+      setRealtimeLoaded(prev => prev.produtos ? prev : ({ ...prev, produtos: true }));
     });
 
     console.log('✅ Firebase real-time listeners configurados com sucesso!');
@@ -1096,7 +1007,7 @@ useEffect(() => {
     console.error('❌ Erro ao configurar Firebase listeners:', error);
   }
   
-}, [isAuthenticated, calcularEstatisticas, activeTab]);
+}, [isAuthenticated]);
 
 
   if (loading) {
@@ -1599,6 +1510,10 @@ useEffect(() => {
                   <img
                     src={produto.imagem_url}
                     alt={produto.nome}
+                    loading="lazy"
+                    decoding="async"
+                    width="300"
+                    height="120"
                     style={{
                       width: '100%',
                       height: '120px',

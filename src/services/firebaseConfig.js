@@ -20,14 +20,13 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
 
-// Firestore com auto-detecção de long-polling: corrige o travamento de
-// conexão do Firestore em Safari/iOS e algumas redes (o transporte padrão
-// WebChannel pode ficar minutos "pendurado" antes de responder).
+// Usa long-polling apenas quando o SDK detectar que o transporte padrão não
+// funciona. Forçar long-polling em todos os aparelhos aumenta tráfego e latência.
 // O try/catch cobre o caso de o Firestore já ter sido iniciado em outro módulo.
 let dbInstance;
 try {
   dbInstance = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
+    experimentalAutoDetectLongPolling: true,
   });
 } catch {
   dbInstance = getFirestore(app);
