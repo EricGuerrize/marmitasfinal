@@ -456,26 +456,25 @@ import {
     async buscarEmailPorCnpj(cnpj) {
       const cleanCnpj = cnpj.replace(/[^\d]/g, '');
       const cnpjFormatado = cleanCnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
-      const variantes = [cleanCnpj, cnpjFormatado, cnpj.trim()];
+      const variantes = [...new Set([cleanCnpj, cnpjFormatado, cnpj.trim()])];
 
-      // Busca nas coleções users e empresas
+      // Busca nas coleções users e empresas — todas as consultas em PARALELO
+      // (antes eram até 6 em fila, o que deixava o login lento no mobile).
       const colecoes = ['users', 'empresas'];
-
+      const buscas = [];
       for (const colecao of colecoes) {
         for (const variante of variantes) {
-          try {
-            const q = query(collection(db, colecao), where('cnpj', '==', variante), limit(1));
-            const snap = await getDocs(q);
-            if (!snap.empty) {
-              const email = snap.docs[0].data().email;
-              if (email) return email;
-            }
-          } catch (e) {
-            // ignora erros de permissão por variante e tenta a próxima
-          }
+          const q = query(collection(db, colecao), where('cnpj', '==', variante), limit(1));
+          buscas.push(
+            getDocs(q)
+              .then((snap) => (!snap.empty ? snap.docs[0].data().email : null))
+              .catch(() => null) // ignora erro por variante
+          );
         }
       }
-      return null;
+
+      const resultados = await Promise.all(buscas);
+      return resultados.find((email) => !!email) || null;
     },
 
     // Reset de senha: verifica CNPJ + email antes de enviar o link
