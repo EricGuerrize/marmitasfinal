@@ -89,8 +89,6 @@ const verificarSeEAdmin = async () => {
     if (sessaoAtual) {
       try {
         const dadosEmpresa = JSON.parse(sessaoAtual);
-        console.log('🔍 Dados da empresa na sessão:', dadosEmpresa);
-        
         if (dadosEmpresa.cnpj && dadosEmpresa.tipo_usuario === 'admin') {
           console.log('✅ Admin verificado por sessão local');
           return { 
@@ -109,8 +107,6 @@ const verificarSeEAdmin = async () => {
     if (dadosLocalStorage) {
       try {
         const dadosEmpresa = JSON.parse(dadosLocalStorage);
-        console.log('🔍 Dados da empresa no localStorage:', dadosEmpresa);
-        
         if (dadosEmpresa.cnpj && dadosEmpresa.tipo_usuario === 'admin') {
           console.log('✅ Admin verificado por localStorage');
           return { 
@@ -540,7 +536,7 @@ export const pedidoService = {
         const docRef = await addDoc(collection(db, 'pedidos'), novoPedido);
         
         const pedidoCriado = { id: docRef.id, ...novoPedido };
-        console.log('✅ SUCESSO! Pedido inserido no Firebase!', pedidoCriado);
+        console.log('✅ Pedido inserido no Firebase');
         return { success: true, pedido: pedidoCriado };
 
     } catch (e) {

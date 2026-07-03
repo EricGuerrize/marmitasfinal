@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { firebaseAuthService } from '../services/firebaseAuthService';
 import { produtoService } from '../services/produtoService';
 import { pedidoService } from '../services/pedidoService';
 import ImageUpload from './ImageUpload';
-import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
+import {
+  onSnapshot, collection, query, orderBy, where, limit, startAfter,
+  getDocs, getCountFromServer, getAggregateFromServer, sum, Timestamp
+} from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { useWindowSize } from '../hooks/useWindowSize';
 
@@ -19,6 +22,22 @@ const formatBRL = (valor) =>
 const formatInt = (valor) =>
   (Number(valor) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 
+const PEDIDOS_PAGE_SIZE = 30;
+
+const formatPedidoDoc = (pedidoDoc) => {
+  const pedido = pedidoDoc.data();
+  return {
+    id: pedidoDoc.id,
+    ...pedido,
+    cliente: pedido.empresa_nome || 'Cliente não informado',
+    cnpj: pedido.empresa_cnpj || 'CNPJ não informado',
+    total: Number(pedido.total) || 0,
+    status: pedido.status || 'pendente',
+    data: pedido.data_pedido || pedido.created_at,
+    enderecoEntrega: pedido.endereco_entrega,
+    itens: Array.isArray(pedido.itens) ? pedido.itens : []
+  };
+};
 
 const AdminPage = ({ onNavigate }) => {
   const { isMobile } = useWindowSize();
@@ -32,7 +51,9 @@ const AdminPage = ({ onNavigate }) => {
   const [uploadingImage] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [realtimeLoaded, setRealtimeLoaded] = useState({ pedidos: false, produtos: false });
+  const [loadingMorePedidos, setLoadingMorePedidos] = useState(false);
+  const [hasMorePedidos, setHasMorePedidos] = useState(false);
+  const pedidosCursorRef = useRef(null);
   
   const [productForm, setProductForm] = useState({
     nome: '',
@@ -79,7 +100,8 @@ const AdminPage = ({ onNavigate }) => {
     pedidosHoje: 0,
     empresasCadastradas: 0,
     empresasComEmail: 0,
-    percentualEmails: 0
+    percentualEmails: 0,
+    produtosAtivos: 0
   });
 
   // ✅ 1. CORRIGIR OS STATUS - deixar apenas 3 opções
@@ -139,33 +161,6 @@ const AdminPage = ({ onNavigate }) => {
     return statusPedidos; // Retorna sempre os 3 status: pendente, pronto, cancelado
   };
 
-  // Calcula as métricas usando os pedidos já carregados. Não faz novas
-  // leituras no Firestore a cada atualização do listener.
-  useEffect(() => {
-    const totalPedidos = pedidos.length;
-    const pedidosPendentes = pedidos.filter(p => p.status === 'pendente').length;
-    const hoje = new Date().toDateString();
-    let pedidosHoje = 0;
-    let totalVendas = 0;
-
-    pedidos.forEach((pedido) => {
-      totalVendas += Number(pedido.total) || 0;
-      const valorData = pedido.data || pedido.data_pedido || pedido.created_at;
-      const data = valorData?.toDate ? valorData.toDate() : new Date(valorData);
-      if (!Number.isNaN(data.getTime()) && data.toDateString() === hoje) {
-        pedidosHoje += 1;
-      }
-    });
-
-    setStats(prevStats => ({
-      ...prevStats,
-      totalPedidos,
-      pedidosPendentes,
-      pedidosHoje,
-      totalVendas
-    }));
-  }, [pedidos]);
-
   // ✅ 6. CORRIGIR FUNÇÃO DE ALTERAR STATUS
   const alterarStatusPedido = async (pedidoId, novoStatus) => {
     try {
@@ -200,8 +195,6 @@ const AdminPage = ({ onNavigate }) => {
       
       const resultado = await pedidoService.atualizarStatusPedido(pedidoExistente.id, novoStatus);
       
-      console.log('📥 Resultado do service:', resultado);
-      
       if (resultado.success) {
         console.log('✅ Status atualizado com sucesso no backend');
         
@@ -232,6 +225,7 @@ const AdminPage = ({ onNavigate }) => {
           setActiveOrderTab('pendentes');
           alert(`⏳ Pedido #${pedidoExistente.numero} alterado para: Pendente`);
         }
+        loadDashboardStats();
         
       } else {
         console.error('❌ Erro retornado pelo service:', resultado.error);
@@ -258,21 +252,6 @@ const AdminPage = ({ onNavigate }) => {
       
       if (resultado.success) {
         console.log(`✅ ${resultado.data.length} pedidos carregados do Firebase`);
-        
-        // ✅ Debug melhorado
-        if (resultado.data.length > 0) {
-          console.log('🔍 Primeiros 3 pedidos carregados:', 
-            resultado.data.slice(0, 3).map(p => ({
-              id: p.id,
-              numero: p.numero,
-              numeroCalculado: obterNumeroPedido(p),
-              data: p.data,
-              status: p.status,
-              cliente: p.cliente,
-              total: p.total
-            }))
-          );
-        }
         
         // ✅ Ordena pedidos: pendentes primeiro, depois por data mais recente
         const pedidosOrdenados = resultado.data.sort((a, b) => {
@@ -329,6 +308,62 @@ const AdminPage = ({ onNavigate }) => {
     } catch (error) {
       console.error('Erro ao carregar empresas:', error);
       setEmpresasCadastradas([]);
+    }
+  }, []);
+
+  const loadDashboardStats = useCallback(async () => {
+    try {
+      const inicioHoje = new Date();
+      inicioHoje.setHours(0, 0, 0, 0);
+      const inicioAmanha = new Date(inicioHoje);
+      inicioAmanha.setDate(inicioAmanha.getDate() + 1);
+
+      const pedidosRef = collection(db, 'pedidos');
+      const produtosRef = collection(db, 'produtos');
+      const empresasRef = collection(db, 'empresas');
+
+      const results = await Promise.allSettled([
+        getCountFromServer(pedidosRef),
+        getCountFromServer(query(pedidosRef, where('status', '==', 'pendente'))),
+        getCountFromServer(query(
+          pedidosRef,
+          where('data_pedido', '>=', Timestamp.fromDate(inicioHoje)),
+          where('data_pedido', '<', Timestamp.fromDate(inicioAmanha))
+        )),
+        getAggregateFromServer(pedidosRef, { totalVendas: sum('total') }),
+        getCountFromServer(query(produtosRef, where('disponivel', '==', true))),
+        getCountFromServer(empresasRef),
+        getCountFromServer(query(empresasRef, where('email', '!=', '')))
+      ]);
+
+      const countResult = (index) => results[index].status === 'fulfilled'
+        ? results[index].value.data().count
+        : null;
+      const totalPedidos = countResult(0);
+      const pedidosPendentes = countResult(1);
+      const pedidosHoje = countResult(2);
+      const totalVendas = results[3].status === 'fulfilled'
+        ? Number(results[3].value.data().totalVendas) || 0
+        : null;
+      const produtosAtivos = countResult(4);
+      const totalEmpresas = countResult(5);
+      const empresasComEmail = countResult(6);
+
+      setStats(prev => ({
+        ...prev,
+        totalPedidos: totalPedidos ?? prev.totalPedidos,
+        pedidosPendentes: pedidosPendentes ?? prev.pedidosPendentes,
+        pedidosHoje: pedidosHoje ?? prev.pedidosHoje,
+        totalVendas: totalVendas ?? prev.totalVendas,
+        empresasCadastradas: totalEmpresas ?? prev.empresasCadastradas,
+        empresasComEmail: empresasComEmail ?? prev.empresasComEmail,
+        percentualEmails: totalEmpresas !== null && empresasComEmail !== null && totalEmpresas > 0
+          ? (empresasComEmail / totalEmpresas) * 100
+          : prev.percentualEmails,
+        produtosAtivos: produtosAtivos ?? prev.produtosAtivos
+      }));
+    } catch (error) {
+      console.error('Erro ao carregar métricas do dashboard:', error);
     }
   }, []);
 
@@ -519,6 +554,7 @@ const AdminPage = ({ onNavigate }) => {
         if (resultado.success) {
           const pedidosAtualizados = pedidos.filter(p => String(p.id) !== String(pedido.id));
           setPedidos(pedidosAtualizados);
+          loadDashboardStats();
           alert('Pedido excluído com sucesso!');
         } else {
           console.error('❌ Erro ao excluir no Firebase:', resultado.error);
@@ -925,6 +961,7 @@ const AdminPage = ({ onNavigate }) => {
           onNavigate('home');
           return;
         }
+        setLoading(false);
       } catch (error) {
         console.error('❌ Erro ou timeout na inicialização do painel admin:', error.message);
         setLoading(false);
@@ -936,78 +973,102 @@ const AdminPage = ({ onNavigate }) => {
     init();
   }, [checkAdminAuth, onNavigate]);
 
+  const loadMorePedidos = useCallback(async () => {
+    if (!pedidosCursorRef.current || loadingMorePedidos) return;
+    setLoadingMorePedidos(true);
+    try {
+      const statusPorAba = {
+        pendentes: 'pendente',
+        finalizados: 'pronto',
+        cancelados: 'cancelado'
+      };
+      const baseConstraints = statusPorAba[activeOrderTab]
+        ? [where('status', '==', statusPorAba[activeOrderTab])]
+        : [orderBy('data_pedido', 'desc')];
+      const nextQuery = query(
+        collection(db, 'pedidos'),
+        ...baseConstraints,
+        startAfter(pedidosCursorRef.current),
+        limit(PEDIDOS_PAGE_SIZE)
+      );
+      const snapshot = await getDocs(nextQuery);
+      const novosPedidos = snapshot.docs.map(formatPedidoDoc);
+
+      setPedidos(prev => {
+        const existentes = new Set(prev.map(pedido => pedido.id));
+        return [...prev, ...novosPedidos.filter(pedido => !existentes.has(pedido.id))];
+      });
+      pedidosCursorRef.current = snapshot.docs[snapshot.docs.length - 1] || pedidosCursorRef.current;
+      setHasMorePedidos(snapshot.size === PEDIDOS_PAGE_SIZE);
+    } catch (error) {
+      console.error('Erro ao carregar mais pedidos:', error);
+    } finally {
+      setLoadingMorePedidos(false);
+    }
+  }, [activeOrderTab, loadingMorePedidos]);
+
   useEffect(() => {
-    if (isAuthenticated && realtimeLoaded.pedidos && realtimeLoaded.produtos) {
-      setLoading(false);
-      // Esta coleção é secundária: carrega depois que o conteúdo principal já
-      // está pronto, evitando competir por rede no primeiro acesso mobile.
+    if (!isAuthenticated || activeTab !== 'dashboard') return undefined;
+    loadDashboardStats();
+    const intervalId = setInterval(loadDashboardStats, 60000);
+    return () => clearInterval(intervalId);
+  }, [isAuthenticated, activeTab, loadDashboardStats]);
+
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'empresas') {
       loadEmpresasCadastradas();
     }
-  }, [isAuthenticated, realtimeLoaded, loadEmpresasCadastradas]);
+  }, [isAuthenticated, activeTab, loadEmpresasCadastradas]);
 
-  // ✅ FIREBASE REAL-TIME LISTENER (Removido temporariamente)
-// ✅ CÓDIGO CORRIGIDO (funcional):
-useEffect(() => {
-  if (!isAuthenticated) return;
+  useEffect(() => {
+    if (!isAuthenticated || activeTab !== 'pedidos') return undefined;
 
-  console.log('📡 Iniciando Firebase real-time listener...');
-  
-  try {
-    // ✅ Configura listener para pedidos em tempo real
-    const pedidosRef = collection(db, 'pedidos');
-    const q = query(pedidosRef, orderBy('data_pedido', 'desc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const pedidosAtualizados = snapshot.docs.map((pedidoDoc) => {
-        const pedido = pedidoDoc.data();
-        return {
-          id: pedidoDoc.id,
-          ...pedido,
-          cliente: pedido.empresa_nome || 'Cliente não informado',
-          cnpj: pedido.empresa_cnpj || 'CNPJ não informado',
-          total: Number(pedido.total) || 0,
-          status: pedido.status || 'pendente',
-          data: pedido.data_pedido || pedido.created_at,
-          enderecoEntrega: pedido.endereco_entrega,
-          itens: Array.isArray(pedido.itens) ? pedido.itens : []
-        };
+    const statusPorAba = {
+      pendentes: 'pendente',
+      finalizados: 'pronto',
+      cancelados: 'cancelado'
+    };
+    const baseConstraints = statusPorAba[activeOrderTab]
+      ? [where('status', '==', statusPorAba[activeOrderTab])]
+      : [orderBy('data_pedido', 'desc')];
+    const firstPageQuery = query(
+      collection(db, 'pedidos'),
+      ...baseConstraints,
+      limit(PEDIDOS_PAGE_SIZE)
+    );
+
+    pedidosCursorRef.current = null;
+    setPedidos([]);
+    setHasMorePedidos(false);
+
+    return onSnapshot(firstPageQuery, (snapshot) => {
+      const primeiraPagina = snapshot.docs.map(formatPedidoDoc);
+      setPedidos(prev => {
+        const idsPrimeiraPagina = new Set(primeiraPagina.map(pedido => pedido.id));
+        const paginasExtras = prev.filter(pedido => !idsPrimeiraPagina.has(pedido.id));
+        return [...primeiraPagina, ...paginasExtras];
       });
-
-      // Uma atualização de estado por snapshot, mesmo quando há centenas de pedidos.
-      setPedidos(pedidosAtualizados);
-      setRealtimeLoaded(prev => prev.pedidos ? prev : ({ ...prev, pedidos: true }));
+      if (!pedidosCursorRef.current) {
+        pedidosCursorRef.current = snapshot.docs[snapshot.docs.length - 1] || null;
+        setHasMorePedidos(snapshot.size === PEDIDOS_PAGE_SIZE);
+      }
     }, (error) => {
-      console.error('❌ Erro no listener de pedidos:', error);
-      setRealtimeLoaded(prev => prev.pedidos ? prev : ({ ...prev, pedidos: true }));
+      console.error('Erro no listener de pedidos:', error);
     });
+  }, [isAuthenticated, activeTab, activeOrderTab]);
 
-    // ✅ Listener para produtos em tempo real
-    const produtosRef = collection(db, 'produtos');
-    const unsubscribeProdutos = onSnapshot(produtosRef, (snapshot) => {
+  useEffect(() => {
+    if (!isAuthenticated || activeTab !== 'produtos') return undefined;
+
+    return onSnapshot(collection(db, 'produtos'), (snapshot) => {
       const produtosAtualizados = snapshot.docs
         .map(produtoDoc => ({ id: produtoDoc.id, ...produtoDoc.data() }))
         .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
       setProdutos(produtosAtualizados);
-      setRealtimeLoaded(prev => prev.produtos ? prev : ({ ...prev, produtos: true }));
     }, (error) => {
-      console.error('❌ Erro no listener de produtos:', error);
-      setRealtimeLoaded(prev => prev.produtos ? prev : ({ ...prev, produtos: true }));
+      console.error('Erro no listener de produtos:', error);
     });
-
-    console.log('✅ Firebase real-time listeners configurados com sucesso!');
-
-    // ✅ Cleanup function - remove listeners quando componente desmonta
-    return () => {
-      console.log('🔌 Desconectando Firebase listeners...');
-      unsubscribe();
-      unsubscribeProdutos();
-    };
-    
-  } catch (error) {
-    console.error('❌ Erro ao configurar Firebase listeners:', error);
-  }
-  
-}, [isAuthenticated]);
+  }, [isAuthenticated, activeTab]);
 
 
   if (loading) {
@@ -1226,7 +1287,7 @@ useEffect(() => {
         <div style={{ fontSize: isMobile ? '30px' : '40px', marginBottom: '8px' }}>🍽️</div>
         <h3 style={{ color: '#dc3545', margin: '0 0 5px 0' }}>Produtos Ativos</h3>
         <div style={{ fontSize: isMobile ? '24px' : '32px', fontWeight: 'bold', color: '#343a40' }}>
-          {produtos.filter(p => p.disponivel).length}
+          {formatInt(stats.produtosAtivos)}
         </div>
       </div>
 
@@ -1757,9 +1818,6 @@ useEffect(() => {
                               value={pedido.status}
                               onChange={(e) => {
                                 const novoStatus = e.target.value;
-                                console.log(`🎯 Select onChange - Status: ${novoStatus}, Pedido ID: ${pedido.id}, Pedido Número: ${pedido.numero}`);
-                                console.log(`🔍 Tipos - ID: ${typeof pedido.id}, Número: ${typeof pedido.numero}`);
-                                
                                 // ✅ PASSA O ID DO PEDIDO, NÃO O NÚMERO
                                 alterarStatusPedido(pedido.id, novoStatus);
                               }}
@@ -1800,7 +1858,6 @@ useEffect(() => {
                             </button>
                             <button
                               onClick={() => {
-                                console.log(`🗑️ Botão excluir clicado - Pedido ID: ${pedido.id}, Número: ${pedido.numero}`);
                                 excluirPedido(pedido.id); // Passa o ID, não o número
                               }}
                               style={{
@@ -1904,6 +1961,27 @@ useEffect(() => {
                 })
               )}
             </div>
+            {hasMorePedidos && (
+              <div style={{ textAlign: 'center', marginTop: '24px' }}>
+                <button
+                  type="button"
+                  onClick={loadMorePedidos}
+                  disabled={loadingMorePedidos}
+                  style={{
+                    backgroundColor: '#007bff',
+                    color: 'white',
+                    border: 0,
+                    borderRadius: '8px',
+                    padding: '12px 24px',
+                    fontWeight: 'bold',
+                    cursor: loadingMorePedidos ? 'wait' : 'pointer',
+                    opacity: loadingMorePedidos ? 0.7 : 1
+                  }}
+                >
+                  {loadingMorePedidos ? 'Carregando...' : `Carregar mais ${PEDIDOS_PAGE_SIZE} pedidos`}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
