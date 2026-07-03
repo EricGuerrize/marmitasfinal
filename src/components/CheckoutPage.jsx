@@ -239,17 +239,6 @@ const CheckoutPageInner = ({ onNavigate, carrinho, calcularQuantidadeTotal }) =>
               <span>R$ {pedidoAtual.subtotal.toFixed(2)}</span>
             </div>
 
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              marginBottom: '10px',
-              fontSize: '16px'
-            }}>
-              <span>Taxa de entrega:</span>
-              <span style={{ color: pedidoAtual.taxaEntrega === 0 ? '#28a745' : '#000' }}>
-                {pedidoAtual.taxaEntrega === 0 ? 'GRÁTIS' : `R$ ${pedidoAtual.taxaEntrega.toFixed(2)}`}
-              </span>
-            </div>
 
             <hr style={{ margin: '15px 0', border: '1px solid #eee' }} />
 

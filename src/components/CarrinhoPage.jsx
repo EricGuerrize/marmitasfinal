@@ -271,8 +271,8 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
   };
 
   const calcularTaxaEntrega = () => {
-    const subtotal = calcularSubtotal();
-    return subtotal > 50 ? 0 : 5.00;
+    // Entrega combinada à parte — sem taxa de entrega no pedido.
+    return 0;
   };
 
   const calcularTotal = () => {
@@ -447,7 +447,6 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
 
       mensagem += `\n*RESUMO FINANCEIRO:*\n`;
       mensagem += `• Subtotal: R$ ${dadosParaSalvar.subtotal.toFixed(2)}\n`;
-      mensagem += `• Taxa de entrega: ${dadosParaSalvar.taxaEntrega === 0 ? 'GRATIS' : `R$ ${dadosParaSalvar.taxaEntrega.toFixed(2)}`}\n`;
       mensagem += `• *TOTAL: R$ ${dadosParaSalvar.total.toFixed(2)}*\n\n`;
 
       mensagem += `*ENDEREÇO DE ENTREGA:*\n${dadosParaSalvar.enderecoEntrega}\n\n`;
@@ -1176,30 +1175,7 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
               <span>R$ {calcularSubtotal().toFixed(2)}</span>
             </div>
 
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              marginBottom: '18px',
-              fontSize: '16px'
-            }}>
-              <span>Taxa de entrega:</span>
-              <span style={{ color: calcularTaxaEntrega() === 0 ? '#28a745' : '#000' }}>
-                {calcularTaxaEntrega() === 0 ? 'GRÁTIS' : `R$ ${calcularTaxaEntrega().toFixed(2)}`}
-              </span>
-            </div>
-
-            {calcularSubtotal() < 50 && (
-              <div style={{
-                backgroundColor: '#fff3cd',
-                padding: '12px',
-                borderRadius: '5px',
-                fontSize: '14px',
-                color: '#856404',
-                marginBottom: '18px'
-              }}>
-                💡 Frete grátis em pedidos acima de R$ 50,00
-              </div>
-            )}
+            {/* Taxa de entrega removida — entrega combinada à parte */}
 
             <hr style={{ margin: '18px 0', border: '1px solid #eee' }} />
 

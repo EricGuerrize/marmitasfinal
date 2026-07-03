@@ -94,10 +94,6 @@ const PedidoConfirmado = ({ onNavigate }) => {
             <span>Subtotal:</span>
             <span>R$ ${pedidoConfirmado.subtotal.toFixed(2)}</span>
           </div>
-          <div class="item">
-            <span>Taxa de entrega:</span>
-            <span>${pedidoConfirmado.taxaEntrega === 0 ? 'GRATIS' : `R$ ${pedidoConfirmado.taxaEntrega.toFixed(2)}`}</span>
-          </div>
           <div class="item total">
             <span>TOTAL:</span>
             <span>R$ ${pedidoConfirmado.total.toFixed(2)}</span>
@@ -355,17 +351,6 @@ const PedidoConfirmado = ({ onNavigate }) => {
             }}>
               <span>Subtotal:</span>
               <span>R$ {pedidoConfirmado.subtotal.toFixed(2)}</span>
-            </div>
-            
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              marginBottom: '10px'
-            }}>
-              <span>Taxa de entrega:</span>
-              <span style={{ color: pedidoConfirmado.taxaEntrega === 0 ? '#28a745' : '#000' }}>
-                {pedidoConfirmado.taxaEntrega === 0 ? 'GRÁTIS' : `R$ ${pedidoConfirmado.taxaEntrega.toFixed(2)}`}
-              </span>
             </div>
             
             <hr style={{ margin: '15px 0', border: '1px solid #ddd' }} />

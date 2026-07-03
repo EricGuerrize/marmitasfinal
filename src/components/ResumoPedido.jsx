@@ -136,25 +136,44 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
       pedidosAdmin.push(novoPedido);
       localStorage.setItem('pedidosAdmin', JSON.stringify(pedidosAdmin));
 
-      try {
-        const { pedidoService } = await import('../services/pedidoService');
-        const dadosPedido = {
-          cnpj: cnpj.replace(/\D/g, ''),
-          empresaNome: nomeParaExibir,
-          itens: pedidoFinal.itens,
-          subtotal: pedidoFinal.subtotal,
-          taxaEntrega: pedidoFinal.taxaEntrega,
-          total: pedidoFinal.total,
-          enderecoEntrega: pedidoFinal.enderecoEntrega,
-          observacoes: pedidoFinal.observacoes || '',
-          metodoPagamento: 'whatsapp'
-        };
+      const { pedidoService } = await import('../services/pedidoService');
+      const dadosPedido = {
+        cnpj: cnpj.replace(/\D/g, ''),
+        empresaNome: nomeParaExibir,
+        itens: pedidoFinal.itens,
+        subtotal: pedidoFinal.subtotal,
+        taxaEntrega: pedidoFinal.taxaEntrega,
+        total: pedidoFinal.total,
+        enderecoEntrega: pedidoFinal.enderecoEntrega,
+        observacoes: pedidoFinal.observacoes || '',
+        metodoPagamento: 'whatsapp'
+      };
 
-        await pedidoService.criarPedido(dadosPedido);
-        console.log('✅ Pedido salvo no Supabase para o usuário');
-      } catch (error) {
-        console.error('❌ Erro ao salvar pedido no Supabase:', error);
+      // Grava no banco (fonte da verdade) com 1 retry para falha momentânea.
+      // ⚠️ Antes o resultado era ignorado: pedidos que falhavam sumiam sem aviso.
+      let resultadoSalvar;
+      for (let tentativa = 1; tentativa <= 2; tentativa++) {
+        try {
+          resultadoSalvar = await pedidoService.criarPedido(dadosPedido);
+        } catch (error) {
+          resultadoSalvar = { success: false, error: error.message };
+        }
+        if (resultadoSalvar && resultadoSalvar.success) break;
+        if (tentativa === 1) await new Promise(resolve => setTimeout(resolve, 1500));
       }
+
+      // Se NÃO gravou, não finge sucesso: avisa o cliente e mantém o carrinho.
+      if (!resultadoSalvar || !resultadoSalvar.success) {
+        console.error('❌ Pedido não registrado:', resultadoSalvar && resultadoSalvar.error);
+        alert(
+          '⚠️ Não conseguimos registrar seu pedido agora.\n\n' +
+          'Seu carrinho foi mantido. Verifique sua conexão e tente novamente. ' +
+          'Se persistir, entre em contato com o suporte.'
+        );
+        setProcessandoPedido(false);
+        return;
+      }
+      console.log('✅ Pedido registrado no banco com sucesso');
 
       // ✅ WHATSAPP CORRIGIDO
       let mensagem = `*NOVO PEDIDO - FIT IN BOX*\n\n`;
@@ -176,7 +195,6 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
 
       mensagem += `\n*RESUMO FINANCEIRO:*\n`;
       mensagem += `• Subtotal: R$ ${pedidoFinal.subtotal.toFixed(2)}\n`;
-      mensagem += `• Taxa de entrega: ${pedidoFinal.taxaEntrega === 0 ? 'GRATIS' : `R$ ${pedidoFinal.taxaEntrega.toFixed(2)}`}\n`;
       mensagem += `• *TOTAL: R$ ${pedidoFinal.total.toFixed(2)}*\n\n`;
 
       mensagem += `*ENDERECO DE ENTREGA:*\n${pedidoFinal.enderecoEntrega}\n\n`;
@@ -326,9 +344,6 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
                 <h3 style={{ color: '#009245', margin: '0 0 10px 0' }}>Resumo Financeiro</h3>
                 <p style={{ margin: '5px 0', color: '#666' }}>
                   <strong>Subtotal:</strong> R$ {pedidoAtual.subtotal.toFixed(2)}
-                </p>
-                <p style={{ margin: '5px 0', color: '#666' }}>
-                  <strong>Taxa de entrega:</strong> {pedidoAtual.taxaEntrega === 0 ? 'GRÁTIS' : `R$ ${pedidoAtual.taxaEntrega.toFixed(2)}`}
                 </p>
                 <p style={{ margin: '5px 0', color: '#009245', fontSize: '18px', fontWeight: 'bold' }}>
                   <strong>TOTAL: R$ {pedidoAtual.total.toFixed(2)}</strong>
