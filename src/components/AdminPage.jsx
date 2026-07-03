@@ -1205,14 +1205,14 @@ const AdminPage = ({ onNavigate }) => {
     <h1 style={{ color: '#343a40', marginBottom: isMobile ? '20px' : '30px', fontSize: isMobile ? '26px' : '32px' }}>📊 Dashboard</h1>
     <div style={{
       display: 'grid',
-      gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(250px, 1fr))',
-      gap: isMobile ? '12px' : '20px',
+      gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(auto-fit, minmax(250px, 1fr))',
+      gap: isMobile ? '16px' : '20px',
       marginBottom: '30px'
     }}>
       {/* Total de Pedidos Geral */}
       <div style={{
         backgroundColor: 'white',
-        padding: '25px',
+        padding: isMobile ? '22px 18px' : '25px',
         borderRadius: '10px',
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         textAlign: 'center'
@@ -1230,7 +1230,7 @@ const AdminPage = ({ onNavigate }) => {
       {/* ✅ NOVO: Pedidos Pendentes */}
       <div style={{
         backgroundColor: 'white',
-        padding: '25px',
+        padding: isMobile ? '22px 18px' : '25px',
         borderRadius: '10px',
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         textAlign: 'center',
@@ -1249,7 +1249,7 @@ const AdminPage = ({ onNavigate }) => {
       {/* Total de Vendas */}
       <div style={{
         backgroundColor: 'white',
-        padding: '25px',
+        padding: isMobile ? '22px 18px' : '25px',
         borderRadius: '10px',
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         textAlign: 'center'
@@ -1264,7 +1264,7 @@ const AdminPage = ({ onNavigate }) => {
       {/* Empresas Cadastradas */}
       <div style={{
         backgroundColor: 'white',
-        padding: '25px',
+        padding: isMobile ? '22px 18px' : '25px',
         borderRadius: '10px',
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         textAlign: 'center'
@@ -1279,7 +1279,7 @@ const AdminPage = ({ onNavigate }) => {
       {/* Produtos Ativos */}
       <div style={{
         backgroundColor: 'white',
-        padding: '25px',
+        padding: isMobile ? '22px 18px' : '25px',
         borderRadius: '10px',
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         textAlign: 'center'
@@ -1294,7 +1294,7 @@ const AdminPage = ({ onNavigate }) => {
       {/* Empresas com Email */}
       <div style={{
         backgroundColor: 'white',
-        padding: '25px',
+        padding: isMobile ? '22px 18px' : '25px',
         borderRadius: '10px',
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         textAlign: 'center'
