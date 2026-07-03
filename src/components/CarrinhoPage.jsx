@@ -397,6 +397,13 @@ const CarrinhoPage = ({ onNavigate, carrinho, atualizarQuantidade, removerItem, 
       // 4. Verifica o resultado
       if (!resultado.success) {
         console.error('❌ Erro ao salvar no Supabase:', resultado.error);
+        // Sessão expirada: manda reautenticar (carrinho é mantido).
+        if (resultado.code === 'no-auth') {
+          showError('Sua sessão expirou. Faça login novamente para concluir o pedido.');
+          setProcessandoPedido(false);
+          onNavigate('home');
+          return;
+        }
         showError(`Erro ao salvar pedido: ${resultado.error}`);
         setProcessandoPedido(false);
         return;

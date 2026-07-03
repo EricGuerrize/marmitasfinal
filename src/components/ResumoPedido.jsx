@@ -159,7 +159,19 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
           resultadoSalvar = { success: false, error: error.message };
         }
         if (resultadoSalvar && resultadoSalvar.success) break;
+        if (resultadoSalvar && resultadoSalvar.code === 'no-auth') break; // repetir não resolve
         if (tentativa === 1) await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+
+      // Sessão expirada: manda reautenticar (mantém o carrinho).
+      if (resultadoSalvar && resultadoSalvar.code === 'no-auth') {
+        alert(
+          '⚠️ Sua sessão expirou.\n\n' +
+          'Faça login novamente para concluir o pedido. Seu carrinho foi mantido.'
+        );
+        setProcessandoPedido(false);
+        onNavigate('home');
+        return;
       }
 
       // Se NÃO gravou, não finge sucesso: avisa o cliente e mantém o carrinho.

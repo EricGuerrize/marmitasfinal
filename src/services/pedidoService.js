@@ -1,10 +1,21 @@
 // src/services/pedidoService.js
-import { db } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
 import {
   collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc,
   query, where, orderBy, serverTimestamp, onSnapshot
 } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { cnpjService } from './cnpjService';
+
+// Aguarda o Firebase Auth resolver o usuário atual (evita race na inicialização).
+// Retorna o usuário logado ou null se a sessão não estiver mais válida.
+function aguardarUsuarioFirebase() {
+  if (auth.currentUser) return Promise.resolve(auth.currentUser);
+  return new Promise((resolve) => {
+    const unsub = onAuthStateChanged(auth, (u) => { unsub(); resolve(u); });
+    setTimeout(() => resolve(auth.currentUser), 4000); // não trava pra sempre
+  });
+}
 
 // ✅ Cache para reduzir operações desnecessárias
 let pedidosCache = null;
@@ -338,7 +349,19 @@ export const pedidoService = {
   // ✅ MIGRADO: Criar pedido com Firebase - VERSÃO CORRIGIDA
   criarPedido: async (dadosPedido) => {
     console.log('--- MODO DE DEPURAÇÃO FINAL - FIREBASE ---');
-    
+
+    // 0. Garante sessão Firebase válida ANTES de qualquer gravação.
+    // Sem isso, o banco recusa a escrita (permission-denied) e o pedido se perde.
+    const usuarioFirebase = await aguardarUsuarioFirebase();
+    if (!usuarioFirebase) {
+      console.error('FALHA: sem sessão Firebase válida ao criar pedido.');
+      return {
+        success: false,
+        code: 'no-auth',
+        error: 'Sua sessão expirou. Faça login novamente para concluir o pedido.'
+      };
+    }
+
     // 1. Validação de entrada
     if (!dadosPedido || !dadosPedido.cnpj) {
         console.error('FALHA NA ETAPA 1: Dados de entrada ausentes.');
