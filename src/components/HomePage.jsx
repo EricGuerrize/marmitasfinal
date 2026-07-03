@@ -49,6 +49,7 @@ const HomePageInner = ({ onNavigate }) => {
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockTimeRemaining, setBlockTimeRemaining] = useState(0);
+  const [sessaoAtiva, setSessaoAtiva] = useState(false);
   // ✅ Verifica sessão existente em background (async com timeout)
   useEffect(() => {
     const verificarSessaoExistente = async () => {
@@ -61,9 +62,11 @@ const HomePageInner = ({ onNavigate }) => {
 
         if (sessaoData && sessaoData.isAuthenticated) {
           console.log('Sessão existente encontrada, redirecionando...');
+          setSessaoAtiva(true);
           onNavigate('prosseguir');
         } else {
           console.log('Nenhuma sessão válida encontrada');
+          setSessaoAtiva(false);
         }
       } catch (error) {
         console.error('Erro ao verificar sessão existente:', error);
@@ -314,14 +317,16 @@ const HomePageInner = ({ onNavigate }) => {
         backgroundColor: 'white'
       }}>
         <LogoComponent size={isMobile ? 'small' : 'medium'} showText={true} />
-        <button
-          onClick={handleMeusPedidos}
-          style={buttonStyle}
-          onMouseEnter={(e) => e.target.style.backgroundColor = '#e67e22'}
-          onMouseLeave={(e) => e.target.style.backgroundColor = '#f38e3c'}
-        >
-          MEUS PEDIDOS
-        </button>
+        {sessaoAtiva && (
+          <button
+            onClick={handleMeusPedidos}
+            style={buttonStyle}
+            onMouseEnter={(e) => e.target.style.backgroundColor = '#e67e22'}
+            onMouseLeave={(e) => e.target.style.backgroundColor = '#f38e3c'}
+          >
+            MEUS PEDIDOS
+          </button>
+        )}
       </header>
 
       <section style={{ textAlign: 'center', padding: isMobile ? '30px 15px' : '40px 20px' }}>
