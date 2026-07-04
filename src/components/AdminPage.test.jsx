@@ -60,7 +60,7 @@ test('loads dashboard metrics without opening collection listeners', async () =>
 
   const { rerender } = render(<AdminPage onNavigate={onNavigate} />);
 
-  expect(await screen.findByRole('heading', { name: /dashboard/i })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: /o negócio, agora/i })).toBeInTheDocument();
   expect(onSnapshot).not.toHaveBeenCalled();
 
   fireEvent.click(screen.getByRole('button', { name: /pedidos/i }));

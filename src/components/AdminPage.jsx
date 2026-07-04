@@ -9,6 +9,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { useWindowSize } from '../hooks/useWindowSize';
+import './AdminPage.css';
 
 // ─── Formatadores (padrão brasileiro) ───────────────────────────────────────
 // Dinheiro: 535047.28 → "R$ 535.047,28"
@@ -1116,14 +1117,14 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
   }
 
   return (
-    <div style={{
+    <div className="admin-shell" style={{
       margin: 0,
       fontFamily: 'Arial, sans-serif',
       backgroundColor: '#f8f9fa',
       minHeight: '100vh'
     }}>
       {/* Header */}
-      <div style={{
+      <header className="admin-header" style={{
         background: '#343a40',
         color: 'white',
         display: 'flex',
@@ -1132,14 +1133,15 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
         padding: isMobile ? '12px 16px' : '15px 40px',
         gap: '10px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '15px', minWidth: 0 }}>
-          <div style={{ fontSize: isMobile ? '24px' : '32px' }}>🍽️</div>
+        <div className="admin-brand" style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '15px', minWidth: 0 }}>
+          <div className="admin-brand__mark">FB</div>
           <div style={{ minWidth: 0 }}>
-            <h2 style={{ margin: 0, fontSize: isMobile ? '18px' : '24px' }}>Fit In Box Admin</h2>
-            <small style={{ color: '#adb5bd' }}>Painel Administrativo</small>
+            <small className="admin-brand__eyebrow">OPERAÇÃO FIT IN BOX</small>
+            <h2 className="admin-brand__title" style={{ margin: 0, fontSize: isMobile ? '18px' : '24px' }}>Central de gestão</h2>
           </div>
         </div>
         <button
+          className="admin-logout"
           onClick={handleLogout}
           style={{
             backgroundColor: '#dc3545',
@@ -1153,30 +1155,32 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
             flexShrink: 0
           }}
         >
-          🚪 Sair
+          Sair
         </button>
-      </div>
+      </header>
 
       {/* Tabs */}
-      <div style={{
+      <nav className="admin-nav" aria-label="Navegação administrativa" style={{
         backgroundColor: 'white',
         borderBottom: '1px solid #dee2e6',
         padding: isMobile ? '0 8px' : '0 40px'
       }}>
-        <div style={{
+        <div className="admin-nav__track" style={{
           display: 'flex',
           gap: isMobile ? '8px' : '30px',
           overflowX: 'auto',
           WebkitOverflowScrolling: 'touch'
         }}>
           {[
-            { id: 'dashboard', label: '📊 Dashboard' },
-            { id: 'produtos', label: '🍽️ Produtos' },
-            { id: 'pedidos', label: '📋 Pedidos' },
-            { id: 'empresas', label: '🏢 Empresas' }
+            { id: 'dashboard', label: 'Visão geral', index: '01' },
+            { id: 'produtos', label: 'Produtos', index: '02' },
+            { id: 'pedidos', label: 'Pedidos', index: '03' },
+            { id: 'empresas', label: 'Empresas', index: '04' }
           ].map(tab => (
             <button
               key={tab.id}
+              className="admin-nav__item"
+              data-active={activeTab === tab.id}
               onClick={() => onNavigate(tab.id === 'dashboard' ? 'admin' : `admin-${tab.id}`)}
               style={{
                 background: 'none',
@@ -1191,30 +1195,37 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
                 color: activeTab === tab.id ? '#007bff' : '#6c757d'
               }}
             >
+              <span className="admin-nav__index">{tab.index}</span>
               {tab.label}
             </button>
           ))}
         </div>
-      </div>
+      </nav>
 
       {/* Content */}
-      <div style={{
+      <main className="admin-content" style={{
         padding: isMobile ? '16px 12px' : '30px 40px',
         maxWidth: '1200px',
         margin: '0 auto'
       }}>
         {/* ✅ DASHBOARD TAB COMPLETO */}
 {activeTab === 'dashboard' && (
-  <div>
-    <h1 style={{ color: '#343a40', marginBottom: isMobile ? '20px' : '30px', fontSize: isMobile ? '26px' : '32px' }}>📊 Dashboard</h1>
-    <div style={{
+  <section className="admin-section admin-dashboard">
+    <div className="admin-section__heading">
+      <div>
+        <span className="admin-kicker">RESUMO OPERACIONAL</span>
+        <h1 className="admin-page-title" style={{ color: '#343a40', marginBottom: isMobile ? '20px' : '30px', fontSize: isMobile ? '26px' : '32px' }}>O negócio, agora.</h1>
+      </div>
+      <p>Indicadores atualizados diretamente da operação.</p>
+    </div>
+    <div className="admin-metrics" style={{
       display: 'grid',
       gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(auto-fit, minmax(250px, 1fr))',
       gap: isMobile ? '16px' : '20px',
       marginBottom: '30px'
     }}>
       {/* Total de Pedidos Geral */}
-      <div style={{
+      <div className="admin-metric" data-tone="ink" style={{
         backgroundColor: 'white',
         padding: isMobile ? '22px 18px' : '25px',
         borderRadius: '10px',
@@ -1232,7 +1243,7 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
       </div>
 
       {/* ✅ NOVO: Pedidos Pendentes */}
-      <div style={{
+      <div className="admin-metric" data-tone="amber" style={{
         backgroundColor: 'white',
         padding: isMobile ? '22px 18px' : '25px',
         borderRadius: '10px',
@@ -1251,7 +1262,7 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
       </div>
 
       {/* Total de Vendas */}
-      <div style={{
+      <div className="admin-metric admin-metric--wide" data-tone="green" style={{
         backgroundColor: 'white',
         padding: isMobile ? '22px 18px' : '25px',
         borderRadius: '10px',
@@ -1266,7 +1277,7 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
       </div>
 
       {/* Empresas Cadastradas */}
-      <div style={{
+      <div className="admin-metric" data-tone="leaf" style={{
         backgroundColor: 'white',
         padding: isMobile ? '22px 18px' : '25px',
         borderRadius: '10px',
@@ -1281,7 +1292,7 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
       </div>
 
       {/* Produtos Ativos */}
-      <div style={{
+      <div className="admin-metric" data-tone="tomato" style={{
         backgroundColor: 'white',
         padding: isMobile ? '22px 18px' : '25px',
         borderRadius: '10px',
@@ -1296,7 +1307,7 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
       </div>
 
       {/* Empresas com Email */}
-      <div style={{
+      <div className="admin-metric" data-tone="blue" style={{
         backgroundColor: 'white',
         padding: isMobile ? '22px 18px' : '25px',
         borderRadius: '10px',
@@ -1313,19 +1324,19 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
         </div>
       </div>
     </div>
-  </div>
+  </section>
 )}
 
         {/* Produtos Tab */}
         {activeTab === 'produtos' && (
-          <div>
-            <div style={{
+          <section className="admin-section admin-products">
+            <div className="admin-section__heading" style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               marginBottom: '30px'
             }}>
-              <h1 style={{ color: '#343a40', margin: 0 }}>🍽️ Gerenciar Produtos</h1>
+              <div><span className="admin-kicker">CATÁLOGO</span><h1 className="admin-page-title" style={{ color: '#343a40', margin: 0 }}>Produtos</h1></div>
               <button
                 onClick={() => {
                   setShowAddProduct(true);
@@ -1350,7 +1361,7 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
                   fontWeight: 'bold'
                 }}
               >
-                ➕ Adicionar Produto
+                Adicionar produto
               </button>
             </div>
 
@@ -1556,13 +1567,14 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
             )}
 
             {/* Lista de produtos */}
-            <div style={{
+            <div className="admin-product-grid" style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
               gap: '20px'
             }}>
               {produtos.map(produto => (
-                <div
+                <article
+                  className="admin-product-card"
                   key={produto.id}
                   style={{
                     backgroundColor: 'white',
@@ -1667,22 +1679,22 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
                       </button>
                     </div>
                   </div>
-                </div>
+                </article>
               ))}
             </div>
-          </div>
+          </section>
         )}
 
         {/* ✅ PEDIDOS TAB COM NOVA ORGANIZAÇÃO */}
         {activeTab === 'pedidos' && (
-          <div>
-            <div style={{
+          <section className="admin-section admin-orders">
+            <div className="admin-section__heading" style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               marginBottom: '30px'
             }}>
-              <h1 style={{ color: '#343a40', margin: 0 }}>📋 Gerenciar Pedidos</h1>
+              <div><span className="admin-kicker">FLUXO DE PRODUÇÃO</span><h1 className="admin-page-title" style={{ color: '#343a40', margin: 0 }}>Pedidos</h1></div>
               <div style={{
                 backgroundColor: '#28a745',
                 color: 'white',
@@ -1691,12 +1703,12 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
                 fontSize: '12px',
                 fontWeight: 'bold'
               }}>
-                🔄 Atualização manual
+                Atualização em tempo real
               </div>
             </div>
 
             {/* ✅ ABAS DE ORGANIZAÇÃO DOS PEDIDOS */}
-            <div style={{
+            <div className="admin-order-filters" style={{
               backgroundColor: 'white',
               borderRadius: '10px',
               marginBottom: '20px',
@@ -1745,7 +1757,7 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
             </div>
 
             {/* ✅ LISTA DE PEDIDOS FILTRADA */}
-            <div style={{
+            <div className="admin-order-list" style={{
               display: 'flex',
               flexDirection: 'column',
               gap: '20px'
@@ -1781,7 +1793,8 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
                 getPedidosPorAba(activeOrderTab).map(pedido => {
                   const statusInfo = getStatusInfo(pedido.status);
                   return (
-                    <div
+                    <article
+                      className="admin-order-card"
                       key={pedido.id}
                       style={{
                         backgroundColor: 'white',
@@ -1960,7 +1973,7 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </article>
                   );
                 })
               )}
@@ -1986,13 +1999,13 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
                 </button>
               </div>
             )}
-          </div>
+          </section>
         )}
 
         {/* Empresas Tab */}
         {activeTab === 'empresas' && (
-          <div>
-            <h1 style={{ color: '#343a40', marginBottom: '30px' }}>🏢 Empresas Cadastradas</h1>
+          <section className="admin-section admin-companies">
+            <div className="admin-section__heading"><div><span className="admin-kicker">CARTEIRA B2B</span><h1 className="admin-page-title" style={{ color: '#343a40', marginBottom: '30px' }}>Empresas</h1></div></div>
             {empresasCadastradas.length === 0 ? (
               <div style={{
                 backgroundColor: 'white',
@@ -2012,7 +2025,8 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
                 gap: '15px'
               }}>
                 {empresasCadastradas.map((empresa, index) => (
-                  <div
+                  <article
+                    className="admin-company-card"
                     key={index}
                     style={{
                       backgroundColor: 'white',
@@ -2116,13 +2130,13 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </article>
                 ))}
               </div>
             )}
-          </div>
+          </section>
         )}
-      </div>
+      </main>
     </div>
   );
 };
