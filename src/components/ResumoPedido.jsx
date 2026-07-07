@@ -89,7 +89,7 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
 
       const pedidoFinal = {
         ...pedidoAtual,
-        status: 'enviado',
+        status: 'pendente',
         dataEnvio: new Date().toISOString()
       };
 
@@ -112,7 +112,7 @@ const ResumoPedido = ({ onNavigate, carrinho, calcularQuantidadeTotal }) => {
         cliente: nomeParaExibir,
         cnpj: cnpj,
         total: pedidoFinal.total,
-        status: 'enviado',
+        status: 'pendente',
         data: pedidoFinal.dataEnvio,
         itens: pedidoFinal.itens,
         enderecoEntrega: pedidoFinal.enderecoEntrega,
