@@ -160,11 +160,7 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
     }
   };
 
-  // ✅ 4. SIMPLIFICAR STATUS DISPONÍVEIS POR ABA
-  const getStatusDisponiveis = (tabId) => {
-    // ✅ TODOS têm acesso aos 3 status principais
-    return statusPedidos; // Retorna sempre os 3 status: pendente, pronto, cancelado
-  };
+
 
   // ✅ 6. CORRIGIR FUNÇÃO DE ALTERAR STATUS
   const alterarStatusPedido = async (pedidoId, novoStatus) => {
