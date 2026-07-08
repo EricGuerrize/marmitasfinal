@@ -1001,7 +1001,18 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
 
       setPedidos(prev => {
         const existentes = new Set(prev.map(pedido => pedido.id));
-        return [...prev, ...novosPedidos.filter(pedido => !existentes.has(pedido.id))];
+        const todos = [...prev, ...novosPedidos.filter(pedido => !existentes.has(pedido.id))];
+        
+        // Ordena por data (mais recente primeiro)
+        return todos.sort((a, b) => {
+          try {
+            const dataA = a.data_pedido?.toDate ? a.data_pedido.toDate() : new Date(a.data_pedido || a.data || 0);
+            const dataB = b.data_pedido?.toDate ? b.data_pedido.toDate() : new Date(b.data_pedido || b.data || 0);
+            return dataB - dataA;
+          } catch (e) {
+            return 0;
+          }
+        });
       });
       pedidosCursorRef.current = snapshot.docs[snapshot.docs.length - 1] || pedidosCursorRef.current;
       setHasMorePedidos(snapshot.size === PEDIDOS_PAGE_SIZE);
@@ -1051,7 +1062,19 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
       setPedidos(prev => {
         const idsPrimeiraPagina = new Set(primeiraPagina.map(pedido => pedido.id));
         const paginasExtras = prev.filter(pedido => !idsPrimeiraPagina.has(pedido.id));
-        return [...primeiraPagina, ...paginasExtras];
+        
+        const todos = [...primeiraPagina, ...paginasExtras];
+        
+        // Ordena por data (mais recente primeiro)
+        return todos.sort((a, b) => {
+          try {
+            const dataA = a.data_pedido?.toDate ? a.data_pedido.toDate() : new Date(a.data_pedido || a.data || 0);
+            const dataB = b.data_pedido?.toDate ? b.data_pedido.toDate() : new Date(b.data_pedido || b.data || 0);
+            return dataB - dataA;
+          } catch (e) {
+            return 0;
+          }
+        });
       });
       if (!pedidosCursorRef.current) {
         pedidosCursorRef.current = snapshot.docs[snapshot.docs.length - 1] || null;
@@ -1831,31 +1854,75 @@ const AdminPage = ({ onNavigate, initialTab = 'dashboard' }) => {
                             flexWrap: 'wrap', 
                             justifyContent: 'flex-end' 
                           }}>
-                            <select
-                              value={pedido.status}
-                              onChange={(e) => {
-                                const novoStatus = e.target.value;
-                                // ✅ PASSA O ID DO PEDIDO, NÃO O NÚMERO
-                                alterarStatusPedido(pedido.id, novoStatus);
-                              }}
-                              style={{
-                                backgroundColor: statusInfo.color,
-                                color: 'white',
-                                border: 'none',
-                                padding: '8px 12px',
-                                borderRadius: '20px',
-                                fontSize: '12px',
-                                fontWeight: 'bold',
-                                cursor: 'pointer',
-                                outline: 'none'
-                              }}
-                            >
-                              {getStatusDisponiveis(activeOrderTab).map(status => (
-                                <option key={status.value} value={status.value}>
-                                  {status.icon} {status.label}
-                                </option>
-                              ))}
-                            </select>
+                            {pedido.status === 'pendente' ? (
+                              <>
+                                <button
+                                  onClick={() => alterarStatusPedido(pedido.id, 'pronto')}
+                                  style={{
+                                    backgroundColor: '#28a745',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '8px 15px',
+                                    borderRadius: '20px',
+                                    fontSize: '12px',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    outline: 'none',
+                                    boxShadow: '0 2px 4px rgba(40,167,69,0.3)'
+                                  }}
+                                >
+                                  ✅ Marcar como Finalizado
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm(`Deseja realmente cancelar o pedido #${pedido.numero}?`)) {
+                                      alterarStatusPedido(pedido.id, 'cancelado');
+                                    }
+                                  }}
+                                  style={{
+                                    backgroundColor: 'transparent',
+                                    color: '#dc3545',
+                                    border: '1px solid #dc3545',
+                                    padding: '7px 12px',
+                                    borderRadius: '20px',
+                                    fontSize: '12px',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    outline: 'none'
+                                  }}
+                                >
+                                  ❌ Cancelar
+                                </button>
+                              </>
+                            ) : (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{
+                                  backgroundColor: statusInfo.color,
+                                  color: 'white',
+                                  padding: '8px 15px',
+                                  borderRadius: '20px',
+                                  fontSize: '12px',
+                                  fontWeight: 'bold'
+                                }}>
+                                  {statusInfo.icon} {statusInfo.label}
+                                </span>
+                                <button
+                                  onClick={() => alterarStatusPedido(pedido.id, 'pendente')}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#6c757d',
+                                    fontSize: '11px',
+                                    textDecoration: 'underline',
+                                    cursor: 'pointer',
+                                    padding: '0'
+                                  }}
+                                  title="Reverter para Pendente"
+                                >
+                                  Desfazer
+                                </button>
+                              </div>
+                            )}
                             <button
                               onClick={() => imprimirPedido(pedido)}
                               style={{
