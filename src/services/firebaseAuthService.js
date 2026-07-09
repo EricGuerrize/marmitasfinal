@@ -112,30 +112,31 @@ import {
           };
         }
   
-        // Tenta login com email real (contas novas), fallback para email fictício (contas antigas)
+        // Tenta login com emails reais (contas novas), fallback para email fictício (contas antigas)
         let userCredential = null;
-        const emailReal = await this.buscarEmailPorCnpj(cnpj);
-        if (emailReal) {
+        const emailsReais = await this.buscarEmailsPorCnpj(cnpj);
+        
+        for (const email of emailsReais) {
           try {
-            userCredential = await signInWithEmailAndPassword(auth, emailReal, password);
+            userCredential = await signInWithEmailAndPassword(auth, email, password);
+            break; // Login bem-sucedido
           } catch (e) {
-            // Fallback para contas antigas com email fictício
-            if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
-              userCredential = await signInWithEmailAndPassword(auth, cnpjToEmail(cnpj), password);
-            } else {
-              throw e;
-            }
+            // Falhou com este email, tenta o próximo
           }
-        } else {
+        }
+
+        // Se não conseguiu com nenhum email real, tenta fallback para contas antigas com email fictício
+        if (!userCredential) {
           userCredential = await signInWithEmailAndPassword(auth, cnpjToEmail(cnpj), password);
         }
         
         // Migração silenciosa: se logou com email fictício mas tem email real no Firestore,
-        // atualiza o Firebase Auth para usar o email real (sem perda de dados)
-        if (emailReal && userCredential.user.email === cnpjToEmail(cnpj)) {
+        // atualiza o Firebase Auth para usar o primeiro email real encontrado (sem perda de dados)
+        const emailParaMigrar = emailsReais.length > 0 ? emailsReais[0] : null;
+        if (emailParaMigrar && userCredential.user.email === cnpjToEmail(cnpj)) {
           try {
-            await updateEmail(userCredential.user, emailReal);
-            console.log('✅ Email migrado para email real:', emailReal);
+            await updateEmail(userCredential.user, emailParaMigrar);
+            console.log('✅ Email migrado para email real:', emailParaMigrar);
           } catch (migrateErr) {
             // Não bloqueia o login se a migração falhar
             console.log('⚠️ Migração de email adiada:', migrateErr.code);
@@ -452,29 +453,35 @@ import {
       }
     },
   
-    // Busca email real no Firestore pelo CNPJ (users e empresas)
-    async buscarEmailPorCnpj(cnpj) {
+    // Busca emails reais no Firestore pelo CNPJ (users e empresas)
+    async buscarEmailsPorCnpj(cnpj) {
       const cleanCnpj = cnpj.replace(/[^\d]/g, '');
       const cnpjFormatado = cleanCnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
       const variantes = [...new Set([cleanCnpj, cnpjFormatado, cnpj.trim()])];
 
       // Busca nas coleções users e empresas — todas as consultas em PARALELO
-      // (antes eram até 6 em fila, o que deixava o login lento no mobile).
       const colecoes = ['users', 'empresas'];
       const buscas = [];
       for (const colecao of colecoes) {
         for (const variante of variantes) {
-          const q = query(collection(db, colecao), where('cnpj', '==', variante), limit(1));
+          const q = query(collection(db, colecao), where('cnpj', '==', variante));
           buscas.push(
             getDocs(q)
-              .then((snap) => (!snap.empty ? snap.docs[0].data().email : null))
-              .catch(() => null) // ignora erro por variante
+              .then((snap) => {
+                const emails = [];
+                snap.forEach(doc => {
+                  if (doc.data().email) emails.push(doc.data().email.trim().toLowerCase());
+                });
+                return emails;
+              })
+              .catch(() => []) // ignora erro por variante
           );
         }
       }
 
       const resultados = await Promise.all(buscas);
-      return resultados.find((email) => !!email) || null;
+      const allEmails = resultados.flat().filter(e => !!e);
+      return [...new Set(allEmails)]; // retorna array de emails únicos
     },
 
     // Reset de senha: verifica CNPJ + email antes de enviar o link
@@ -489,17 +496,17 @@ import {
 
         const emailLimpo = email.trim().toLowerCase();
 
-        // Verifica se o CNPJ está vinculado ao email informado
-        const emailCadastrado = await this.buscarEmailPorCnpj(cnpj);
+        // Verifica se o CNPJ está vinculado a algum email no Firestore
+        const emailsCadastrados = await this.buscarEmailsPorCnpj(cnpj);
 
-        if (!emailCadastrado) {
+        if (emailsCadastrados.length === 0) {
           return {
             success: false,
             error: 'CNPJ não encontrado ou sem email cadastrado. Entre em contato com o suporte.'
           };
         }
 
-        if (emailCadastrado.toLowerCase() !== emailLimpo) {
+        if (!emailsCadastrados.includes(emailLimpo)) {
           return {
             success: false,
             error: 'O email não corresponde ao cadastrado para este CNPJ.'
