@@ -16,6 +16,7 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
+auth.languageCode = 'pt-BR'; // Força os e-mails do Firebase a irem em português
 
 // Firestore com auto-detecção de long-polling (corrige travamento no Safari/iOS).
 // try/catch para o caso de já ter sido iniciado em services/firebaseConfig.
